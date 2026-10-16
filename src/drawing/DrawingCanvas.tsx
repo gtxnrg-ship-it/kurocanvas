@@ -179,7 +179,7 @@ export default function DrawingCanvas() {
     const name = window.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
     const id = crypto.randomUUID();
-    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]);
+    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default');
     setBackground('#fffdfb'); docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
     setLoaded(false); setSaveState('loading'); setNotice('Creating ' + name.trim());
   };
@@ -188,7 +188,7 @@ export default function DrawingCanvas() {
     if (!name?.trim()) return;
     setDrawingName(name.trim());
     try {
-      await drawingStorage.save({ id: drawingId, name: name.trim(), version: 1, width: docRef.current.width, height: docRef.current.height, background: docRef.current.background, strokes: docRef.current.strokes, updatedAt: new Date().toISOString() });
+      await drawingStorage.save({ id: drawingId, name: name.trim(), version: 1, width: docRef.current.width, height: docRef.current.height, background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString() });
       await refreshDocuments(); setSaveState('saved'); setNotice('Drawing renamed');
     } catch (error) { setSaveState('error'); setNotice('Rename failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };
@@ -199,7 +199,7 @@ export default function DrawingCanvas() {
       const remaining = await drawingStorage.list(); setDocuments(remaining);
       const next = remaining[0];
       if (next) switchDrawing(next.id);
-      else { switchDrawing('default-canvas-v1'); setDrawingName('My first sketch'); setStrokes([]); setRedoStack([]); }
+      else { switchDrawing('default-canvas-v1'); setDrawingName('My first sketch'); setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default'); }
       setNotice('Drawing deleted from this device');
     } catch (error) { setSaveState('error'); setNotice('Delete failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };

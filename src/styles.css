@@ -19,3 +19,7 @@
 .drawing-project-controls button{padding:8px 11px;border:1px solid var(--line,#ded9e8);border-radius:10px;background:var(--panel,#fff);color:inherit;font-size:12px;cursor:pointer}
 .drawing-project-controls button:hover{border-color:var(--accent,#b69aff)}
 @media(max-width:600px){.drawing-project-controls{gap:6px}.drawing-project-controls label{width:100%;justify-content:space-between}.drawing-project-controls select{flex:1;max-width:none}.drawing-project-controls button{padding:8px 9px}}
+
+
+/* Empty conversation state and truthful feature status */
+.empty-chat{margin:auto;max-width:430px;padding:30px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;color:#aaa1bb}.empty-chat .tiny-mark{width:42px;height:42px;border-radius:14px;font-size:18px}.empty-chat h2{margin:4px 0 0;font:700 18px Manrope,sans-serif;color:#eee6fa}.empty-chat p{margin:0;font-size:11px;line-height:1.75;color:#a49bb5}.empty-chat button{display:flex;align-items:center;gap:7px;margin-top:6px;padding:10px 13px;border:1px solid #6f579d;background:#302146;color:#eaddff;border-radius:9px;font-size:10px}.activitytitle small{letter-spacing:.5px}

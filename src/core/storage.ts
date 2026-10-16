@@ -1,10 +1,11 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
+const DRAWINGS = "drawings";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -16,6 +17,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(PROJECTS)) db.createObjectStore(PROJECTS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(TEMPLATES)) db.createObjectStore(TEMPLATES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(AUTOSAVE)) db.createObjectStore(AUTOSAVE, { keyPath: "projectId" });
+      if (!db.objectStoreNames.contains(DRAWINGS)) db.createObjectStore(DRAWINGS, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -80,6 +82,39 @@ export const projectStorage = {
     if (!record) return undefined;
     if (!validateProject(record.snapshot)) throw new Error("The recovery snapshot is invalid.");
     return record.snapshot;
+  },
+};
+
+export interface LocalDrawingDocument {
+  id: string;
+  version: 1;
+  width: number;
+  height: number;
+  background: string;
+  strokes: Array<{
+    id: string;
+    tool: "brush" | "eraser";
+    color: string;
+    size: number;
+    points: Array<{ x: number; y: number; pressure: number }>;
+  }>;
+  updatedAt: string;
+}
+
+/** Durable, device-local drawing documents. Writes complete before the promise resolves. */
+export const drawingStorage = {
+  async save(document: LocalDrawingDocument): Promise<void> {
+    if (!document.id || document.version !== 1 || !Number.isFinite(document.width) || !Number.isFinite(document.height) || !Array.isArray(document.strokes)) {
+      throw new Error("Refusing to save an invalid drawing document.");
+    }
+    await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({ ...document, updatedAt: new Date().toISOString() }));
+  },
+  async load(id: string): Promise<LocalDrawingDocument | undefined> {
+    const result = await requestValue<LocalDrawingDocument | undefined>(DRAWINGS, "readonly", store => store.get(id));
+    if (result && (result.version !== 1 || !Array.isArray(result.strokes) || !Number.isFinite(result.width) || !Number.isFinite(result.height))) {
+      throw new Error("This saved drawing is damaged or uses an unsupported version.");
+    }
+    return result;
   },
 };
 

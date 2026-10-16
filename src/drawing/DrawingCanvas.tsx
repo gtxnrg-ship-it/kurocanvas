@@ -9,13 +9,15 @@ type Stroke = { id: string; tool: 'brush' | 'eraser'; color: string; size: numbe
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
-const DRAWING_ID = 'default-canvas-v1';
 
 export default function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
+  const [documents, setDocuments] = useState<Array<{id:string;name?:string;updatedAt:string}>>([]);
+  const [drawingId, setDrawingId] = useState('default-canvas-v1');
+  const [drawingName, setDrawingName] = useState('My first sketch');
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
@@ -75,16 +77,26 @@ export default function DrawingCanvas() {
     return () => observer.disconnect();
   }, [render]);
 
+  const refreshDocuments = useCallback(async () => {
+    try { setDocuments(await drawingStorage.list()); }
+    catch (error) { setNotice('Could not list local drawings: ' + (error instanceof Error ? error.message : 'unknown error')); }
+  }, []);
+
+  useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
+
   useEffect(() => {
     let cancelled = false;
-    drawingStorage.load(DRAWING_ID).then(saved => {
+    setLoaded(false); setSaveState('loading');
+    drawingStorage.load(drawingId).then(saved => {
       if (cancelled) return;
       if (saved) {
         const doc: LocalDrawingDocument = saved;
         docRef.current = { version: 1, width: doc.width, height: doc.height, background: doc.background, strokes: doc.strokes };
-        setStrokes(doc.strokes); setBackground(doc.background);
-        setNotice('Recovered your last saved drawing');
+        setStrokes(doc.strokes); setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
+        setNotice('Opened ' + (doc.name || 'saved drawing'));
       } else {
+        docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
+        setStrokes([]); setRedoStack([]); setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
       }
       setLoaded(true); setSaveState('saved');
@@ -94,7 +106,7 @@ export default function DrawingCanvas() {
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [drawingId]);
 
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
@@ -103,7 +115,7 @@ export default function DrawingCanvas() {
     setSaveState('saving');
     const timer = window.setTimeout(() => {
       drawingStorage.save({
-        id: DRAWING_ID, version: 1, width: docRef.current.width, height: docRef.current.height,
+        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background: docRef.current.background, strokes: docRef.current.strokes, updatedAt: new Date().toISOString(),
       }).then(() => setSaveState('saved')).catch(error => {
         setSaveState('error');
@@ -111,7 +123,7 @@ export default function DrawingCanvas() {
       });
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [strokes, background, loaded, render]);
+  }, [strokes, background, loaded, render, drawingId, drawingName]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -154,8 +166,37 @@ export default function DrawingCanvas() {
     const link = document.createElement('a'); link.download = 'kuro-canvas-sketch.png'; link.href = out.toDataURL('image/png'); link.click(); setNotice('PNG exported at 1600 × 1200');
   };
 
+  const createDrawing = () => {
+    const name = window.prompt('Name your new drawing', 'Untitled drawing');
+    if (!name?.trim()) return;
+    const id = crypto.randomUUID();
+    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]);
+    setBackground('#fffdfb'); docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
+    setLoaded(true); setSaveState('saving'); setNotice('Created ' + name.trim());
+  };
+  const renameDrawing = async () => {
+    const name = window.prompt('Rename drawing', drawingName);
+    if (!name?.trim()) return;
+    setDrawingName(name.trim());
+    try {
+      await drawingStorage.save({ id: drawingId, name: name.trim(), version: 1, width: docRef.current.width, height: docRef.current.height, background: docRef.current.background, strokes: docRef.current.strokes, updatedAt: new Date().toISOString() });
+      await refreshDocuments(); setSaveState('saved'); setNotice('Drawing renamed');
+    } catch (error) { setSaveState('error'); setNotice('Rename failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
+  };
+  const deleteDrawing = async () => {
+    if (!window.confirm('Delete "' + drawingName + '" from this device? This cannot be undone.')) return;
+    try {
+      await drawingStorage.remove(drawingId);
+      const remaining = await drawingStorage.list(); setDocuments(remaining);
+      const next = remaining[0];
+      if (next) setDrawingId(next.id);
+      else { setDrawingId('default-canvas-v1'); setDrawingName('My first sketch'); setStrokes([]); setRedoStack([]); setLoaded(true); }
+      setNotice('Drawing deleted from this device');
+    } catch (error) { setSaveState('error'); setNotice('Delete failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
+  };
+
   return <section className="alt drawing-alt">
-    <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Real strokes, erasing, undo/redo, pressure-aware input, and PNG export.</p></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
+    <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Real strokes, erasing, undo/redo, pressure-aware input, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => setDrawingId(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
     {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Pressure is used when your device reports it. Use the eraser to remove pixels from earlier strokes; Undo restores the last stroke. PNG export uses the full 1600 × 1200 document size.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">

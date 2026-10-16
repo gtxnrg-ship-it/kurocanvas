@@ -87,6 +87,7 @@ export const projectStorage = {
 
 export interface LocalDrawingDocument {
   id: string;
+  name?: string;
   version: 1;
   width: number;
   height: number;
@@ -115,6 +116,14 @@ export const drawingStorage = {
       throw new Error("This saved drawing is damaged or uses an unsupported version.");
     }
     return result;
+  },
+  async list(): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
+    const documents = await requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll());
+    return documents.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+  async remove(id: string): Promise<void> {
+    await requestValue<undefined>(DRAWINGS, "readwrite", store => store.delete(id));
   },
 };
 

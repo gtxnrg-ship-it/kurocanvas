@@ -1,0 +1,134 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp } from 'lucide-react';
+
+type Tool = 'brush' | 'eraser' | 'pan';
+type Point = { x: number; y: number; pressure: number };
+type Stroke = { id: string; tool: 'brush' | 'eraser'; color: string; size: number; points: Point[] };
+type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
+
+const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+
+export default function DrawingCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<Stroke | null>(null);
+  const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
+  const [tool, setTool] = useState<Tool>('brush');
+  const [color, setColor] = useState(COLORS[2]);
+  const [size, setSize] = useState(6);
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [background, setBackground] = useState('#fffdfb');
+  const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
+  const [showHelp, setShowHelp] = useState(false);
+
+  const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const w = Math.max(1, rect.width), h = Math.max(1, rect.height);
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    const sx = w / docRef.current.width, sy = h / docRef.current.height;
+    ctx.save(); ctx.scale(sx, sy);
+    for (const stroke of nextStrokes) {
+      if (!stroke.points.length) continue;
+      ctx.save();
+      ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.strokeStyle = stroke.tool === 'eraser' ? '#000' : stroke.color;
+      ctx.fillStyle = stroke.tool === 'eraser' ? '#000' : stroke.color;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (stroke.points.length === 1) {
+        const p = stroke.points[0]; ctx.beginPath(); ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2); ctx.fill();
+      } else {
+        for (let i = 1; i < stroke.points.length; i++) {
+          const a = stroke.points[i - 1], b = stroke.points[i];
+          ctx.beginPath(); ctx.lineWidth = stroke.size * Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
+          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+    const observer = new ResizeObserver(() => render());
+    observer.observe(wrap);
+    render();
+    return () => observer.disconnect();
+  }, [render]);
+
+  useEffect(() => { docRef.current = { ...docRef.current, strokes, background }; render(strokes, background); }, [strokes, background, render]);
+
+  const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
+  };
+  const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (tool === 'pan') { setNotice('Pan mode selected · pinch/zoom controls are available below'); return; }
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const p = pointFromEvent(e);
+    activeRef.current = { id: crypto.randomUUID(), tool, color, size, points: [p] };
+    render([...strokes, activeRef.current], background);
+  };
+  const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!activeRef.current) return;
+    const points = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
+    activeRef.current.points.push(...points.map(ev => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      return { x: ((ev.clientX - rect.left) / rect.width) * docRef.current.width, y: ((ev.clientY - rect.top) / rect.height) * docRef.current.height, pressure: ev.pressure > 0 ? ev.pressure : 0.5 };
+    }));
+    render([...strokes, activeRef.current], background);
+  };
+  const pointerUp = () => {
+    if (!activeRef.current) return;
+    setStrokes(old => [...old, activeRef.current!]); activeRef.current = null; setRedoStack([]);
+    setNotice('Stroke added · Undo is available');
+  };
+  const undo = () => { if (!strokes.length) return; setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone'); };
+  const redo = () => { if (!redoStack.length) return; setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored'); };
+  const clear = () => { if (!strokes.length || !window.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setNotice('Canvas cleared'); };
+  const exportPng = () => {
+    const out = document.createElement('canvas'); out.width = docRef.current.width; out.height = docRef.current.height;
+    const ctx = out.getContext('2d'); if (!ctx) return;
+    ctx.fillStyle = background; ctx.fillRect(0, 0, out.width, out.height);
+    for (const s of strokes) {
+      if (!s.points.length) continue; ctx.save(); ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'; ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (s.points.length === 1) { const p = s.points[0]; ctx.beginPath(); ctx.arc(p.x, p.y, s.size * (p.pressure || .5), 0, Math.PI * 2); ctx.fill(); }
+      else for (let i=1;i<s.points.length;i++) { const a=s.points[i-1], b=s.points[i]; ctx.beginPath(); ctx.lineWidth=s.size*Math.max(.15,((a.pressure||.5)+(b.pressure||.5))/2); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      ctx.restore();
+    }
+    const link = document.createElement('a'); link.download = 'kuro-canvas-sketch.png'; link.href = out.toDataURL('image/png'); link.click(); setNotice('PNG exported at 1600 × 1200');
+  };
+
+  return <section className="alt drawing-alt">
+    <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Real strokes, erasing, undo/redo, pressure-aware input, and PNG export.</p></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
+    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Pressure is used when your device reports it. Use the eraser to remove pixels from earlier strokes; Undo restores the last stroke. PNG export uses the full 1600 × 1200 document size.</div>}
+    <div className="draw-toolbar">
+      <div className="draw-toolgroup">
+        <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>
+        <button className={tool==='eraser'?'chosen':''} onClick={() => setTool('eraser')} title="Eraser"><Eraser size={16}/><span>Eraser</span></button>
+        <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
+      </div>
+      <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}</div>
+      <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{size}px</b></label>
+      <div className="draw-actions"><button title="Undo" disabled={!strokes.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
+    </div>
+    <div className="drawing-stage" ref={wrapRef}>
+      <div className="drawing-paper" style={{ transform: 'scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
+    </div>
+    <div className="draw-status"><span><i/> {notice}</span><span>{strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
+  </section>;
+}

@@ -99,7 +99,7 @@ export interface LocalDrawingDocument {
   width: number;
   height: number;
   background: string;
-  layers?: Array<{ id: string; name: string; visible: boolean; locked: boolean }>;
+  layers?: Array<{ id: string; name: string; visible: boolean; locked: boolean; opacity?: number; blendMode?: 'normal' | 'multiply' | 'screen' | 'overlay' }>;
   strokes: Array<{
     id: string;
     layerId?: string;

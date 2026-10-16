@@ -19,3 +19,6 @@
 .drawing-project-controls button{padding:8px 11px;border:1px solid var(--line,#ded9e8);border-radius:10px;background:var(--panel,#fff);color:inherit;font-size:12px;cursor:pointer}
 .drawing-project-controls button:hover{border-color:var(--accent,#b69aff)}
 @media(max-width:600px){.drawing-project-controls{gap:6px}.drawing-project-controls label{width:100%;justify-content:space-between}.drawing-project-controls select{flex:1;max-width:none}.drawing-project-controls button{padding:8px 9px}}
+
+.layer-row{flex-wrap:wrap}.layer-opacity{display:flex;align-items:center;gap:5px;font-size:9px;color:#a49bb8}.layer-opacity input{width:64px;accent-color:#a78bfa}.layer-row select{max-width:90px;background:#171421;color:#cfc4e2;border:1px solid #3a304b;border-radius:6px;padding:4px;font-size:9px}.layer-row button:disabled{opacity:.25;cursor:not-allowed}
+@media(max-width:780px){.layer-opacity{width:100%;padding-left:8px}.layer-opacity input{flex:1}.layer-row select{max-width:100px}}

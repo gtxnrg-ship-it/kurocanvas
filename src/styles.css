@@ -10,3 +10,12 @@
 @media(max-width:780px){.drawing-alt{padding:17px 10px}.draw-toolbar{gap:8px;padding:8px}.draw-toolgroup button{padding:0 7px}.draw-toolgroup button span{display:none}.draw-colors{gap:5px;padding:0 2px}.draw-colors button{width:17px;height:17px}.size-control{flex:1;min-width:115px}.size-control input{min-width:30px;flex:1}.draw-actions{margin-left:0;flex-wrap:wrap;gap:2px}.draw-actions button{min-height:29px;padding:0 7px}.drawing-stage{height:calc(100dvh - 290px);min-height:250px;padding:10px}.drawing-paper{width:100%;max-height:none}.draw-status{font-size:8px}.drawing-alt .althead{gap:12px}.drawing-alt .althead>button{width:auto}.draw-actions button.export{font-size:9px}}
 
 .save-indicator{display:inline-flex;align-items:center;gap:5px}.save-indicator.saved{color:#80dfc1}.save-indicator.saving{color:#d9bd80}.save-indicator.error{color:#ff9baf}.save-indicator.loading{color:#aaa0bd}.draw-status>span:first-child svg{color:#ff9baf;flex:0 0 auto}
+
+
+/* Local drawing document controls */
+.drawing-project-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.drawing-project-controls label{display:flex;align-items:center;gap:8px;color:var(--muted,#8d8798);font-size:12px}
+.drawing-project-controls select{max-width:220px;min-width:130px;padding:8px 10px;border:1px solid var(--line,#ded9e8);border-radius:10px;background:var(--panel,#fff);color:inherit;font:inherit}
+.drawing-project-controls button{padding:8px 11px;border:1px solid var(--line,#ded9e8);border-radius:10px;background:var(--panel,#fff);color:inherit;font-size:12px;cursor:pointer}
+.drawing-project-controls button:hover{border-color:var(--accent,#b69aff)}
+@media(max-width:600px){.drawing-project-controls{gap:6px}.drawing-project-controls label{width:100%;justify-content:space-between}.drawing-project-controls select{flex:1;max-width:none}.drawing-project-controls button{padding:8px 9px}}

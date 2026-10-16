@@ -5,7 +5,8 @@ import type { LocalDrawingDocument } from '../core/storage';
 
 type Tool = 'brush' | 'eraser' | 'pan';
 type Point = { x: number; y: number; pressure: number };
-type Stroke = { id: string; tool: 'brush' | 'eraser'; color: string; size: number; points: Point[] };
+type Layer = { id: string; name: string; visible: boolean; locked: boolean };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
@@ -22,6 +23,8 @@ export default function DrawingCanvas() {
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]);
+  const [activeLayerId, setActiveLayerId] = useState('layer-default');
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
   const [zoom, setZoom] = useState(1);
   const [background, setBackground] = useState('#fffdfb');
@@ -47,7 +50,8 @@ export default function DrawingCanvas() {
     const sx = w / docRef.current.width, sy = h / docRef.current.height;
     ctx.save(); ctx.scale(sx, sy);
     for (const stroke of nextStrokes) {
-      if (!stroke.points.length) continue;
+      const layer = layers.find(item => item.id === (stroke.layerId || layers[0]?.id));
+      if (!layer || !layer.visible || !stroke.points.length) continue;
       ctx.save();
       ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
       ctx.strokeStyle = stroke.tool === 'eraser' ? '#000' : stroke.color;
@@ -65,7 +69,7 @@ export default function DrawingCanvas() {
       ctx.restore();
     }
     ctx.restore();
-  }, []);
+  }, [layers]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -92,11 +96,11 @@ export default function DrawingCanvas() {
       if (saved) {
         const doc: LocalDrawingDocument = saved;
         docRef.current = { version: 1, width: doc.width, height: doc.height, background: doc.background, strokes: doc.strokes };
-        setStrokes(doc.strokes); setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
+        setStrokes(doc.strokes); setLayers(doc.layers?.length ? doc.layers : [{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId(doc.layers?.[0]?.id || 'layer-default'); setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
         setNotice('Opened ' + (doc.name || 'saved drawing'));
       } else {
         docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
-        setStrokes([]); setRedoStack([]); setBackground('#fffdfb');
+        setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default'); setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
       }
       setLoaded(true); setSaveState('saved');
@@ -116,14 +120,14 @@ export default function DrawingCanvas() {
     const timer = window.setTimeout(() => {
       drawingStorage.save({
         id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
-        background: docRef.current.background, strokes: docRef.current.strokes, updatedAt: new Date().toISOString(),
+        background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString(),
       }).then(() => setSaveState('saved')).catch(error => {
         setSaveState('error');
         setNotice('Autosave failed: ' + (error instanceof Error ? error.message : 'unknown error'));
       });
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [strokes, background, loaded, render, drawingId, drawingName]);
+  }, [strokes, background, layers, loaded, render, drawingId, drawingName]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -132,8 +136,9 @@ export default function DrawingCanvas() {
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === 'pan') { setNotice('Pan mode selected · pinch/zoom controls are available below'); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
     const p = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), tool, color, size, points: [p] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool, color, size, points: [p] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -166,6 +171,8 @@ export default function DrawingCanvas() {
     const link = document.createElement('a'); link.download = 'kuro-canvas-sketch.png'; link.href = out.toDataURL('image/png'); link.click(); setNotice('PNG exported at 1600 × 1200');
   };
 
+  const addLayer = () => { const name = window.prompt('Layer name', 'New layer'); if (!name?.trim()) return; const layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false }; setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name); };
+  const renameLayer = (id: string) => { const current = layers.find(layer => layer.id === id); if (!current) return; const name = window.prompt('Rename layer', current.name); if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); };
 
   const createDrawing = () => {
@@ -210,6 +217,7 @@ export default function DrawingCanvas() {
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
+    <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><button onClick={addLayer}>＋ Add layer</button></div>{[...layers].reverse().map(layer => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>
       <div className="drawing-paper" style={{ transform: 'scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
     </div>

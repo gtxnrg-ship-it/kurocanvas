@@ -31,8 +31,15 @@ async function requestValue<T>(storeName: string, mode: IDBTransactionMode, oper
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(storeName, mode);
       const request = operation(tx.objectStore(storeName));
-      request.onsuccess = () => resolve(request.result);
+      let result: T;
+      let hasResult = false;
+      request.onsuccess = () => { result = request.result; hasResult = true; };
       request.onerror = () => reject(request.error ?? new Error("Local storage operation failed."));
+      tx.oncomplete = () => {
+        if (hasResult) resolve(result);
+        else reject(new Error("Local storage transaction completed without a result."));
+      };
+      tx.onerror = () => reject(tx.error ?? new Error("Local storage transaction failed."));
       tx.onabort = () => reject(tx.error ?? new Error("Local storage transaction aborted."));
     });
   } finally {

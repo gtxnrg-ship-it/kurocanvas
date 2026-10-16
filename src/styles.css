@@ -19,3 +19,6 @@
 .drawing-project-controls button{padding:8px 11px;border:1px solid var(--line,#ded9e8);border-radius:10px;background:var(--panel,#fff);color:inherit;font-size:12px;cursor:pointer}
 .drawing-project-controls button:hover{border-color:var(--accent,#b69aff)}
 @media(max-width:600px){.drawing-project-controls{gap:6px}.drawing-project-controls label{width:100%;justify-content:space-between}.drawing-project-controls select{flex:1;max-width:none}.drawing-project-controls button{padding:8px 9px}}
+
+/* Drawing layer controls */
+.layer-panel{border:1px solid #2e283b;border-top:0;background:#100e18;padding:10px 12px;display:grid;gap:6px}.layer-panel-head,.layer-row{display:flex;align-items:center;gap:7px}.layer-panel-head{justify-content:space-between;color:#e4d9f7;font-size:11px}.layer-panel button{border:1px solid #393047;background:#1a1726;color:#c8bddf;border-radius:7px;padding:6px 8px;font-size:10px}.layer-panel-head button{background:#302146;border-color:#604a83}.layer-row{padding:4px;border:1px solid transparent;border-radius:8px}.layer-row.active-layer{background:#211a32;border-color:#554171}.layer-row .layer-select{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.layer-row button:not(.layer-select){min-width:30px}

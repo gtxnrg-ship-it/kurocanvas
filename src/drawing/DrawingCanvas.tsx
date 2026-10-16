@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle } from 'lucide-react';
+import { drawingStorage } from '../core/storage';
+import type { LocalDrawingDocument } from '../core/storage';
 
 type Tool = 'brush' | 'eraser' | 'pan';
 type Point = { x: number; y: number; pressure: number };
@@ -7,6 +9,7 @@ type Stroke = { id: string; tool: 'brush' | 'eraser'; color: string; size: numbe
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+const DRAWING_ID = 'default-canvas-v1';
 
 export default function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,6 +25,8 @@ export default function DrawingCanvas() {
   const [background, setBackground] = useState('#fffdfb');
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
   const [showHelp, setShowHelp] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saveState, setSaveState] = useState<'loading'|'saved'|'saving'|'error'>('loading');
 
   const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
     const canvas = canvasRef.current;
@@ -70,7 +75,43 @@ export default function DrawingCanvas() {
     return () => observer.disconnect();
   }, [render]);
 
-  useEffect(() => { docRef.current = { ...docRef.current, strokes, background }; render(strokes, background); }, [strokes, background, render]);
+  useEffect(() => {
+    let cancelled = false;
+    drawingStorage.load(DRAWING_ID).then(saved => {
+      if (cancelled) return;
+      if (saved) {
+        const doc: LocalDrawingDocument = saved;
+        docRef.current = { version: 1, width: doc.width, height: doc.height, background: doc.background, strokes: doc.strokes };
+        setStrokes(doc.strokes); setBackground(doc.background);
+        setNotice('Recovered your last saved drawing');
+      } else {
+        setNotice('New canvas · Drawings save automatically on this device');
+      }
+      setLoaded(true); setSaveState('saved');
+    }).catch(error => {
+      if (cancelled) return;
+      setLoaded(true); setSaveState('error');
+      setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    docRef.current = { ...docRef.current, strokes, background };
+    render(strokes, background);
+    if (!loaded) return;
+    setSaveState('saving');
+    const timer = window.setTimeout(() => {
+      drawingStorage.save({
+        id: DRAWING_ID, version: 1, width: docRef.current.width, height: docRef.current.height,
+        background: docRef.current.background, strokes: docRef.current.strokes, updatedAt: new Date().toISOString(),
+      }).then(() => setSaveState('saved')).catch(error => {
+        setSaveState('error');
+        setNotice('Autosave failed: ' + (error instanceof Error ? error.message : 'unknown error'));
+      });
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [strokes, background, loaded, render]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -129,6 +170,6 @@ export default function DrawingCanvas() {
     <div className="drawing-stage" ref={wrapRef}>
       <div className="drawing-paper" style={{ transform: 'scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
     </div>
-    <div className="draw-status"><span><i/> {notice}</span><span>{strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
+    <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
   </section>;
 }

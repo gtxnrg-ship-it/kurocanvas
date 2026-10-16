@@ -99,8 +99,10 @@ export interface LocalDrawingDocument {
   width: number;
   height: number;
   background: string;
+  layers?: Array<{ id: string; name: string; visible: boolean; locked: boolean }>;
   strokes: Array<{
     id: string;
+    layerId?: string;
     tool: "brush" | "eraser";
     color: string;
     size: number;

@@ -10,6 +10,41 @@ type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; color: s
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false };
+
+function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+  if (!stroke.points.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+  ctx.strokeStyle = stroke.color;
+  ctx.fillStyle = stroke.color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (stroke.points.length === 1) {
+    const p = stroke.points[0];
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    for (let i = 1; i < stroke.points.length; i++) {
+      const a = stroke.points[i - 1], b = stroke.points[i];
+      ctx.beginPath();
+      ctx.lineWidth = stroke.size * Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function createSurface(width: number, height: number): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  const surface = document.createElement('canvas');
+  surface.width = width;
+  surface.height = height;
+  return surface;
+}
 
 export default function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,8 +58,8 @@ export default function DrawingCanvas() {
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [layers, setLayers] = useState<Layer[]>([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]);
-  const [activeLayerId, setActiveLayerId] = useState('layer-default');
+  const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
+  const [activeLayerId, setActiveLayerId] = useState(DEFAULT_LAYER.id);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
   const [zoom, setZoom] = useState(1);
   const [background, setBackground] = useState('#fffdfb');
@@ -39,42 +74,42 @@ export default function DrawingCanvas() {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const w = Math.max(1, rect.width), h = Math.max(1, rect.height);
-    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    const pixelWidth = Math.round(w * dpr), pixelHeight = Math.round(h * dpr);
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
     }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Each layer gets its own transparent surface. destination-out therefore only
+    // erases pixels on that layer, never artwork drawn on a different layer.
     const sx = w / docRef.current.width, sy = h / docRef.current.height;
-    ctx.save(); ctx.scale(sx, sy);
-    for (const stroke of nextStrokes) {
-      const layer = layers.find(item => item.id === (stroke.layerId || layers[0]?.id));
-      if (!layer || !layer.visible || !stroke.points.length) continue;
-      ctx.save();
-      ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
-      ctx.strokeStyle = stroke.tool === 'eraser' ? '#000' : stroke.color;
-      ctx.fillStyle = stroke.tool === 'eraser' ? '#000' : stroke.color;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (stroke.points.length === 1) {
-        const p = stroke.points[0]; ctx.beginPath(); ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2); ctx.fill();
-      } else {
-        for (let i = 1; i < stroke.points.length; i++) {
-          const a = stroke.points[i - 1], b = stroke.points[i];
-          ctx.beginPath(); ctx.lineWidth = stroke.size * Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-        }
+    for (const layer of [...layers].reverse()) {
+      if (!layer.visible) continue;
+      const surface = createSurface(docRef.current.width, docRef.current.height);
+      const layerCtx = surface?.getContext('2d');
+      if (!surface || !layerCtx) continue;
+      for (const stroke of nextStrokes) {
+        const strokeLayerId = stroke.layerId || layers[0]?.id;
+        if (strokeLayerId === layer.id) drawStroke(layerCtx, stroke);
       }
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.scale(sx, sy);
+      ctx.drawImage(surface, 0, 0);
       ctx.restore();
     }
-    ctx.restore();
   }, [layers]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    if (!wrap) return;
     const observer = new ResizeObserver(() => render());
     observer.observe(wrap);
     render();
@@ -85,7 +120,6 @@ export default function DrawingCanvas() {
     try { setDocuments(await drawingStorage.list()); }
     catch (error) { setNotice('Could not list local drawings: ' + (error instanceof Error ? error.message : 'unknown error')); }
   }, []);
-
   useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
 
   useEffect(() => {
@@ -95,12 +129,16 @@ export default function DrawingCanvas() {
       if (cancelled) return;
       if (saved) {
         const doc: LocalDrawingDocument = saved;
+        const nextLayers = doc.layers?.length ? doc.layers : [DEFAULT_LAYER];
         docRef.current = { version: 1, width: doc.width, height: doc.height, background: doc.background, strokes: doc.strokes };
-        setStrokes(doc.strokes); setLayers(doc.layers?.length ? doc.layers : [{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId(doc.layers?.[0]?.id || 'layer-default'); setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
+        setStrokes(doc.strokes); setLayers(nextLayers);
+        setActiveLayerId(nextLayers.find(layer => !layer.locked)?.id || nextLayers[0].id);
+        setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
         setNotice('Opened ' + (doc.name || 'saved drawing'));
       } else {
         docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
-        setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default'); setBackground('#fffdfb');
+        setStrokes([]); setRedoStack([]); setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
+        setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
       }
       setLoaded(true); setSaveState('saved');
@@ -121,13 +159,16 @@ export default function DrawingCanvas() {
       drawingStorage.save({
         id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString(),
-      }).then(() => setSaveState('saved')).catch(error => {
+      }).then(() => {
+        setSaveState(current => current === 'saving' ? 'saved' : current);
+        void refreshDocuments();
+      }).catch(error => {
         setSaveState('error');
         setNotice('Autosave failed: ' + (error instanceof Error ? error.message : 'unknown error'));
       });
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [strokes, background, layers, loaded, render, drawingId, drawingName]);
+  }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -135,16 +176,15 @@ export default function DrawingCanvas() {
   };
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === 'pan') { setNotice('Pan mode selected · pinch/zoom controls are available below'); return; }
-    e.currentTarget.setPointerCapture(e.pointerId);
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
-    const p = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool, color, size, points: [p] };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool, color, size, points: [pointFromEvent(e)] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!activeRef.current) return;
-    const points = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
-    activeRef.current.points.push(...points.map(ev => {
+    const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
+    activeRef.current.points.push(...events.map(ev => {
       const rect = e.currentTarget.getBoundingClientRect();
       return { x: ((ev.clientX - rect.left) / rect.width) * docRef.current.width, y: ((ev.clientY - rect.top) / rect.height) * docRef.current.height, pressure: ev.pressure > 0 ? ev.pressure : 0.5 };
     }));
@@ -152,36 +192,58 @@ export default function DrawingCanvas() {
   };
   const pointerUp = () => {
     if (!activeRef.current) return;
-    setStrokes(old => [...old, activeRef.current!]); activeRef.current = null; setRedoStack([]);
+    setStrokes(old => [...old, activeRef.current!]);
+    activeRef.current = null;
+    setRedoStack([]);
     setNotice('Stroke added · Undo is available');
   };
   const undo = () => { if (!strokes.length) return; setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone'); };
   const redo = () => { if (!redoStack.length) return; setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored'); };
   const clear = () => { if (!strokes.length || !window.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setNotice('Canvas cleared'); };
+
   const exportPng = () => {
-    const out = document.createElement('canvas'); out.width = docRef.current.width; out.height = docRef.current.height;
-    const ctx = out.getContext('2d'); if (!ctx) return;
+    const out = createSurface(docRef.current.width, docRef.current.height);
+    const ctx = out?.getContext('2d');
+    if (!out || !ctx) { setNotice('PNG export is unavailable in this browser'); return; }
     ctx.fillStyle = background; ctx.fillRect(0, 0, out.width, out.height);
-    for (const s of strokes) {
-      if (!s.points.length) continue; ctx.save(); ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'; ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (s.points.length === 1) { const p = s.points[0]; ctx.beginPath(); ctx.arc(p.x, p.y, s.size * (p.pressure || .5), 0, Math.PI * 2); ctx.fill(); }
-      else for (let i=1;i<s.points.length;i++) { const a=s.points[i-1], b=s.points[i]; ctx.beginPath(); ctx.lineWidth=s.size*Math.max(.15,((a.pressure||.5)+(b.pressure||.5))/2); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
-      ctx.restore();
+    for (const layer of [...layers].reverse()) {
+      if (!layer.visible) continue;
+      const surface = createSurface(out.width, out.height);
+      const layerCtx = surface?.getContext('2d');
+      if (!surface || !layerCtx) continue;
+      for (const stroke of strokes) {
+        if ((stroke.layerId || layers[0]?.id) === layer.id) drawStroke(layerCtx, stroke);
+      }
+      ctx.drawImage(surface, 0, 0);
     }
-    const link = document.createElement('a'); link.download = 'kuro-canvas-sketch.png'; link.href = out.toDataURL('image/png'); link.click(); setNotice('PNG exported at 1600 × 1200');
+    const link = document.createElement('a');
+    link.download = 'kuro-canvas-sketch.png';
+    link.href = out.toDataURL('image/png');
+    link.click();
+    setNotice('PNG exported at 1600 × 1200 · hidden layers excluded');
   };
 
-  const addLayer = () => { const name = window.prompt('Layer name', 'New layer'); if (!name?.trim()) return; const layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false }; setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name); };
-  const renameLayer = (id: string) => { const current = layers.find(layer => layer.id === id); if (!current) return; const name = window.prompt('Rename layer', current.name); if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); };
+  const addLayer = () => {
+    const name = window.prompt('Layer name', 'New layer');
+    if (!name?.trim()) return;
+    const layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false };
+    setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name);
+  };
+  const renameLayer = (id: string) => {
+    const current = layers.find(layer => layer.id === id);
+    if (!current) return;
+    const name = window.prompt('Rename layer', current.name);
+    if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
+  };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); };
-
   const createDrawing = () => {
     const name = window.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
     const id = crypto.randomUUID();
-    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default');
+    setLoaded(false); setSaveState('loading');
+    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]); setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
     setBackground('#fffdfb'); docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
-    setLoaded(false); setSaveState('loading'); setNotice('Creating ' + name.trim());
+    setNotice('Creating ' + name.trim());
   };
   const renameDrawing = async () => {
     const name = window.prompt('Rename drawing', drawingName);
@@ -199,14 +261,17 @@ export default function DrawingCanvas() {
       const remaining = await drawingStorage.list(); setDocuments(remaining);
       const next = remaining[0];
       if (next) switchDrawing(next.id);
-      else { switchDrawing('default-canvas-v1'); setDrawingName('My first sketch'); setStrokes([]); setRedoStack([]); setLayers([{ id: 'layer-default', name: 'Sketch', visible: true, locked: false }]); setActiveLayerId('layer-default'); }
+      else {
+        switchDrawing('default-canvas-v1'); setDrawingName('My first sketch'); setStrokes([]); setRedoStack([]);
+        setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
+      }
       setNotice('Drawing deleted from this device');
     } catch (error) { setSaveState('error'); setNotice('Delete failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };
 
   return <section className="alt drawing-alt">
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Real strokes, erasing, undo/redo, pressure-aware input, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Pressure is used when your device reports it. Use the eraser to remove pixels from earlier strokes; Undo restores the last stroke. PNG export uses the full 1600 × 1200 document size.</div>}
+    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Pressure is used when your device reports it. The eraser only affects the active layer; Undo restores the last stroke. PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>

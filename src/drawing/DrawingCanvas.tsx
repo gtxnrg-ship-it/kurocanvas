@@ -90,7 +90,7 @@ export default function DrawingCanvas() {
     // Each layer gets its own transparent surface. destination-out therefore only
     // erases pixels on that layer, never artwork drawn on a different layer.
     const sx = w / docRef.current.width, sy = h / docRef.current.height;
-    for (const layer of [...layers].reverse()) {
+    for (const layer of layers) {
       if (!layer.visible) continue;
       const surface = createSurface(docRef.current.width, docRef.current.height);
       const layerCtx = surface?.getContext('2d');
@@ -100,8 +100,8 @@ export default function DrawingCanvas() {
         if (strokeLayerId === layer.id) drawStroke(layerCtx, stroke);
       }
       ctx.save();
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = layer.opacity ?? 1;
+      ctx.globalCompositeOperation = layer.blendMode === 'normal' || !layer.blendMode ? 'source-over' : layer.blendMode;
       ctx.scale(sx, sy);
       ctx.drawImage(surface, 0, 0);
       ctx.restore();
@@ -215,7 +215,7 @@ export default function DrawingCanvas() {
       for (const stroke of strokes) {
         if ((stroke.layerId || layers[0]?.id) === layer.id) drawStroke(layerCtx, stroke);
       }
-      ctx.drawImage(surface, 0, 0);
+      ctx.save(); ctx.globalAlpha = layer.opacity ?? 1; ctx.globalCompositeOperation = layer.blendMode === 'normal' || !layer.blendMode ? 'source-over' : layer.blendMode; ctx.drawImage(surface, 0, 0); ctx.restore();
     }
     const link = document.createElement('a');
     link.download = 'kuro-canvas-sketch.png';

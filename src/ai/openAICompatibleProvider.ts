@@ -17,9 +17,11 @@ export interface OpenAICompatibleProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
+type MessageContent = string | Array<{ type?: string; text?: string }> | null | undefined;
+
 interface ChatCompletionPayload {
   choices?: Array<{
-    message?: { content?: string | Array<{ type?: string; text?: string }> | null };
+    message?: { content?: MessageContent };
     finish_reason?: string | null;
   }>;
   model?: string;
@@ -43,7 +45,7 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
   return url.toString().replace(/\/+$/, "");
 }
 
-function contentAsText(content: ChatCompletionPayload["choices"] extends Array<infer C> ? C extends {message?: infer M} ? M extends {content?: infer T} ? T : never : never : never): string {
+function contentAsText(content: MessageContent): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) return content.filter(part => part && typeof part.text === "string").map(part => part.text).join("");
   return "";

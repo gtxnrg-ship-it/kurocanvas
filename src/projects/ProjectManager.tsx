@@ -20,7 +20,7 @@ export default function ProjectManager() {
   useEffect(() => { void refresh(); }, []);
 
   async function createNew() {
-    const name = window.prompt('Name your project', 'Untitled project');
+    const name = globalThis.prompt('Name your project', 'Untitled project');
     if (!name?.trim()) return;
     setBusy(true);
     try {
@@ -44,7 +44,7 @@ export default function ProjectManager() {
       anchor.href = url;
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage('Exported “' + project.name + '”. Artwork files are not embedded yet.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');

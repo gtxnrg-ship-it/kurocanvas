@@ -72,7 +72,7 @@ export default function DrawingCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dpr = Math.max(1, globalThis.devicePixelRatio || 1);
     const w = Math.max(1, rect.width), h = Math.max(1, rect.height);
     const pixelWidth = Math.round(w * dpr), pixelHeight = Math.round(h * dpr);
     if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
@@ -155,7 +155,7 @@ export default function DrawingCanvas() {
     render(strokes, background);
     if (!loaded) return;
     setSaveState('saving');
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       drawingStorage.save({
         id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString(),
@@ -167,7 +167,7 @@ export default function DrawingCanvas() {
         setNotice('Autosave failed: ' + (error instanceof Error ? error.message : 'unknown error'));
       });
     }, 450);
-    return () => window.clearTimeout(timer);
+    return () => globalThis.clearTimeout(timer);
   }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
@@ -199,7 +199,7 @@ export default function DrawingCanvas() {
   };
   const undo = () => { if (!strokes.length) return; setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone'); };
   const redo = () => { if (!redoStack.length) return; setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored'); };
-  const clear = () => { if (!strokes.length || !window.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setNotice('Canvas cleared'); };
+  const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setNotice('Canvas cleared'); };
 
   const exportPng = () => {
     const out = createSurface(docRef.current.width, docRef.current.height);
@@ -224,7 +224,7 @@ export default function DrawingCanvas() {
   };
 
   const addLayer = () => {
-    const name = window.prompt('Layer name', 'New layer');
+    const name = globalThis.prompt('Layer name', 'New layer');
     if (!name?.trim()) return;
     const layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false };
     setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name);
@@ -232,12 +232,12 @@ export default function DrawingCanvas() {
   const renameLayer = (id: string) => {
     const current = layers.find(layer => layer.id === id);
     if (!current) return;
-    const name = window.prompt('Rename layer', current.name);
+    const name = globalThis.prompt('Rename layer', current.name);
     if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); };
   const createDrawing = () => {
-    const name = window.prompt('Name your new drawing', 'Untitled drawing');
+    const name = globalThis.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
     const id = crypto.randomUUID();
     setLoaded(false); setSaveState('loading');
@@ -246,7 +246,7 @@ export default function DrawingCanvas() {
     setNotice('Creating ' + name.trim());
   };
   const renameDrawing = async () => {
-    const name = window.prompt('Rename drawing', drawingName);
+    const name = globalThis.prompt('Rename drawing', drawingName);
     if (!name?.trim()) return;
     setDrawingName(name.trim());
     try {
@@ -255,7 +255,7 @@ export default function DrawingCanvas() {
     } catch (error) { setSaveState('error'); setNotice('Rename failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };
   const deleteDrawing = async () => {
-    if (!window.confirm('Delete "' + drawingName + '" from this device? This cannot be undone.')) return;
+    if (!globalThis.confirm('Delete "' + drawingName + '" from this device? This cannot be undone.')) return;
     try {
       await drawingStorage.remove(drawingId);
       const remaining = await drawingStorage.list(); setDocuments(remaining);

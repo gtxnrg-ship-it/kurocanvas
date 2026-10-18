@@ -43,7 +43,7 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Connect model output to the orchestrator and safe native tools (chat does not yet execute drawing actions).
 
 ## Phase 2 — Native drawing-action engine
-- [ ] Define versioned, typed drawing commands (strokes/points, paths, shapes, text, layer operations).
+- [x] Define a first versioned, strictly validated native command schema for stroke addition and basic layer visibility/opacity/lock changes in src/drawing/commands.ts (schema foundation only; not yet wired to the canvas).
 - [ ] Connect the tool registry to actual canvas functions.
 - [ ] Validate coordinates, sizes, colors, document/layer IDs and operation limits.
 - [ ] Prohibit arbitrary code execution and unrestricted filesystem/network access.
@@ -191,3 +191,11 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 6. Build the persistent series bible/canon UI and retrieval with temporal facts, provenance, status, character knowledge, and retcon impact.
 7. Implement outline -> scene -> panel plan -> native stick-figure thumbnails -> progressive panel refinement.
 8. Build comic/page/Webtoon layout, lettering, reusable vault, 3D references, research, full project package, and publishing/export hardening in the order defined in docs/PRODUCT-SPEC.md.
+
+
+## 2026-10-18 progress update
+- [x] PR #30 merged: configured OpenAI-compatible model provider and non-streaming chat connection. PR-head GitHub Actions passed; real hosted/local endpoint testing remains pending.
+- [x] PR #31 merged: exhaustive product specification added at docs/PRODUCT-SPEC.md and linked from README; roadmap reconciled with actual PR status.
+- [x] Initial native drawing command schema added on the current feature branch: strict JSON-safe types and bounds validation for stroke and layer commands. This is not yet an executor and does not modify canvas artwork.
+- [ ] Add tests for command validation and rejection cases.
+- [ ] Wire validated commands to the actual drawing canvas using deterministic execution, checkpoints, undo, and visible statuses.

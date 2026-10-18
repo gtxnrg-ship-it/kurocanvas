@@ -111,3 +111,10 @@ Before changing code:
 - **Blocked:** a known dependency or failure prevents progress.
 
 Keep the roadmap concise enough to use as a working checklist, but detailed enough that a new coding tool can resume without needing access to previous conversations. Do not mark the whole product "done" merely because a foundation or placeholder exists.
+
+
+## Complete product specification
+
+The exhaustive, tool-independent requirements and acceptance contract lives in **[docs/PRODUCT-SPEC.md](docs/PRODUCT-SPEC.md)**. It covers the full target experience: series/world planning, up-to-500-character canon memory, temporal continuity, native drawing-action execution, panel-by-panel rough-to-finished artwork, Creative Vault, optional 3D references, research/licensing, local-first storage, the portable .kuro package, provider/security requirements, device support, export/publishing, testing, and ordered milestones.
+
+**For any new chat or coding tool:** start with this README, then read [the product specification](docs/PRODUCT-SPEC.md) and [the master roadmap](ROADMAP.md). The specification is the target; the roadmap is the live implementation status. Never infer a feature is finished merely because it is described here.

@@ -22,19 +22,19 @@ These items have appeared in the repository's PR history. Their integration and 
 - Build workflow based on Node/npm; PR #18's recorded workflow runs passed for its commit.
 
 ## Immediate stabilization
-- [ ] Verify current `main` and reconcile PR status before duplicating work.
-- [ ] Inspect layer opacity/order/blending changes (PR #15); resolve conflicts and run checks before merge.
-- [x] Verify fictional preview cleanup PR #17 — recorded merged.
-- [x] Verify initial orchestrator PR #21 — recorded merged.
-- [ ] Confirm current production build and add repeatable TypeScript/build/test gates.
+- [x] Reconcile recent PR history: PR #17, #21, #25, #26, #27, #28, #29 and #30 are merged; PR #15 is closed unmerged and superseded by #27/#28.
+- [x] Add persistent README handoff rules and master documentation (PR #29).
+- [x] Add exhaustive product specification (this documentation PR; see docs/PRODUCT-SPEC.md).
+- [x] Add provider-to-chat UI and model discovery (PR #30; GitHub Actions passed for PR head).
+- [ ] Verify provider end-to-end against a real hosted and local endpoint; no real endpoint has been tested in this workflow.
 - [ ] Add regression tests for drawing, layer isolation, document switching, autosave/recovery and export.
-- [ ] Keep this roadmap aligned with actual code and CI.
+- [ ] Verify current main production build after all merged changes; keep roadmap aligned with CI.
 
 ## Phase 1 — Real model connection
 - [x] Implement an OpenAI-compatible chat-completions adapter in `src/ai/openAICompatibleProvider.ts` (implemented; verify via CI and real endpoint tests).
 - [x] Add provider URL security validation: HTTPS for remote endpoints and explicitly enabled HTTP only for localhost.
 - [x] Add provider settings UI to test an endpoint, list models, and select a model.
-- [x] Connect Chat to the configured model and display provider errors honestly (initial non-streaming integration; CI verification pending).
+- [x] Connect Chat to the configured model and display provider errors honestly (PR #30 merged; PR-head CI passed; real endpoint testing still pending).
 - [x] Keep API keys in application memory only; persist only the endpoint, selected model ID and localhost policy.
 - [x] Explain browser-side credential exposure and that requests go to the configured provider.
 - [ ] Add cancellation, timeouts, streaming and robust retry/rate-limit handling.
@@ -168,3 +168,26 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - 2026-10-18 — README product vision and persistent handoff rules merged in [PR #29](https://github.com/gtxnrg-ship-it/my-app/pull/29). Future contributors must read the repository documents and update this roadmap with each implementation PR.
 - 2026-10-18 — Initial real provider-to-chat integration prepared in branch `feat/connect-real-model-to-chat`: provider settings, endpoint/model discovery, in-memory-only API key handling, and non-streaming chat generation. Await CI and endpoint verification before marking Verified.
 - 2026-10-18 — [PR #26](https://github.com/gtxnrg-ship-it/my-app/pull/26) merged; its GitHub Actions runs completed successfully for both Kuro Canvas checks and Project checks.
+
+
+## Documentation and handoff
+- [x] README defines Kuro's vision and instructs future agents to inspect source, PRs and CI.
+- [x] docs/PRODUCT-SPEC.md captures the full target product and acceptance contract.
+- [ ] Reconcile the product spec against any additional past-chat requirements that are not recoverable from repository artifacts.
+- [ ] Update this roadmap in every feature PR and distinguish Implemented from Verified.
+
+## Current state snapshot (2026-10-18)
+- **Implemented:** responsive React/TypeScript shell; native basic 2D canvas; brush/eraser; undo/redo; IndexedDB drawing autosave and multiple documents; layer controls/order/opacity/blending; local project/template foundation; JSON package import/export; model registry/provider contracts; memory/evolution primitives; local memory storage; typed tool registry; initial orchestrator; OpenAI-compatible provider settings and text chat connection.
+- **Not yet verified end-to-end:** provider connection against actual hosted/local services; security and CORS behavior across providers; complete project round-trip and high-resolution asset portability; device/stylus performance.
+- **Not implemented end-to-end:** model-produced structured plan execution, native AI drawing tools, live action timeline, full canon/series-bible UI and retrieval, chapter-to-panel generation, stick-figure drawing workflow, full comic lettering/layout, 3D studio, complete ZIP-based .kuro archive, research/licensing workflow, publishing integrations.
+- **Important:** current .kuro project support is JSON-oriented; do not describe it as the finished ZIP-compatible package.
+
+## Next work sequence (do not skip dependencies)
+1. Stabilize main and add automated regression tests around the existing canvas/layers/persistence/export.
+2. Harden provider calls with AbortSignal cancellation, timeout/error handling, and streaming only where supported; add strict response schemas and tests.
+3. Implement a versioned native drawing command schema and deterministic executor wired to the actual canvas document.
+4. Add action queue/timeline with approvals, pause/cancel, checkpoints, provenance, and real undo/rollback.
+5. Connect model output to the orchestrator and executor using strict validation; keep untrusted model output from calling arbitrary code.
+6. Build the persistent series bible/canon UI and retrieval with temporal facts, provenance, status, character knowledge, and retcon impact.
+7. Implement outline -> scene -> panel plan -> native stick-figure thumbnails -> progressive panel refinement.
+8. Build comic/page/Webtoon layout, lettering, reusable vault, 3D references, research, full project package, and publishing/export hardening in the order defined in docs/PRODUCT-SPEC.md.

@@ -31,13 +31,16 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Keep this roadmap aligned with actual code and CI.
 
 ## Phase 1 — Real model connection
-- [ ] Implement an actual provider adapter, starting with OpenAI-compatible chat-completions endpoints.
-- [ ] Support configured hosted providers and local compatible endpoints where their APIs match.
-- [ ] Add endpoint/model configuration, connection test, cancellation, timeouts and streaming where supported.
-- [ ] Validate structured model output against schemas.
-- [ ] Never hardcode secrets, write API keys into project files, or claim unsupported model capabilities.
-- [ ] Clearly explain that browser-side API keys may be exposed to the client; use a secure backend when required.
-- [ ] Add provider/model settings and actionable error states.
+- [x] Implement an OpenAI-compatible chat-completions adapter in `src/ai/openAICompatibleProvider.ts` (implemented; verify via CI and real endpoint tests).
+- [x] Add provider URL security validation: HTTPS for remote endpoints and explicitly enabled HTTP only for localhost.
+- [x] Add provider settings UI to test an endpoint, list models, and select a model.
+- [x] Connect Chat to the configured model and display provider errors honestly (initial non-streaming integration; CI verification pending).
+- [x] Keep API keys in application memory only; persist only the endpoint, selected model ID and localhost policy.
+- [x] Explain browser-side credential exposure and that requests go to the configured provider.
+- [ ] Add cancellation, timeouts, streaming and robust retry/rate-limit handling.
+- [ ] Validate structured model output against strict schemas before using it for plans or tools.
+- [ ] Add automated tests and verify against real hosted and local compatible endpoints.
+- [ ] Connect model output to the orchestrator and safe native tools (chat does not yet execute drawing actions).
 
 ## Phase 2 — Native drawing-action engine
 - [ ] Define versioned, typed drawing commands (strokes/points, paths, shapes, text, layer operations).
@@ -159,3 +162,9 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 ## Change log
 - Keep updates small and linked to the PR/commit that implements them.
 - Mark an item Verified only with a CI result or reproducible test evidence.
+
+
+## Recent implementation log
+- 2026-10-18 — README product vision and persistent handoff rules merged in [PR #29](https://github.com/gtxnrg-ship-it/my-app/pull/29). Future contributors must read the repository documents and update this roadmap with each implementation PR.
+- 2026-10-18 — Initial real provider-to-chat integration prepared in branch `feat/connect-real-model-to-chat`: provider settings, endpoint/model discovery, in-memory-only API key handling, and non-streaming chat generation. Await CI and endpoint verification before marking Verified.
+- 2026-10-18 — [PR #26](https://github.com/gtxnrg-ship-it/my-app/pull/26) merged; its GitHub Actions runs completed successfully for both Kuro Canvas checks and Project checks.

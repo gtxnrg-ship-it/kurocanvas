@@ -50,7 +50,7 @@ type RegisteredKuroTool = {
 };
 
 export class KuroToolRegistry {
-  // Each registered tool is validated before this erased callable shape is executed.
+  // The registry erases generic types here; run() must validate input before execute().
   private readonly tools = new Map<KuroToolName, RegisteredKuroTool>();
 
   register<TInput, TOutput>(definition: KuroToolDefinition<TInput, TOutput>): void {

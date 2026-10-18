@@ -40,12 +40,22 @@ export interface KuroToolCall {
   status: "proposed" | "awaiting-approval" | "running" | "completed" | "failed" | "rejected";
 }
 
+type RegisteredKuroTool = {
+  name: KuroToolName;
+  description: string;
+  risk: ToolRisk;
+  approval: ToolApproval;
+  validate(input: unknown): boolean;
+  execute(input: unknown, context: KuroToolContext): Promise<unknown>;
+};
+
 export class KuroToolRegistry {
-  private readonly tools = new Map<KuroToolName, KuroToolDefinition<any, any>>();
+  // Each registered tool is validated before this erased callable shape is executed.
+  private readonly tools = new Map<KuroToolName, RegisteredKuroTool>();
 
   register<TInput, TOutput>(definition: KuroToolDefinition<TInput, TOutput>): void {
     if (this.tools.has(definition.name)) throw new Error("Tool already registered: " + definition.name);
-    this.tools.set(definition.name, definition);
+    this.tools.set(definition.name, definition as unknown as RegisteredKuroTool);
   }
 
   list(): Array<Pick<KuroToolDefinition, "name" | "description" | "risk" | "approval">> {

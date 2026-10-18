@@ -143,7 +143,7 @@ export const templateVault = {
     }
     await requestValue<IDBValidKey>(TEMPLATES, "readwrite", store => store.put(template));
   },
-  async get(id: string): Promise<ProjectTemplate | undefined> {
+  get(id: string): Promise<ProjectTemplate | undefined> {
     return requestValue<ProjectTemplate | undefined>(TEMPLATES, "readonly", store => store.get(id));
   },
   async list(): Promise<ProjectTemplate[]> {

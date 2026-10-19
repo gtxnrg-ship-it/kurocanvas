@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle } from 'lucide-react';
 import { drawingStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
+import { applyCommandsToLocalDrawing } from './localDrawingBridge';
+import type { NativeDrawingCommand } from './commands';
 
 type Tool = 'brush' | 'eraser' | 'pan';
 type Point = { x: number; y: number; pressure: number };
@@ -47,7 +49,8 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
   return surface;
 }
 
-export default function DrawingCanvas() {
+type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
@@ -68,6 +71,7 @@ export default function DrawingCanvas() {
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<'loading'|'saved'|'saving'|'error'>('loading');
+  const handledPlanRef = useRef<string | null>(null);
 
   const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
     const canvas = canvasRef.current;
@@ -170,6 +174,38 @@ export default function DrawingCanvas() {
     }, 450);
     return () => globalThis.clearTimeout(timer);
   }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
+
+  useEffect(() => {
+    if (!pendingPlan || !loaded || !onPlanResult || handledPlanRef.current === pendingPlan.id) return;
+    handledPlanRef.current = pendingPlan.id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const current: LocalDrawingDocument = {
+          id: drawingId, name: drawingName, version: 1, width: docRef.current.width,
+          height: docRef.current.height, background: docRef.current.background,
+          strokes: docRef.current.strokes, layers: layers.map(layer => ({ ...layer })),
+          updatedAt: new Date().toISOString(),
+        };
+        const applied = applyCommandsToLocalDrawing(current, pendingPlan.commands);
+        if (!applied.changed) throw new Error('The plan contained no applicable changes.');
+        await drawingStorage.save(applied.document);
+        if (cancelled) return;
+        const nextStrokes = applied.document.strokes as Stroke[];
+        const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
+        docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
+        setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
+        setSaveState('saved'); setNotice('Approved AI drawing applied and saved locally');
+        onPlanResult(pendingPlan.id, 'success', 'Applied and saved locally');
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Unknown drawing error';
+        setNotice('AI drawing rejected: ' + message);
+        onPlanResult(pendingPlan.id, 'error', message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, layers]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();

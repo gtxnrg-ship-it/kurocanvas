@@ -40,15 +40,15 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Add cancellation, timeouts, streaming and robust retry/rate-limit handling.
 - [ ] Validate structured model output against strict schemas before using it for plans or tools.
 - [ ] Add automated tests and verify against real hosted and local compatible endpoints.
-- [ ] Connect model output to the orchestrator and safe native tools (chat does not yet execute drawing actions).
+- [x] Connect the first bounded model-to-canvas drawing path with explicit approval (PRs #41–#42; stroke additions only; real-provider/browser verification still pending).
 
 ## Phase 2 — Native drawing-action engine
 - [x] Define a first versioned, strictly validated native command schema for stroke addition and basic layer visibility/opacity/lock changes in src/drawing/commands.ts (schema foundation only; not yet wired to the canvas).
-- [ ] Connect the tool registry to actual canvas functions.
+- [ ] Connect the typed tool registry and drawing-action queue to the visible canvas lifecycle (the first approved stroke-only path is wired separately; queue/timeline integration remains).
 - [ ] Validate coordinates, sizes, colors, document/layer IDs and operation limits.
 - [ ] Prohibit arbitrary code execution and unrestricted filesystem/network access.
-- [ ] Add preview, approval policies, execution statuses and action provenance.
-- [ ] Add a visible timeline, pause/resume/cancel, checkpoints and reliable undo/rollback.
+- [x] Add a basic approval card for validated stroke-only plans (PR #41); [ ] add a rendered preview, queue-backed statuses and action provenance.
+- [ ] Add a visible action timeline, pause/resume/cancel, checkpoints and grouped undo/rollback (current canvas undo remains stroke-by-stroke).
 - [ ] Ensure cancelled work cannot continue executing queued actions.
 
 ## Phase 3 — Persistent universe memory
@@ -250,3 +250,7 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 ## 2026-10-19 — strict AI proposal parsing
 - [x] Move model JSON parsing into a pure, tested boundary that rejects malformed payloads, unsupported command types, out-of-bounds points, unknown layers, oversized plans, and excessive points per stroke before the user sees an approval card.
 - [ ] Continue expanding the native tool vocabulary and add integration tests for the visible approval-to-persistence flow.
+
+
+- 2026-10-19 — PRs [#40](https://github.com/gtxnrg-ship-it/my-app/pull/40), [#41](https://github.com/gtxnrg-ship-it/my-app/pull/41), and [#42](https://github.com/gtxnrg-ship-it/my-app/pull/42) merged. Stroke restoration preserves identity/order; the first approval-gated model-to-canvas stroke workflow is connected; strict AI stroke-plan parsing rejects malformed, oversized, unsupported, and out-of-bounds output. PR-head CI passed for #41 and #42. Real provider/browser verification remains outstanding.
+- 2026-10-19 — Corrected workspace status labels so the UI describes AI drawing as limited to approved native-stroke plans rather than saying no AI drawing tools are connected. This is a copy/status correction, not an expansion of drawing capability.

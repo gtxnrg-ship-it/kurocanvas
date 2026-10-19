@@ -47,7 +47,7 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Connect the typed tool registry and drawing-action queue to the visible canvas lifecycle (the first approved stroke-only path is wired separately; queue/timeline integration remains).
 - [ ] Validate coordinates, sizes, colors, document/layer IDs and operation limits.
 - [ ] Prohibit arbitrary code execution and unrestricted filesystem/network access.
-- [x] Add a basic approval card for validated stroke-only plans (PR #41); [ ] add a rendered preview, queue-backed statuses and action provenance.
+- [x] Add a basic approval card and rendered preview of the exact validated stroke-only plan (PR #41 and follow-up preview); [ ] add queue-backed statuses and action provenance.
 - [ ] Add a visible action timeline, pause/resume/cancel, checkpoints and grouped undo/rollback (current canvas undo remains stroke-by-stroke).
 - [ ] Ensure cancelled work cannot continue executing queued actions.
 
@@ -260,3 +260,6 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Reduced transient canvas allocations in the 2D renderer and PNG export by reusing a single full-document scratch surface across visible layers. This is an allocation/GC optimization; no performance benchmark or low-end-device verification is claimed yet.
+
+
+- 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.

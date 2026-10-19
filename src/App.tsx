@@ -2,7 +2,7 @@ import { useState } from 'react';
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import { OpenAICompatibleProvider } from './ai/openAICompatibleProvider';
 import type { ModelDescriptor } from './ai/modelRegistry';
-import DrawingCanvas, { type CanvasPlanResult } from './drawing/DrawingCanvas';
+import DrawingCanvas from './drawing/DrawingCanvas';
 import type { NativeDrawingCommand } from './drawing/commands';
 import ProjectManager from './projects/ProjectManager';
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Layers3, Library, MessageCircle, Mic, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';

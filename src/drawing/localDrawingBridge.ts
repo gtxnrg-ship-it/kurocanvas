@@ -40,14 +40,42 @@ export function applyCommandsToLocalDrawing(
     })),
   };
 
-  const commands = Array.isArray(untrustedCommands)
-    ? parseDrawingPlan(JSON.stringify(untrustedCommands), {
-        width: document.width,
-        height: document.height,
-        layerIds: layers.map(layer => layer.id),
-        lockedLayerIds: layers.filter(layer => layer.locked).map(layer => layer.id),
-      })
-    : (() => { throw new Error("Drawing commands must be supplied as an array."); })();
+  if (!Array.isArray(untrustedCommands)) {
+    throw new Error("Drawing commands must be supplied as an array.");
+  }
+
+  // "layer-default" is the planner's stable target alias. Older/imported
+  // documents may have custom layer IDs, so resolve the alias only when the
+  // literal default layer does not exist. Never redirect a locked explicit
+  // target; the normal validator will reject it.
+  let inputCommands: unknown[] = untrustedCommands;
+  if (!layers.some(layer => layer.id === "layer-default") &&
+      untrustedCommands.some(command => command && typeof command === "object" &&
+        (command as { layerId?: unknown }).layerId === "layer-default")) {
+    const target = layers.find(layer => layer.visible && !layer.locked);
+    if (!target) {
+      throw new Error("Kuro could not find a visible, unlocked layer for the proposed drawing. Unlock or show a layer and try again.");
+    }
+    inputCommands = untrustedCommands.map(command => {
+      if (!command || typeof command !== "object") return command;
+      const value = command as Record<string, unknown>;
+      if (value.type === "stroke.add" && value.layerId === "layer-default") {
+        return { ...value, layerId: target.id };
+      }
+      if (value.type === "stroke.restore" && value.stroke && typeof value.stroke === "object" &&
+          (value.stroke as { layerId?: unknown }).layerId === "layer-default") {
+        return { ...value, stroke: { ...(value.stroke as Record<string, unknown>), layerId: target.id } };
+      }
+      return command;
+    });
+  }
+
+  const commands = parseDrawingPlan(JSON.stringify(inputCommands), {
+    width: document.width,
+    height: document.height,
+    layerIds: layers.map(layer => layer.id),
+    lockedLayerIds: layers.filter(layer => layer.locked).map(layer => layer.id),
+  });
 
   const state: NativeDrawingState = {
     width: document.width,

@@ -24,7 +24,14 @@ export interface AddStrokeCommand {
   points: DrawingPoint[];
 }
 
-export interface RemoveStrokeCommand {\n  version: typeof DRAWING_COMMAND_VERSION;\n  id: string;\n  type: "stroke.remove";\n  strokeId: string;\n}\n\nexport interface SetLayerVisibilityCommand {
+export interface RemoveStrokeCommand {
+  version: typeof DRAWING_COMMAND_VERSION;
+  id: string;
+  type: "stroke.remove";
+  strokeId: string;
+}
+
+export interface SetLayerVisibilityCommand {
   version: typeof DRAWING_COMMAND_VERSION;
   id: string;
   type: "layer.setVisibility";
@@ -109,7 +116,10 @@ export function validateDrawingCommand(
       }
       break;
     }
-    case "stroke.remove":\n      if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");\n      break;\n    case "layer.setVisibility":
+    case "stroke.remove":
+      if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      break;
+    case "layer.setVisibility":
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Visibility command targets an unknown layer.");
       if (typeof value.visible !== "boolean") errors.push("Visibility must be a boolean.");
       break;

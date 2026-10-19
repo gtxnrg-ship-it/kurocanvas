@@ -31,6 +31,22 @@ export interface RemoveStrokeCommand {
   strokeId: string;
 }
 
+/** Internal reversible command used by undo; restores the exact stroke ID and stack position. */
+export interface RestoreStrokeCommand {
+  version: typeof DRAWING_COMMAND_VERSION;
+  id: string;
+  type: "stroke.restore";
+  stroke: {
+    id: string;
+    layerId: string;
+    tool: "brush" | "eraser";
+    color: string;
+    size: number;
+    points: DrawingPoint[];
+  };
+  index: number;
+}
+
 export interface SetLayerVisibilityCommand {
   version: typeof DRAWING_COMMAND_VERSION;
   id: string;
@@ -58,6 +74,7 @@ export interface SetLayerLockCommand {
 export type NativeDrawingCommand =
   | AddStrokeCommand
   | RemoveStrokeCommand
+  | RestoreStrokeCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand
   | SetLayerLockCommand;
@@ -120,6 +137,26 @@ export function validateDrawingCommand(
     case "stroke.remove":
       if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
       break;
+    case "stroke.restore": {
+      if (!record(value.stroke)) {
+        errors.push("Restored stroke must be an object.");
+        break;
+      }
+      const stroke = value.stroke;
+      if (!nonEmptyString(stroke.id, 160)) errors.push("Restored stroke ID is missing or too long.");
+      if (!nonEmptyString(stroke.layerId) || !bounds.layerIds.includes(String(stroke.layerId))) errors.push("Restored stroke targets an unknown layer.");
+      if (typeof stroke.layerId === "string" && (bounds.lockedLayerIds ?? []).includes(stroke.layerId)) errors.push("Restored stroke targets a locked layer.");
+      if (stroke.tool !== "brush" && stroke.tool !== "eraser") errors.push("Unsupported restored stroke tool.");
+      if (typeof stroke.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(stroke.color)) errors.push("Restored stroke color must be a six-digit hex color.");
+      if (!finite(stroke.size) || stroke.size <= 0 || stroke.size > MAX_STROKE_SIZE) errors.push("Restored stroke size is outside the supported range.");
+      if (!Array.isArray(stroke.points) || stroke.points.length < 1 || stroke.points.length > MAX_POINTS_PER_STROKE) {
+        errors.push("Restored stroke must contain between 1 and " + MAX_POINTS_PER_STROKE + " points.");
+      } else if (!stroke.points.every(point => validPoint(point, bounds))) {
+        errors.push("Restored stroke contains an invalid point or a point outside the document bounds.");
+      }
+      if (!Number.isInteger(value.index) || (value.index as number) < 0 || (value.index as number) > 10000000) errors.push("Restored stroke index is invalid.");
+      break;
+    }
     case "layer.setVisibility":
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Visibility command targets an unknown layer.");
       if (typeof value.visible !== "boolean") errors.push("Visibility must be a boolean.");

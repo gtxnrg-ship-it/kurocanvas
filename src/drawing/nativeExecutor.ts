@@ -1,4 +1,4 @@
-import type { NativeDrawingCommand, AddStrokeCommand } from "./commands";
+import type { NativeDrawingCommand } from "./commands";
 import type { DrawingLayer } from "./layers";
 
 export interface NativeStroke {
@@ -36,7 +36,7 @@ export function applyNativeDrawingCommand(
   const strokes = state.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
 
   if (command.type === "stroke.add") {
-    const layer = layers.find(item => item.id === command.layerId);
+    if (command.type === "stroke.remove") {\n    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);\n    if (index < 0) throw new Error("Cannot remove stroke: stroke does not exist.");\n    const removed = strokes[index];\n    strokes.splice(index, 1);\n    return {\n      state: { ...state, layers, strokes },\n      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.add", layerId: removed.layerId || layers[0]?.id || "", tool: removed.tool, color: removed.color, size: removed.size, points: removed.points }],\n      changed: true,\n    };\n  }\n\n  const layer = layers.find(item => item.id === command.layerId);
     if (!layer) throw new Error("Cannot execute stroke: target layer does not exist.");
     if (layer.locked) throw new Error("Cannot execute stroke: target layer is locked.");
     const stroke: NativeStroke = {

@@ -3,6 +3,7 @@ import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
 import { projectStorage } from '../core/storage';
+import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -94,5 +95,6 @@ export default function ProjectManager() {
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
       </article>)}</div>}
     <p className="project-manager-note">Current package format is <code>.kuro.json</code>. It includes project metadata, templates, and asset records; it does not yet bundle drawing pixels or binary reference images into a ZIP archive.</p>
+    <WorldStudio />
   </section>;
 }

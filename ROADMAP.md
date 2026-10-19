@@ -238,3 +238,10 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Add `stroke.restore` as a bounded, validated inverse command that preserves the removed stroke's original ID, full point data, and stack position.
 - [x] Add regression tests for remove/restore round trips and duplicate-ID rejection.
 - [ ] Connect the executor and reversible history to the visible DrawingCanvas; reducer-level undo tests do not establish UI-level undo integration.
+
+
+## 2026-10-19 — first approved chat-to-canvas loop
+- [x] Add a model planning path for basic native stroke sketches, returning structured JSON rather than treating free-form prose as executable commands.
+- [x] Show the proposed drawing summary and command count; require explicit approval before switching to the canvas and applying.
+- [x] Validate the untrusted plan against current document bounds and layer/lock state, apply immutably, persist before reporting success, and report failures without claiming success.
+- [ ] Verify CI and manually test against a real configured model provider and real browser canvas. This first loop supports native strokes only; it is not full AI studio/tool coverage or visual-quality assurance.

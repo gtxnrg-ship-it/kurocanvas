@@ -199,3 +199,10 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Initial native drawing command schema added on the current feature branch: strict JSON-safe types and bounds validation for stroke and layer commands. This is not yet an executor and does not modify canvas artwork.
 - [ ] Add tests for command validation and rejection cases.
 - [ ] Wire validated commands to the actual drawing canvas using deterministic execution, checkpoints, undo, and visible statuses.
+
+
+## 2026-10-19 action queue foundation
+- [x] Add a typed drawing action lifecycle with explicit approval, ready, running, completed, failed, cancelled, and rejected states.
+- [x] Enforce legal state transitions and require approval before protected actions can start.
+- [ ] Add automated transition tests and connect the queue to actual executor operations and UI.
+- [ ] Add batch pause/resume/cancel semantics that stop future operations without losing completed work.

@@ -199,3 +199,11 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Initial native drawing command schema added on the current feature branch: strict JSON-safe types and bounds validation for stroke and layer commands. This is not yet an executor and does not modify canvas artwork.
 - [ ] Add tests for command validation and rejection cases.
 - [ ] Wire validated commands to the actual drawing canvas using deterministic execution, checkpoints, undo, and visible statuses.
+
+
+## Cross-platform and performance decision (2026-10-19)
+- [x] Documented current language/framework decision and staged multi-platform plan in [docs/CROSS-PLATFORM-PERFORMANCE.md](docs/CROSS-PLATFORM-PERFORMANCE.md).
+- [x] Set measured performance goals and low-end fallback principles; these are targets, not yet benchmark results.
+- [ ] Profile the current canvas and fix redraw/input bottlenecks before considering a Rust/WASM hot-path prototype.
+- [ ] Add device-class benchmarks and automated regression tests before claiming low-end smoothness.
+- [ ] Choose and validate desktop/mobile packaging separately; no platform is supported until it is built and tested on real devices.

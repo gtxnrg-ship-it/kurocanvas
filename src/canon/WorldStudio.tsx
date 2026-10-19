@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import "./worldStudio.css";
 import { AlertTriangle, BookOpen, Plus, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { createEmptyCanon, retrieveCanon, validateCanon, type CanonBundle, type CanonEntity, type CanonFact, type CanonStatus } from "./universe";
 import { canonStorage, projectStorage } from "../core/storage";

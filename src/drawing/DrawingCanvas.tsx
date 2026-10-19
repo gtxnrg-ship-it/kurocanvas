@@ -52,6 +52,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
 export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
@@ -94,11 +95,21 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     // Each layer gets its own transparent surface. destination-out therefore only
     // erases pixels on that layer, never artwork drawn on a different layer.
     const sx = w / docRef.current.width, sy = h / docRef.current.height;
+    // Reuse one scratch surface rather than allocating a full-size canvas for
+    // every layer on every pointer move. This limits transient canvas memory and
+    // garbage collection pressure on phones/tablets with many layers.
+    const surface = layerSurfaceRef.current ?? createSurface(docRef.current.width, docRef.current.height);
+    if (!surface) return;
+    if (surface.width !== docRef.current.width || surface.height !== docRef.current.height) {
+      surface.width = docRef.current.width;
+      surface.height = docRef.current.height;
+    }
+    layerSurfaceRef.current = surface;
+    const layerCtx = surface.getContext('2d');
+    if (!layerCtx) return;
     for (const layer of layers) {
       if (!layer.visible) continue;
-      const surface = createSurface(docRef.current.width, docRef.current.height);
-      const layerCtx = surface?.getContext('2d');
-      if (!surface || !layerCtx) continue;
+      layerCtx.clearRect(0, 0, surface.width, surface.height);
       for (const stroke of nextStrokes) {
         const strokeLayerId = stroke.layerId || layers[0]?.id;
         if (strokeLayerId === layer.id) drawStroke(layerCtx, stroke);
@@ -243,11 +254,17 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     const ctx = out?.getContext('2d');
     if (!out || !ctx) { setNotice('PNG export is unavailable in this browser'); return; }
     ctx.fillStyle = background; ctx.fillRect(0, 0, out.width, out.height);
+    const surface = layerSurfaceRef.current ?? createSurface(out.width, out.height);
+    const layerCtx = surface?.getContext('2d');
+    if (!surface || !layerCtx) { setNotice('PNG export is unavailable in this browser'); return; }
+    if (surface.width !== out.width || surface.height !== out.height) {
+      surface.width = out.width;
+      surface.height = out.height;
+    }
+    layerSurfaceRef.current = surface;
     for (const layer of layers) {
       if (!layer.visible) continue;
-      const surface = createSurface(out.width, out.height);
-      const layerCtx = surface?.getContext('2d');
-      if (!surface || !layerCtx) continue;
+      layerCtx.clearRect(0, 0, surface.width, surface.height);
       for (const stroke of strokes) {
         if ((stroke.layerId || layers[0]?.id) === layer.id) drawStroke(layerCtx, stroke);
       }

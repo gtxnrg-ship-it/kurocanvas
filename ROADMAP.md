@@ -206,3 +206,8 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Enforce legal state transitions and require approval before protected actions can start.
 - [ ] Add automated transition tests and connect the queue to actual executor operations and UI.
 - [ ] Add batch pause/resume/cancel semantics that stop future operations without losing completed work.
+
+
+## CI correction follow-up (2026-10-19)
+- [x] Investigated failed PR #33 build: the schema extension had literal escaped newline sequences inserted into TypeScript source.
+- [x] Corrected the schema line breaks on this branch; wait for fresh CI before merge.

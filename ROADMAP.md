@@ -263,3 +263,5 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.
+
+- 2026-10-19 — Added a tested, bounded approved-canon prompt-context builder on `feat-approved-canon-prompt-context`. It rejects project mismatches, excludes non-approved records, can match fact values as well as entity names, and reports truncation. This is a tested utility only; it is not yet wired into chat prompts or the active-project UI.

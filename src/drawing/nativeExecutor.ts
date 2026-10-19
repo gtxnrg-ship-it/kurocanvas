@@ -63,13 +63,37 @@ export function applyNativeDrawingCommand(
       inverse: [{
         version: 1,
         id: command.id + ":undo",
-        type: "stroke.add",
-        layerId: removed.layerId || layers[0]?.id || "",
-        tool: removed.tool,
-        color: removed.color,
-        size: removed.size,
-        points: removed.points,
+        type: "stroke.restore",
+        stroke: {
+          id: removed.id,
+          layerId: removed.layerId || layers[0]?.id || "",
+          tool: removed.tool,
+          color: removed.color,
+          size: removed.size,
+          points: removed.points,
+        },
+        index,
       }],
+      changed: true,
+    };
+  }
+
+  if (command.type === "stroke.restore") {
+    const layer = layers.find(item => item.id === command.stroke.layerId);
+    if (!layer) throw new Error("Cannot restore stroke: target layer does not exist.");
+    if (layer.locked) throw new Error("Cannot restore stroke: target layer is locked.");
+    if (strokes.some(stroke => stroke.id === command.stroke.id)) {
+      throw new Error("Cannot restore stroke: a stroke with this ID already exists.");
+    }
+    const restored: NativeStroke = {
+      ...command.stroke,
+      points: command.stroke.points.map(point => ({ x: point.x, y: point.y, pressure: point.pressure ?? 0.5 })),
+    };
+    const index = Math.min(command.index, strokes.length);
+    strokes.splice(index, 0, restored);
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.remove", strokeId: restored.id }],
       changed: true,
     };
   }

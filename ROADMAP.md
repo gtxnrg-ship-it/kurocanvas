@@ -225,10 +225,16 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 ## 2026-10-19 — automated drawing regression tests
 - [x] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, approval queue transitions, and the local drawing bridge (PRs #37–#38; CI passed on their PR heads).\n- [x] Add `npm test` to the Kuro Canvas pull-request CI workflow so tests run alongside the production build (this PR; pending its own CI).
-- [ ] Extend undo coverage to preserve removed stroke identity and original stack position, then connect executor to the canvas.
+- [x] Extend executor undo coverage to preserve removed stroke identity and original stack position with a dedicated restore command (this PR; CI pending).
 
 
 ## 2026-10-19 — local drawing command bridge
 - [x] Add an adapter that validates untrusted command arrays against a local drawing's dimensions and layer state, applies them immutably through the native executor, and returns a new local-document snapshot plus inverse operations.
 - [ ] Wire this adapter into DrawingCanvas with real action queue UI, persistence-before-success, cancellation, and undo integration.
 - [ ] Run the new adapter regression tests in CI; adapter existence alone is not end-to-end AI drawing.
+
+
+## 2026-10-19 — reversible stroke removal
+- [x] Add `stroke.restore` as a bounded, validated inverse command that preserves the removed stroke's original ID, full point data, and stack position.
+- [x] Add regression tests for remove/restore round trips and duplicate-ID rejection.
+- [ ] Connect the executor and reversible history to the visible DrawingCanvas; reducer-level undo tests do not establish UI-level undo integration.

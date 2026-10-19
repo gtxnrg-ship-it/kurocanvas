@@ -221,3 +221,8 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [ ] Add visible queue controls with explicit approval, real progress, cancellation that prevents later queued work, and rollback/checkpoints.
 - [ ] Connect validated model plans to this queue and executor; never mark actions complete unless execution succeeds.
 - [ ] Cross-platform performance strategy documents the current TypeScript/React approach, measured optimization plan, and conditional Rust/WASM evaluation; device performance remains unverified.
+
+
+## 2026-10-19 — automated drawing regression tests
+- [ ] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, and approval queue transitions; await CI before marking verified.
+- [ ] Extend undo coverage to preserve removed stroke identity and original stack position, then connect executor to the canvas.

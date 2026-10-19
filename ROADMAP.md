@@ -257,3 +257,6 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Added a safe planner-target alias resolution for imported/custom-layer documents: `layer-default` resolves to the first visible, unlocked layer only when the literal default layer is absent; if no eligible layer exists, the plan fails with a clear error. Regression tests cover both outcomes. This avoids silently targeting hidden or locked layers.
+
+
+- 2026-10-19 — Reduced transient canvas allocations in the 2D renderer and PNG export by reusing a single full-document scratch surface across visible layers. This is an allocation/GC optimization; no performance benchmark or low-end-device verification is claimed yet.

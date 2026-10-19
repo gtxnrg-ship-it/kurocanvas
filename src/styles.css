@@ -48,3 +48,7 @@
 .plan-actions button{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:9px 13px;background:rgba(255,255,255,.04);color:inherit;cursor:pointer;font:inherit;font-size:12px}
 .plan-actions .plan-approve{background:#b69aff;color:#1b1427;border-color:transparent;font-weight:700}
 .plan-notice{margin:6px 20px 12px;color:var(--muted,#aaa2bb);font-size:11px}
+
+
+/* Exact, non-executing preview of validated native stroke plans */
+.plan-preview{width:100%;aspect-ratio:4/3;max-height:240px;overflow:hidden;border:1px solid rgba(182,154,255,.24);border-radius:10px;background-color:#fffdfb;background-image:linear-gradient(45deg,#eeeaf2 25%,transparent 25%),linear-gradient(-45deg,#eeeaf2 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eeeaf2 75%),linear-gradient(-45deg,transparent 75%,#eeeaf2 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;margin:10px 0 12px}.plan-preview svg{display:block;width:100%;height:100%}

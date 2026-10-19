@@ -70,9 +70,10 @@ export const projectStorage = {
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
+        tx.objectStore(CANON).delete(id);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project."));
         tx.onabort = () => reject(tx.error ?? new Error("Project removal was cancelled."));

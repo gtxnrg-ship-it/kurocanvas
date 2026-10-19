@@ -27,7 +27,7 @@ These items have appeared in the repository's PR history. Their integration and 
 - [x] Add exhaustive product specification (this documentation PR; see docs/PRODUCT-SPEC.md).
 - [x] Add provider-to-chat UI and model discovery (PR #30; GitHub Actions passed for PR head).
 - [ ] Verify provider end-to-end against a real hosted and local endpoint; no real endpoint has been tested in this workflow.
-- [ ] Add regression tests for drawing, layer isolation, document switching, autosave/recovery and export.
+- [x] Add initial Vitest regression tests for command validation, native executor behavior, queue transitions, and local drawing bridge (PRs #37–#38; CI must run them).\n- [ ] Expand regression tests for visible canvas integration, layer isolation, document switching, autosave/recovery and export.
 - [ ] Verify current main production build after all merged changes; keep roadmap aligned with CI.
 
 ## Phase 1 — Real model connection
@@ -204,7 +204,7 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 ## 2026-10-19 continuation
 - [x] PR #32 merged: versioned native drawing command schemas with strict validation; both GitHub Actions checks passed.
 - [x] Add a pure deterministic native drawing state reducer in `src/drawing/nativeExecutor.ts` for validated stroke add/remove and layer visibility/opacity/lock commands, with inverse operations for undo.
-- [ ] Add automated unit tests for command validation and executor inverses/failure atomicity.
+- [x] Add automated unit tests for command validation, executor immutability/failure atomicity, queue transitions, and the local drawing bridge (PRs #37–#38).
 - [ ] Connect this reducer to DrawingCanvas and persist actual resulting state; add visible action queue, approval, cancellation, and checkpoints.
 - [ ] Verify provider against a real endpoint and implement cancellation/timeouts before claiming production readiness.
 
@@ -224,7 +224,7 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 ## 2026-10-19 — automated drawing regression tests
-- [ ] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, and approval queue transitions; await CI before marking verified.
+- [x] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, approval queue transitions, and the local drawing bridge (PRs #37–#38; CI passed on their PR heads).\n- [x] Add `npm test` to the Kuro Canvas pull-request CI workflow so tests run alongside the production build (this PR; pending its own CI).
 - [ ] Extend undo coverage to preserve removed stroke identity and original stack position, then connect executor to the canvas.
 
 

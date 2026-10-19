@@ -199,3 +199,16 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Initial native drawing command schema added on the current feature branch: strict JSON-safe types and bounds validation for stroke and layer commands. This is not yet an executor and does not modify canvas artwork.
 - [ ] Add tests for command validation and rejection cases.
 - [ ] Wire validated commands to the actual drawing canvas using deterministic execution, checkpoints, undo, and visible statuses.
+
+
+## 2026-10-19 continuation
+- [x] PR #32 merged: versioned native drawing command schemas with strict validation; both GitHub Actions checks passed.
+- [x] Add a pure deterministic native drawing state reducer in `src/drawing/nativeExecutor.ts` for validated stroke add/remove and layer visibility/opacity/lock commands, with inverse operations for undo.
+- [ ] Add automated unit tests for command validation and executor inverses/failure atomicity.
+- [ ] Connect this reducer to DrawingCanvas and persist actual resulting state; add visible action queue, approval, cancellation, and checkpoints.
+- [ ] Verify provider against a real endpoint and implement cancellation/timeouts before claiming production readiness.
+
+
+## CI correction follow-up (2026-10-19)
+- [x] Investigated failed PR #33 build: the schema extension had literal escaped newline sequences inserted into TypeScript source.
+- [x] Corrected the schema line breaks on this branch; wait for fresh CI before merge.

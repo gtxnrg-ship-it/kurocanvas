@@ -212,3 +212,12 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 ## CI correction follow-up (2026-10-19)
 - [x] Investigated failed PR #33 build: the schema extension had literal escaped newline sequences inserted into TypeScript source.
 - [x] Corrected the schema line breaks on this branch; wait for fresh CI before merge.
+
+
+## 2026-10-19 continuation — executor and action queue
+- [x] PR #33 merged: deterministic native drawing executor is now on main; it remains a reducer primitive, not yet connected to the visible canvas.
+- [ ] Add automated tests for command validation, reducer inverses, atomic plan failure, and queue transitions.
+- [ ] Connect executor state to DrawingCanvas rendering and persistence without breaking pointer drawing, layer order, or autosave.
+- [ ] Add visible queue controls with explicit approval, real progress, cancellation that prevents later queued work, and rollback/checkpoints.
+- [ ] Connect validated model plans to this queue and executor; never mark actions complete unless execution succeeds.
+- [ ] Cross-platform performance strategy documents the current TypeScript/React approach, measured optimization plan, and conditional Rust/WASM evaluation; device performance remains unverified.

@@ -254,3 +254,6 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 - 2026-10-19 — PRs [#40](https://github.com/gtxnrg-ship-it/my-app/pull/40), [#41](https://github.com/gtxnrg-ship-it/my-app/pull/41), and [#42](https://github.com/gtxnrg-ship-it/my-app/pull/42) merged. Stroke restoration preserves identity/order; the first approval-gated model-to-canvas stroke workflow is connected; strict AI stroke-plan parsing rejects malformed, oversized, unsupported, and out-of-bounds output. PR-head CI passed for #41 and #42. Real provider/browser verification remains outstanding.
 - 2026-10-19 — Corrected workspace status labels so the UI describes AI drawing as limited to approved native-stroke plans rather than saying no AI drawing tools are connected. This is a copy/status correction, not an expansion of drawing capability.
+
+
+- 2026-10-19 — Added a safe planner-target alias resolution for imported/custom-layer documents: `layer-default` resolves to the first visible, unlocked layer only when the literal default layer is absent; if no eligible layer exists, the plan fails with a clear error. Regression tests cover both outcomes. This avoids silently targeting hidden or locked layers.

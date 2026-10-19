@@ -118,3 +118,7 @@ Keep the roadmap concise enough to use as a working checklist, but detailed enou
 The exhaustive, tool-independent requirements and acceptance contract lives in **[docs/PRODUCT-SPEC.md](docs/PRODUCT-SPEC.md)**. It covers the full target experience: series/world planning, up-to-500-character canon memory, temporal continuity, native drawing-action execution, panel-by-panel rough-to-finished artwork, Creative Vault, optional 3D references, research/licensing, local-first storage, the portable .kuro package, provider/security requirements, device support, export/publishing, testing, and ordered milestones.
 
 **For any new chat or coding tool:** start with this README, then read [the product specification](docs/PRODUCT-SPEC.md) and [the master roadmap](ROADMAP.md). The specification is the target; the roadmap is the live implementation status. Never infer a feature is finished merely because it is described here.
+
+
+## Cross-platform and performance strategy
+Read [docs/CROSS-PLATFORM-PERFORMANCE.md](docs/CROSS-PLATFORM-PERFORMANCE.md) for the language decision, web/desktop/mobile delivery plan, low-end performance contract, AI/runtime separation, measurement targets, and release gates. The current UI remains React + TypeScript; a Rust/WASM core is a measured optimization option, not a blanket rewrite.

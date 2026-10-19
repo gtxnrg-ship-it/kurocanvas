@@ -57,6 +57,7 @@ export interface SetLayerLockCommand {
 
 export type NativeDrawingCommand =
   | AddStrokeCommand
+  | RemoveStrokeCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand
   | SetLayerLockCommand;

@@ -23,20 +23,19 @@ export interface NativeExecutionResult {
   changed: boolean;
 }
 
-/**
- * Deterministic, side-effect-free state reducer for validated native drawing commands.
- * It does not access the DOM, call a model, or persist state; the UI can apply the
- * returned state and retain the previous snapshot for real undo/checkpoint support.
- */
+/** Pure reducer for validated drawing commands; no DOM, network, or model execution. */
 export function applyNativeDrawingCommand(
   state: NativeDrawingState,
   command: NativeDrawingCommand,
 ): NativeExecutionResult {
   const layers = state.layers.map(layer => ({ ...layer }));
-  const strokes = state.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+  const strokes = state.strokes.map(stroke => ({
+    ...stroke,
+    points: stroke.points.map(point => ({ ...point })),
+  }));
 
   if (command.type === "stroke.add") {
-    if (command.type === "stroke.remove") {\n    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);\n    if (index < 0) throw new Error("Cannot remove stroke: stroke does not exist.");\n    const removed = strokes[index];\n    strokes.splice(index, 1);\n    return {\n      state: { ...state, layers, strokes },\n      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.add", layerId: removed.layerId || layers[0]?.id || "", tool: removed.tool, color: removed.color, size: removed.size, points: removed.points }],\n      changed: true,\n    };\n  }\n\n  const layer = layers.find(item => item.id === command.layerId);
+    const layer = layers.find(item => item.id === command.layerId);
     if (!layer) throw new Error("Cannot execute stroke: target layer does not exist.");
     if (layer.locked) throw new Error("Cannot execute stroke: target layer is locked.");
     const stroke: NativeStroke = {
@@ -47,14 +46,37 @@ export function applyNativeDrawingCommand(
       size: command.size,
       points: command.points.map(point => ({ x: point.x, y: point.y, pressure: point.pressure ?? 0.5 })),
     };
-    const inverse: NativeDrawingCommand[] = [{
-      version: 1, id: command.id + ":undo", type: "stroke.remove", strokeId: command.id,
-    } as NativeDrawingCommand];
-    return { state: { ...state, layers, strokes: [...strokes, stroke] }, inverse, changed: true };
+    return {
+      state: { ...state, layers, strokes: [...strokes, stroke] },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.remove", strokeId: command.id }],
+      changed: true,
+    };
+  }
+
+  if (command.type === "stroke.remove") {
+    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
+    if (index < 0) throw new Error("Cannot remove stroke: stroke does not exist.");
+    const removed = strokes[index];
+    strokes.splice(index, 1);
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{
+        version: 1,
+        id: command.id + ":undo",
+        type: "stroke.add",
+        layerId: removed.layerId || layers[0]?.id || "",
+        tool: removed.tool,
+        color: removed.color,
+        size: removed.size,
+        points: removed.points,
+      }],
+      changed: true,
+    };
   }
 
   const layer = layers.find(item => item.id === command.layerId);
   if (!layer) throw new Error("Cannot execute layer command: target layer does not exist.");
+
   if (command.type === "layer.setVisibility") {
     const previous = layer.visible;
     layer.visible = command.visible;
@@ -85,7 +107,7 @@ export function applyNativeDrawingCommand(
   throw new Error("Unsupported native drawing command.");
 }
 
-/** Apply a whole plan atomically: if one operation fails, callers retain the original state. */
+/** Apply a plan atomically from the caller's perspective: keep the input state unless all commands succeed. */
 export function applyNativeDrawingPlan(
   state: NativeDrawingState,
   commands: readonly NativeDrawingCommand[],

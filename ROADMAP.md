@@ -52,14 +52,14 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Ensure cancelled work cannot continue executing queued actions.
 
 ## Phase 3 — Persistent universe memory
-- [x] Add project-scoped canon entity/fact data types, validation, bounded retrieval, contradiction warnings and retcon-impact calculation (PR #47; data-layer foundation only).\n- [x] Add IndexedDB persistence API for canon bundles, isolated by project ID (this PR; not yet wired to a world UI or existing project lifecycle).\n- [ ] Project-scoped universe bible UI for world rules, factions, locations, characters and relationships.
+- [x] Add project-scoped canon entity/fact data types, validation, bounded retrieval, contradiction warnings and retcon-impact calculation (PR #47; data-layer foundation only).- [x] Add IndexedDB persistence API for canon bundles, isolated by project ID (PR #48; project lifecycle integration remains incomplete).- [x] Project-scoped World Bible UI for world rules, factions, locations, characters and relationships (PR #49; local editor with explicit statuses).
 - [ ] Events, timelines, injuries, deaths, possessions, travel and other stateful continuity.
 - [ ] Separate approved canon from proposed, inferred, contradicted and superseded information.
 - [ ] Represent unknown distinctly from false; never silently promote inference into canon.
 - [ ] Track what each character knows versus what is true in the world.
 - [ ] Track clues, secrets, foreshadowing and intended payoffs.
 - [ ] Attach provenance to source notes, chapters, scenes, panels or events.
-- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).\n- [ ] Wire retrieval to model prompts and provide inspect/edit/search tools.
+- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).- [ ] Wire approved canon retrieval into Kuro chat and drawing-planner system prompts, using only the explicitly selected project (implementation in PR under review; lexical and bounded, not semantic).
 - [ ] Require approval for retcons and show their downstream impact.
 - [ ] Add export, import, recovery and project-scoped privacy controls; connect canon storage to the unified project lifecycle.
 
@@ -263,3 +263,7 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.
+
+
+- 2026-10-19 — [PR #49](https://github.com/gtxnrg-ship-it/my-app/pull/49) merged after both workflows passed. Added project-isolated World Bible editing with status controls and local persistence.
+- 2026-10-19 — Project-aware chat-context slice in progress: explicit project selection and bounded approved-only canon prompt context; proposed/inferred/superseded/contradicted entries are excluded from model context by default. Tests and CI pending.

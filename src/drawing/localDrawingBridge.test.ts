@@ -25,6 +25,31 @@ describe("local drawing command bridge", () => {
     expect(() => applyCommandsToLocalDrawing(document, [{ ...stroke, layerId: "missing" }])).toThrow(/unknown layer/);
     expect(document.strokes).toHaveLength(0);
   });
+  it("resolves the planner default layer to the first visible unlocked custom layer", () => {
+    const customDocument: LocalDrawingDocument = {
+      ...document,
+      layers: [
+        { id: "hidden", name: "Hidden", visible: false, locked: false, opacity: 1, blendMode: "normal" },
+        { id: "locked", name: "Locked", visible: true, locked: true, opacity: 1, blendMode: "normal" },
+        { id: "ink", name: "Ink", visible: true, locked: false, opacity: 1, blendMode: "normal" },
+      ],
+    };
+    const result = applyCommandsToLocalDrawing(customDocument, [{ ...stroke, layerId: "layer-default" }]);
+    expect(result.document.strokes[0].layerId).toBe("ink");
+  });
+
+  it("does not redirect a default-layer plan when no visible unlocked target exists", () => {
+    const customDocument: LocalDrawingDocument = {
+      ...document,
+      layers: [
+        { id: "hidden", name: "Hidden", visible: false, locked: false, opacity: 1, blendMode: "normal" },
+        { id: "locked", name: "Locked", visible: true, locked: true, opacity: 1, blendMode: "normal" },
+      ],
+    };
+    expect(() => applyCommandsToLocalDrawing(customDocument, [{ ...stroke, layerId: "layer-default" }]))
+      .toThrow(/visible, unlocked layer/i);
+  });
+
   it("rejects out-of-bounds model output", () => {
     expect(() => applyCommandsToLocalDrawing(document, [{ ...stroke, points: [{ x: 99999, y: 1 }] }])).toThrow(/rejected/);
   });

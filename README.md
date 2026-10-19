@@ -28,6 +28,10 @@ Node.js 20+ recommended.
     npm run build
     npm run preview
 
+## Engineering decisions
+
+- [Cross-platform and low-end performance strategy](docs/CROSS-PLATFORM-PERFORMANCE.md) — current framework decision, optimization order, device targets, and release gates.
+
 ## Planned architecture
 
 1. Responsive application shell and design system

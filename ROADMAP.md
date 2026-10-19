@@ -245,3 +245,8 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [x] Show the proposed drawing summary and command count; require explicit approval before switching to the canvas and applying.
 - [x] Validate the untrusted plan against current document bounds and layer/lock state, apply immutably, persist before reporting success, and report failures without claiming success.
 - [ ] Verify CI and manually test against a real configured model provider and real browser canvas. This first loop supports native strokes only; it is not full AI studio/tool coverage or visual-quality assurance.
+
+
+## 2026-10-19 — strict AI proposal parsing
+- [x] Move model JSON parsing into a pure, tested boundary that rejects malformed payloads, unsupported command types, out-of-bounds points, unknown layers, oversized plans, and excessive points per stroke before the user sees an approval card.
+- [ ] Continue expanding the native tool vocabulary and add integration tests for the visible approval-to-persistence flow.

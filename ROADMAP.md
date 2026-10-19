@@ -226,3 +226,9 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 ## 2026-10-19 — automated drawing regression tests
 - [ ] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, and approval queue transitions; await CI before marking verified.
 - [ ] Extend undo coverage to preserve removed stroke identity and original stack position, then connect executor to the canvas.
+
+
+## 2026-10-19 — local drawing command bridge
+- [x] Add an adapter that validates untrusted command arrays against a local drawing's dimensions and layer state, applies them immutably through the native executor, and returns a new local-document snapshot plus inverse operations.
+- [ ] Wire this adapter into DrawingCanvas with real action queue UI, persistence-before-success, cancellation, and undo integration.
+- [ ] Run the new adapter regression tests in CI; adapter existence alone is not end-to-end AI drawing.

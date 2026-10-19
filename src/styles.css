@@ -36,3 +36,15 @@
 .provider-settings{position:relative;z-index:5;margin:12px 0;padding:18px;border:1px solid var(--border,#393244);border-radius:14px;background:var(--panel,#171421);color:var(--text,#f4efff);display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 40px #0004}
 .provider-settings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.provider-settings-head h2{margin:4px 0;font-size:17px}.provider-settings-head p{margin:4px 0;color:var(--muted,#a49bb5);font-size:12px;line-height:1.5}.provider-settings-head small{font-size:9px;letter-spacing:1px;color:#b69aff}.provider-settings-head>button{background:transparent;border:1px solid var(--border,#393244);color:inherit;border-radius:8px;padding:4px 9px;font-size:20px;cursor:pointer}
 .provider-settings>label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text,#eee6fa)}.provider-settings input:not([type=checkbox]),.provider-settings select{width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid var(--border,#393244);border-radius:8px;background:#100e17;color:inherit;font:inherit;font-size:12px}.provider-settings .provider-check{flex-direction:row;align-items:center}.provider-settings .provider-check input{accent-color:#b69aff}.provider-muted{color:var(--muted,#a49bb5);font-weight:400}.provider-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.provider-actions button{border:1px solid #6f579d;border-radius:8px;background:#302146;color:#eaddff;padding:9px 12px;font-size:11px;cursor:pointer}.provider-actions button:disabled{opacity:.55;cursor:wait}.provider-actions .provider-secondary{background:transparent;border-color:var(--border,#393244);color:inherit}.provider-status,.provider-error,.provider-warning{margin:0;font-size:11px;line-height:1.55}.provider-status{color:#a7e0bd}.provider-error{color:#ff9b9b}.provider-warning{color:var(--muted,#a49bb5);font-size:10px}
+
+
+/* Approved AI drawing plan review */
+.drawing-plan-card{margin:14px 18px 8px;padding:16px;border:1px solid rgba(182,154,255,.42);border-radius:16px;background:linear-gradient(145deg,rgba(182,154,255,.10),rgba(255,255,255,.025));box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.plan-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}
+.plan-heading span{font-size:10px;letter-spacing:.08em;color:#b69aff;font-weight:700}
+.drawing-plan-card p{margin:10px 0;color:var(--text,#f2eefb);font-size:14px;line-height:1.55}
+.drawing-plan-card>small{display:block;color:var(--muted,#aaa2bb);font-size:11px;line-height:1.5}
+.plan-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}
+.plan-actions button{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:9px 13px;background:rgba(255,255,255,.04);color:inherit;cursor:pointer;font:inherit;font-size:12px}
+.plan-actions .plan-approve{background:#b69aff;color:#1b1427;border-color:transparent;font-weight:700}
+.plan-notice{margin:6px 20px 12px;color:var(--muted,#aaa2bb);font-size:11px}

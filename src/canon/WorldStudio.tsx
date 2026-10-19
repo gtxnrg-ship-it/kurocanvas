@@ -49,7 +49,19 @@ export default function WorldStudio() {
   useEffect(() => { void loadWorld(projectId); }, [projectId]);
 
   const issues = useMemo(() => bundle ? validateCanon(bundle) : [], [bundle]);
-  const results = useMemo(() => bundle ? retrieveCanon(bundle, { projectId: bundle.projectId, text: search, limit: 150 }) : { entities: [], facts: [] }, [bundle, search]);
+  const results = useMemo(() => {
+    if (!bundle) return { entities: [] as CanonEntity[], facts: [] as CanonFact[] };
+    const query = search.trim().toLocaleLowerCase();
+    const retrieved = retrieveCanon(bundle, { projectId: bundle.projectId, text: search, limit: 150 });
+    if (!query) return retrieved;
+    const matchingFacts = bundle.facts.filter(f => {
+      const subject = bundle.entities.find(e => e.id === f.subjectId);
+      return (f.predicate + " " + (typeof f.value === "string" ? f.value : JSON.stringify(f.value)) + " " + (subject?.name ?? "")).toLocaleLowerCase().includes(query);
+    });
+    const entityIds = new Set([...retrieved.entities.map(e => e.id), ...matchingFacts.map(f => f.subjectId)]);
+    const facts = new Map([...retrieved.facts, ...matchingFacts].map(f => [f.id, f]));
+    return { entities: bundle.entities.filter(e => entityIds.has(e.id)).slice(0, 150), facts: [...facts.values()].slice(0, 150) };
+  }, [bundle, search]);
   const entitiesById = useMemo(() => new Map((bundle?.entities ?? []).map(e => [e.id, e])), [bundle]);
 
   async function persist(next: CanonBundle, success: string) {

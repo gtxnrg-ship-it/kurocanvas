@@ -52,16 +52,16 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Ensure cancelled work cannot continue executing queued actions.
 
 ## Phase 3 — Persistent universe memory
-- [ ] Project-scoped universe bible, world rules, factions, locations, characters and relationships.
+- [x] Add project-scoped canon entity/fact data types, validation, bounded retrieval, contradiction warnings and retcon-impact calculation (PR #47; data-layer foundation only).\n- [x] Add IndexedDB persistence API for canon bundles, isolated by project ID (this PR; not yet wired to a world UI or existing project lifecycle).\n- [ ] Project-scoped universe bible UI for world rules, factions, locations, characters and relationships.
 - [ ] Events, timelines, injuries, deaths, possessions, travel and other stateful continuity.
 - [ ] Separate approved canon from proposed, inferred, contradicted and superseded information.
 - [ ] Represent unknown distinctly from false; never silently promote inference into canon.
 - [ ] Track what each character knows versus what is true in the world.
 - [ ] Track clues, secrets, foreshadowing and intended payoffs.
 - [ ] Attach provenance to source notes, chapters, scenes, panels or events.
-- [ ] Retrieve only relevant memory for a task; provide inspect/edit/search tools.
+- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).\n- [ ] Wire retrieval to model prompts and provide inspect/edit/search tools.
 - [ ] Require approval for retcons and show their downstream impact.
-- [ ] Add export, import, recovery and project-scoped privacy controls.
+- [ ] Add export, import, recovery and project-scoped privacy controls; connect canon storage to the unified project lifecycle.
 
 ## Phase 4 — Chapter-to-panel workflow
 - [ ] Discuss and approve a structured series bible.

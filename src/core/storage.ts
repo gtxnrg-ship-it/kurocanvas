@@ -1,11 +1,13 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
+import { validateCanon, type CanonBundle } from "../canon/universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
 const DRAWINGS = "drawings";
+const CANON = "canon";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -18,6 +20,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(TEMPLATES)) db.createObjectStore(TEMPLATES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(AUTOSAVE)) db.createObjectStore(AUTOSAVE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(DRAWINGS)) db.createObjectStore(DRAWINGS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -67,9 +70,10 @@ export const projectStorage = {
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
+        tx.objectStore(CANON).delete(id);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project."));
         tx.onabort = () => reject(tx.error ?? new Error("Project removal was cancelled."));
@@ -167,3 +171,26 @@ export function importProjectJson(text: string): KuroProject {
   if (!validateProject(parsed)) throw new Error("This JSON is not a supported Kuro project (schema version 1).");
   return parsed;
 }
+
+
+/** Project-scoped universe memory. Stored separately from chat transcripts and drawings. */
+export const canonStorage = {
+  async save(bundle: CanonBundle): Promise<void> {
+    if (!bundle.projectId || bundle.schemaVersion !== 1 || !Array.isArray(bundle.entities) || !Array.isArray(bundle.facts)) {
+      throw new Error("Refusing to save an invalid canon bundle.");
+    }
+    const errors = validateCanon(bundle).filter(issue => issue.severity === "error");
+    if (errors.length) throw new Error("Canon validation failed: " + errors.map(issue => issue.message).join(" "));
+    await requestValue<IDBValidKey>(CANON, "readwrite", store => store.put({ ...bundle, updatedAt: new Date().toISOString() }));
+  },
+  async load(projectId: string): Promise<CanonBundle | undefined> {
+    const result = await requestValue<(CanonBundle & { updatedAt?: string }) | undefined>(CANON, "readonly", store => store.get(projectId));
+    if (!result) return undefined;
+    const errors = validateCanon(result).filter(issue => issue.severity === "error");
+    if (errors.length) throw new Error("Saved canon is invalid: " + errors.map(issue => issue.message).join(" "));
+    return { schemaVersion: result.schemaVersion, projectId: result.projectId, entities: result.entities, facts: result.facts };
+  },
+  async remove(projectId: string): Promise<void> {
+    await requestValue<undefined>(CANON, "readwrite", store => store.delete(projectId));
+  },
+};

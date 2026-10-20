@@ -40,10 +40,22 @@ export function validateCanon(bundle: CanonBundle): CanonIssue[] {
 export function retrieveCanon(bundle: CanonBundle, q: CanonQuery) {
   if (q.projectId !== bundle.projectId) throw new Error("Canon retrieval is restricted to the active project.");
   const limit = Math.max(1, Math.min(500, Math.floor(q.limit ?? 80))), query = new Set(words(q.text ?? ""));
+  const matchingFactSubjects = new Map<string, number>();
+  if (query.size) {
+    for (const fact of bundle.facts) {
+      if (fact.projectId !== q.projectId || (q.statuses && !q.statuses.includes(fact.status))) continue;
+      if (q.maxStoryOrder !== undefined && fact.storyOrder !== undefined && fact.storyOrder > q.maxStoryOrder) continue;
+      const haystack = words([fact.predicate, typeof fact.value === "string" ? fact.value : JSON.stringify(fact.value ?? "")].join(" "));
+      const score = [...query].filter(token => haystack.includes(token)).length;
+      if (score) matchingFactSubjects.set(fact.subjectId, Math.max(matchingFactSubjects.get(fact.subjectId) ?? 0, score));
+    }
+  }
   const entities = bundle.entities.filter(e => e.projectId === q.projectId && (!q.kinds || q.kinds.includes(e.kind)) && (!q.statuses || q.statuses.includes(e.status)))
     .map(entity => {
       const haystack = words([entity.name, ...entity.aliases].join(" "));
-      const score = (query.size ? [...query].filter(t => haystack.includes(t)).length * 2 : 1) + (q.entityIds?.includes(entity.id) ? 1000 : 0);
+      const entityScore = query.size ? [...query].filter(t => haystack.includes(t)).length * 2 : 1;
+      const factScore = matchingFactSubjects.get(entity.id) ?? 0;
+      const score = entityScore + factScore + (q.entityIds?.includes(entity.id) ? 1000 : 0);
       return { entity, score };
     }).filter(x => x.score > 0).sort((a,b) => b.score-a.score || a.entity.name.localeCompare(b.entity.name)).slice(0,limit).map(x => x.entity);
   const selected = new Set([...entities.map(e => e.id), ...(q.entityIds ?? [])]);

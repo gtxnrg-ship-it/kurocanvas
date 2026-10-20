@@ -232,7 +232,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
   };
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (tool === 'pan') {\n      e.currentTarget.setPointerCapture(e.pointerId);\n      panRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, originX: pan.x, originY: pan.y };\n      setNotice('Drag the canvas to reposition your workspace');\n      return;\n    }
+    if (tool === 'pan') {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      panRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, originX: pan.x, originY: pan.y };
+      setNotice('Drag the canvas to reposition your workspace');
+      return;
+    }
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);

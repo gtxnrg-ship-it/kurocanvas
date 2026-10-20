@@ -143,6 +143,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
 
   useEffect(() => {
     let cancelled = false;
+    // History belongs to one document only; never replay another drawing's snapshots here.
+    setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]);
     setLoaded(false); setSaveState('loading');
     drawingStorage.load(drawingId).then(saved => {
       if (cancelled) return;

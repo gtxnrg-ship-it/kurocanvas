@@ -50,7 +50,7 @@ describe("drawing action queue", () => {
     const running = transitionDrawingAction(action("retry", false), { type: "execution.start", actionId: "retry" });
     const failed = transitionDrawingAction(running, { type: "execution.fail", actionId: "retry", error: "temporary failure" });
     expect(failed.status).toBe("failed");
-    const ready = transitionDrawingAction(failed, { type: "approval.grant", actionId: "retry" });
+    const ready = transitionDrawingAction(failed, { type: "execution.retry", actionId: "retry" });
     expect(ready.status).toBe("ready");
     expect(ready.error).toBeUndefined();
     expect(transitionDrawingAction(ready, { type: "execution.start", actionId: "retry" }).status).toBe("running");

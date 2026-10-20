@@ -27,7 +27,8 @@ export type DrawingActionEvent =
   | { type: "execution.start"; actionId: string }
   | { type: "execution.complete"; actionId: string }
   | { type: "execution.fail"; actionId: string; error: string }
-  | { type: "execution.cancel"; actionId: string };
+  | { type: "execution.cancel"; actionId: string }
+  | { type: "execution.retry"; actionId: string };
 
 /** Legal transitions are explicit so UI buttons cannot silently fake completion. */
 const ALLOWED: Record<DrawingActionStatus, readonly DrawingActionStatus[]> = {
@@ -82,6 +83,10 @@ export function transitionDrawingAction(
     case "execution.cancel":
       if (!canTransitionAction(action.status, "cancelled")) throw new Error("This action cannot be cancelled from its current state.");
       next = "cancelled";
+      break;
+    case "execution.retry":
+      if (action.status !== "failed") throw new Error("Only a failed action can be retried.");
+      next = "ready";
       break;
   }
 

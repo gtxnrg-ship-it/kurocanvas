@@ -1,17 +1,57 @@
 import { describe, expect, it } from "vitest";
-import { createDrawingAction, transitionDrawingAction } from "./actionQueue";
+import { createDrawingAction, transitionDrawingAction, transitionDrawingActions } from "./actionQueue";
+
+const action = (id: string, requiresApproval = true) =>
+  createDrawingAction({ id, title: "Draw", description: "Draw a stroke", commandId: "command-" + id, requiresApproval });
 
 describe("drawing action queue", () => {
   it("requires explicit approval before protected execution", () => {
-    const action = createDrawingAction({ id: "a", title: "Draw", description: "Draw a stroke", commandId: "c", requiresApproval: true });
-    expect(action.status).toBe("planned");
-    expect(() => transitionDrawingAction(action, { type: "execution.start", actionId: "a" })).toThrow();
-    const pending = transitionDrawingAction(action, { type: "approval.request", actionId: "a" });
+    const planned = action("a");
+    expect(planned.status).toBe("planned");
+    expect(() => transitionDrawingAction(planned, { type: "execution.start", actionId: "a" })).toThrow();
+    const pending = transitionDrawingAction(planned, { type: "approval.request", actionId: "a" });
     const ready = transitionDrawingAction(pending, { type: "approval.grant", actionId: "a" });
     expect(transitionDrawingAction(ready, { type: "execution.start", actionId: "a" }).status).toBe("running");
   });
+
   it("does not allow completion before execution starts", () => {
-    const action = createDrawingAction({ id: "a", title: "Draw", description: "Draw", commandId: "c", requiresApproval: false });
-    expect(() => transitionDrawingAction(action, { type: "execution.complete", actionId: "a" })).toThrow();
+    expect(() => transitionDrawingAction(action("a", false), { type: "execution.complete", actionId: "a" })).toThrow();
+  });
+
+  it("caps persisted error details and clears stale errors on recovery", () => {
+    const running = transitionDrawingAction(action("a", false), { type: "execution.start", actionId: "a" });
+    const failed = transitionDrawingAction(running, { type: "execution.fail", actionId: "a", error: "x".repeat(1500) });
+    expect(failed.error).toHaveLength(1000);
+    const retried = transitionDrawingAction(failed, { type: "execution.cancel", actionId: "a" });
+    expect(retried.error).toBeUndefined();
+  });
+
+  it("transitions multiple actions atomically and preserves queue order", () => {
+    const queue = [action("a"), action("b", false)];
+    const result = transitionDrawingActions(queue, [
+      { type: "approval.request", actionId: "a" },
+      { type: "execution.start", actionId: "b" },
+    ]);
+    expect(result.map(item => item.id)).toEqual(["a", "b"]);
+    expect(result.map(item => item.status)).toEqual(["awaiting-approval", "running"]);
+    expect(queue.map(item => item.status)).toEqual(["planned", "ready"]);
+  });
+
+  it("rejects an invalid batch without exposing partial updates", () => {
+    const queue = [action("a"), action("b", false)];
+    expect(() => transitionDrawingActions(queue, [
+      { type: "approval.request", actionId: "a" },
+      { type: "execution.complete", actionId: "b" },
+    ])).toThrow(/Only a running action can complete/);
+    expect(queue.map(item => item.status)).toEqual(["planned", "ready"]);
+  });
+
+  it("rejects unknown or repeated action IDs in a batch", () => {
+    const queue = [action("a")];
+    expect(() => transitionDrawingActions(queue, [{ type: "approval.request", actionId: "missing" }])).toThrow(/Unknown drawing action ID/);
+    expect(() => transitionDrawingActions(queue, [
+      { type: "approval.request", actionId: "a" },
+      { type: "execution.cancel", actionId: "a" },
+    ])).toThrow(/only be transitioned once/);
   });
 });

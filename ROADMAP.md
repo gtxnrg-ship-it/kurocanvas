@@ -44,7 +44,7 @@ These items have appeared in the repository's PR history. Their integration and 
 
 ## Phase 2 — Native drawing-action engine
 - [x] Define a first versioned, strictly validated native command schema for stroke addition and basic layer visibility/opacity/lock changes in src/drawing/commands.ts (schema foundation only; not yet wired to the canvas).
-- [ ] Connect the typed tool registry and drawing-action queue to the visible canvas lifecycle (the first approved stroke-only path is wired separately; queue/timeline integration remains).
+- [ ] Connect the typed tool registry and drawing-action queue to the visible canvas lifecycle (the first approved stroke-only path is wired separately; queue/timeline integration remains). Atomic multi-action queue transition helper and regression tests are implemented in PR #55; not yet integrated into the visible canvas.
 - [ ] Validate coordinates, sizes, colors, document/layer IDs and operation limits.
 - [ ] Prohibit arbitrary code execution and unrestricted filesystem/network access.
 - [x] Add a basic approval card and rendered preview of the exact validated stroke-only plan (PR #41 and follow-up preview); [ ] add queue-backed statuses and action provenance.
@@ -59,7 +59,7 @@ These items have appeared in the repository's PR history. Their integration and 
 - [ ] Track what each character knows versus what is true in the world.
 - [ ] Track clues, secrets, foreshadowing and intended payoffs.
 - [ ] Attach provenance to source notes, chapters, scenes, panels or events.
-- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).\n- [ ] Wire retrieval to model prompts and provide inspect/edit/search tools.
+- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).\n- [x] Wire approved, project-scoped canon retrieval into chat and drawing-planning prompts (PR #53; lexical retrieval improved in PR #54; CI passed). Inspect/edit/search workflows remain incomplete.
 - [ ] Require approval for retcons and show their downstream impact.
 - [ ] Add export, import, recovery and project-scoped privacy controls; connect canon storage to the unified project lifecycle.
 

@@ -67,8 +67,7 @@ export function transitionDrawingAction(
       next = "rejected";
       break;
     case "execution.start":
-      if (action.requiresApproval && action.status !== "ready") throw new Error("Approval is required before execution.");
-      if (!action.requiresApproval && action.status !== "ready") throw new Error("Action must be ready before execution.");
+      if (action.status !== "ready") throw new Error("Action must be ready before execution.");
       next = "running";
       break;
     case "execution.complete":
@@ -93,8 +92,37 @@ export function transitionDrawingAction(
     ...action,
     status: next,
     updatedAt: new Date().toISOString(),
-    ...(error ? { error } : next === "failed" ? {} : { error: undefined }),
+    ...(error !== undefined ? { error } : next === "failed" ? {} : { error: undefined }),
   };
+}
+
+/**
+ * Apply multiple queue events as one immutable transaction.
+ * Unknown IDs, duplicate IDs in a batch, or an illegal transition reject the
+ * entire batch; callers never receive a partially updated queue.
+ */
+export function transitionDrawingActions(
+  actions: readonly DrawingActionRecord[],
+  events: readonly DrawingActionEvent[],
+): DrawingActionRecord[] {
+  const byId = new Map<string, DrawingActionRecord>();
+  for (const action of actions) {
+    if (byId.has(action.id)) throw new Error("Duplicate drawing action ID: " + action.id);
+    byId.set(action.id, action);
+  }
+
+  const touched = new Set<string>();
+  for (const event of events) {
+    if (touched.has(event.actionId)) {
+      throw new Error("An action may only be transitioned once per batch: " + event.actionId);
+    }
+    touched.add(event.actionId);
+    const action = byId.get(event.actionId);
+    if (!action) throw new Error("Unknown drawing action ID: " + event.actionId);
+    byId.set(event.actionId, transitionDrawingAction(action, event));
+  }
+
+  return actions.map(action => byId.get(action.id)!);
 }
 
 export function createDrawingAction(input: {

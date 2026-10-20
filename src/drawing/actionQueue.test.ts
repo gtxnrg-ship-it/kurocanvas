@@ -54,4 +54,13 @@ describe("drawing action queue", () => {
       { type: "execution.cancel", actionId: "a" },
     ])).toThrow(/only be transitioned once/);
   });
+  it("allows an explicit retry only after failure and clears the old error", () => {
+    const running = transitionDrawingAction(action("retry", false), { type: "execution.start", actionId: "retry" });
+    const failed = transitionDrawingAction(running, { type: "execution.fail", actionId: "retry", error: "temporary canvas error" });
+    const ready = transitionDrawingAction(failed, { type: "execution.retry", actionId: "retry" });
+    expect(ready.status).toBe("ready");
+    expect(ready.error).toBeUndefined();
+    expect(() => transitionDrawingAction(action("not-failed", false), { type: "execution.retry", actionId: "not-failed" })).toThrow(/Only a failed action can be retried/);
+  });
+
 });

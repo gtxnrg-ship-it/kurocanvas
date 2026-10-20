@@ -46,6 +46,25 @@ describe("drawing action queue", () => {
     expect(queue.map(item => item.status)).toEqual(["planned", "ready"]);
   });
 
+  it("allows a failed action to retry only through ready and running", () => {
+    const running = transitionDrawingAction(action("retry", false), { type: "execution.start", actionId: "retry" });
+    const failed = transitionDrawingAction(running, { type: "execution.fail", actionId: "retry", error: "temporary failure" });
+    expect(failed.status).toBe("failed");
+    const ready = transitionDrawingAction(failed, { type: "approval.grant", actionId: "retry" });
+    expect(ready.status).toBe("ready");
+    expect(ready.error).toBeUndefined();
+    expect(transitionDrawingAction(ready, { type: "execution.start", actionId: "retry" }).status).toBe("running");
+  });
+
+  it("cancels queued and running actions but keeps terminal outcomes terminal", () => {
+    const queued = action("queued", false);
+    expect(transitionDrawingAction(queued, { type: "execution.cancel", actionId: "queued" }).status).toBe("cancelled");
+    const running = transitionDrawingAction(queued, { type: "execution.start", actionId: "queued" });
+    expect(transitionDrawingAction(running, { type: "execution.cancel", actionId: "queued" }).status).toBe("cancelled");
+    const completed = transitionDrawingAction(running, { type: "execution.complete", actionId: "queued" });
+    expect(() => transitionDrawingAction(completed, { type: "execution.cancel", actionId: "queued" })).toThrow(/cannot be cancelled/);
+  });
+
   it("rejects unknown or repeated action IDs in a batch", () => {
     const queue = [action("a")];
     expect(() => transitionDrawingActions(queue, [{ type: "approval.request", actionId: "missing" }])).toThrow(/Unknown drawing action ID/);

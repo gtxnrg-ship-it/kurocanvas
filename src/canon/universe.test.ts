@@ -12,6 +12,11 @@ describe("project canon core", () => {
     expect(result.entities.map(e => e.id)).toEqual(["c1"]);
     expect(result.facts.map(f => f.id)).toEqual(["f1"]);
   });
+  it("retrieves a character when the query matches an approved fact predicate or value", () => {
+    const bundle = { schemaVersion: 1 as const, projectId: "p1", entities: [character], facts: [fact({ predicate: "hidden oath", value: "silver moon" })] };
+    expect(retrieveCanon(bundle, { projectId: "p1", text: "silver moon", statuses: ["approved"] }).entities.map(e => e.id)).toEqual(["c1"]);
+    expect(retrieveCanon(bundle, { projectId: "p1", text: "oath", statuses: ["approved"] }).facts.map(f => f.id)).toEqual(["f1"]);
+  });
   it("flags potentially conflicting approved facts but not different story orders", () => {
     const bundle = { schemaVersion: 1 as const, projectId: "p1", entities: [character], facts: [fact(), fact({ id: "f2", value: false, storyOrder: 1 }), fact({ id: "f3", value: false, storyOrder: 2 })] };
     expect(findCanonContradictions(bundle)).toHaveLength(1);

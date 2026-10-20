@@ -26,6 +26,15 @@ describe("drawing action queue", () => {
     expect(retried.error).toBeUndefined();
   });
 
+  it("allows retry only after failure and clears the previous error", () => {
+    const running = transitionDrawingAction(action("retry", false), { type: "execution.start", actionId: "retry" });
+    const failed = transitionDrawingAction(running, { type: "execution.fail", actionId: "retry", error: "temporary failure" });
+    const ready = transitionDrawingAction(failed, { type: "execution.retry", actionId: "retry" });
+    expect(ready.status).toBe("ready");
+    expect(ready.error).toBeUndefined();
+    expect(() => transitionDrawingAction(action("retry"), { type: "execution.retry", actionId: "retry" })).toThrow(/Only a failed action can be retried/);
+  });
+
   it("transitions multiple actions atomically and preserves queue order", () => {
     const queue = [action("a"), action("b", false)];
     const result = transitionDrawingActions(queue, [

@@ -13,7 +13,7 @@ import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
-import { buildStyleBibleContext, findStyleConflicts } from './canon/styleBible';
+import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts } from './canon/styleBible';
 import StyleBibleStudio from './canon/StyleBibleStudio';
 import { buildStoryMemoryContext, retrieveStoryMemory, shouldCaptureStoryMemory } from './canon/storyMemory';
 import { proposeVisualStatesFromEvidence } from './canon/visualStateCapture';

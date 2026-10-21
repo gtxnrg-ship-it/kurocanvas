@@ -23,5 +23,11 @@ describe("durable story memory", () => {
     expect(draft.status).toBe("proposed"); expect(draft.source).toBe("user");
   });
   it("validates project boundaries and required detail", () => expect(validateStoryMemoryRecord(record(), "series-b")).toContain("Memory belongs to a different project."));
+  it("keeps superseded character states available for chapter-specific flashbacks", () => {
+    const oldState = record({ id: "mira-before", chapterNumber: 4, status: "superseded", summary: "Mira has a long braid before the bridge event." });
+    const result = retrieveStoryMemory([oldState], { projectId: "series-a", chapterNumber: 4, text: "Mira flashback" });
+    expect(result.records.map(item => item.id)).toContain("mira-before");
+    expect(retrieveStoryMemory([oldState], { projectId: "series-a", text: "Mira current appearance" }).records).toHaveLength(0);
+  });
   it("bounds context length", () => expect(buildStoryMemoryContext({ records: [record({ summary: "x".repeat(6000) })], assetRefs: [], warnings: [] }, 700).length).toBeLessThanOrEqual(700));
 });

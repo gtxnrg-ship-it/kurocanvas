@@ -24,6 +24,19 @@ describe("Kuro personality contract", () => {
     expect(KURO_PERSONA_CORE).toMatch(/Do not claim every model supports every request/i);
   });
 
+  it("expects deep understanding, substantial answers, and tolerant interpretation of imperfect English", () => {
+    expect(KURO_PERSONA_CORE).toMatch(/Treat imperfect English, fragments, slang/i);
+    expect(KURO_PERSONA_CORE).toMatch(/real depth/i);
+    expect(KURO_PERSONA_CORE).toMatch(/Do not make the user repeat information/i);
+    expect(KURO_PERSONA_CORE).toMatch(/A complex world, chapter, design, research task, or architectural problem deserves an expansive/i);
+  });
+
+  it("supports author-directed Easter eggs without leaking their payoff to readers", () => {
+    expect(KURO_PERSONA_CORE).toMatch(/intentional Easter egg/i);
+    expect(KURO_PERSONA_CORE).toMatch(/author-facing planning separate from reader-facing presentation/i);
+    expect(KURO_PERSONA_CORE).toMatch(/Do not invent a hidden connection/i);
+  });
+
   it("supports all voice intensity settings without changing canon or permissions", () => {
     expect(getKuroVoiceGuidance("subtle")).toMatch(/subtle/i);
     expect(getKuroVoiceGuidance("playful")).toMatch(/balanced/i);

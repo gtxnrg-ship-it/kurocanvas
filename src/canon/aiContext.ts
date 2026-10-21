@@ -27,8 +27,10 @@ export interface CanonContextOptions {
  * a concrete story-creation action and an intentional clue signal are required.
  */
 export function isIntentionalForeshadowingRequest(message: string): boolean {
-  const deliberateClue = /\b(?:easter\s*egg|cameo|foreshadow\w*|plant(?:ing)?\s+(?:a\s+)?clue|hidden\s+clue|future\s+(?:character|cameo|payoff)|unrevealed\s+(?:character|figure)|later\s+revealed|background\s+(?:character|figure|appearance)|blink[- ]and[- ]you[- ]miss[- ]it|brief\s+appearance|bump(?:s|ed)?\s+into|pass(?:es|ed)?\s+by|reader\s+won't\s+know|audience\s+won't\s+know)\b/i.test(message);
-  const creationAction = /\b(?:write|draft|continue|create|make|include|insert|plant|add|show|draw|render|compose|produce|script|stage|feature)\b/i.test(message);
+  const deliberateClue = /\b(?:easter\s*egg|cameo|foreshadow\w*|plant(?:ing)?\s+(?:a\s+)?clue|hidden\s+clue|future\s+(?:character|cameo|payoff)|unrevealed\s+(?:character|figure)|later\s+revealed|turns?\s+out\s+to\s+be|background\s+(?:character|figure|appearance)|blink[- ]and[- ]you[- ]miss[- ]it|brief\s+appearance|bump\w*\s+(?:into|with|against)|pass(?:es|ed|ing)?\s+by|reader\s+won't\s+know|audience\s+won't\s+know)\b/i.test(message);
+  // Scene actions cover informal instructions such as "that guy bumps into him
+  // in chapter one; later he turns out to be a cameo", even without "write/include".
+  const creationAction = /\b(?:write|draft|continue|create|make|include|insert|plant|add|show|draw|render|compose|produce|script|stage|feature|want|plan|set\s+up|introduc\w*|bump\w*|meet|walk|stand|pass\w*|appear|speak|talk)\b/i.test(message);
   return deliberateClue && creationAction;
 }
 

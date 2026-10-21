@@ -105,7 +105,7 @@ export function findStyleConflicts(bible: ProjectStyleBible): StyleConflict[] {
 }
 
 /** Builds a strict, bounded prompt contract. Unapproved proposals are never silently promoted to project truth. */
-export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, projectId: string, userMessage: string, maxCharacters = 5200): string {
+export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, projectId: string, userMessage: string, maxCharacters = 5200, targetStoryOrder?: number): string {
   if (!bible) return "";
   if (!projectId.trim() || bible.projectId !== projectId) throw new Error("Style context refused: style bible belongs to another project.");
   const cap = Math.max(500, Math.min(9000, Math.floor(maxCharacters)));
@@ -113,7 +113,7 @@ export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, pro
   const approvedInspirations = bible.inspirations.filter(source => source.status === "approved");
   const names = [...new Set(bible.characterStates.filter(s=>s.status==="approved").map(s=>s.characterName))];
   const relevantNames = names.filter(name => normalize(userMessage).includes(normalize(name)));
-  const chosenStates = bible.characterStates.filter(s => s.status === "approved" && (!relevantNames.length || relevantNames.some(n=>normalize(n)===normalize(s.characterName))))
+  const chosenStates = bible.characterStates.filter(s => s.status === "approved" && (targetStoryOrder === undefined || s.storyOrder <= targetStoryOrder) && (!relevantNames.length || relevantNames.some(n=>normalize(n)===normalize(s.characterName))))
     .sort((a,b)=>a.storyOrder-b.storyOrder);
   const lines = [
     "PROJECT STYLE BIBLE — CONTINUITY CONTRACT",
@@ -132,7 +132,7 @@ export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, pro
     for (const rule of approvedRules) lines.push("- [" + rule.category + "] " + rule.rule);
   }
   if (chosenStates.length) {
-    lines.push("APPROVED TEMPORAL CHARACTER VISUAL STATES (oldest first; select only the state appropriate to requested story order):");
+    lines.push("APPROVED TEMPORAL CHARACTER VISUAL STATES (oldest first; use only the latest state at or before the requested story order):");
     for (const state of chosenStates) {
       const attrs = (["age","hair","eyes","face","outfit","body","scars","accessories","expressionNotes"] as const)
         .filter(key=>state[key]?.trim()).map(key=>key + "=" + state[key]);

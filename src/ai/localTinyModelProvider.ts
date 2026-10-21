@@ -30,13 +30,13 @@ type PendingRequest = {
 
 const MODEL: ModelDescriptor = {
   id: KURO_TINY_MODEL_DESCRIPTOR_ID,
-  name: "Kuro Tiny · SmolLM2 135M Instruct",
+  name: "Kuro Local · Qwen3-0.6B",
   providerId: "kuro-local-browser",
   location: "local",
   roles: ["fast-helper"],
   capabilities: ["chat"],
   downloadBytes: KURO_TINY_MODEL_DOWNLOAD_BYTES,
-  memoryBytes: 350 * 1024 * 1024,
+  memoryBytes: 900 * 1024 * 1024,
   license: "Apache-2.0",
   modelUri: KURO_TINY_MODEL_URI,
   installed: true,
@@ -51,14 +51,14 @@ const MODEL: ModelDescriptor = {
  */
 export class LocalTinyModelProvider implements ModelProvider {
   readonly id = "kuro-local-browser";
-  readonly displayName = "Kuro Tiny · On-device browser model";
+  readonly displayName = "Kuro Local · Qwen3-0.6B browser model";
   private progressListener?: ProgressListener;
   private worker?: ModelWorker;
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
 
   constructor(private readonly workerFactory: () => ModelWorker = () => {
-    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Tiny will not fall back to blocking the canvas thread.");
+    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Local will not fall back to blocking the canvas thread.");
     return new Worker(new URL("./localTinyModel.worker.ts", import.meta.url), { type: "module" }) as unknown as ModelWorker;
   }) {}
 
@@ -84,7 +84,7 @@ export class LocalTinyModelProvider implements ModelProvider {
     if (request.signal?.aborted) return this.cancelledResponse(model);
     const messages = request.messages.map(message => {
       if (typeof message.content !== "string") {
-        throw new Error("Kuro Tiny is text-only. Canvas-image inspection needs a vision-capable model and is not supported by this local model.");
+        throw new Error("Kuro Local is text-only. Canvas-image inspection needs a vision-capable model and is not supported by this local model.");
       }
       return { role: message.role, content: message.content };
     });

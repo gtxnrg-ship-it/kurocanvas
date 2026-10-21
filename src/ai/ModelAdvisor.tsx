@@ -16,7 +16,7 @@ function platformMatches(model: KuroModelOption, device: DeviceAssessment): bool
 }
 function statusLabel(model: KuroModelOption, device: DeviceAssessment, benchmark?: LocalModelBenchmark): { label: string; color: string } {
   if (model.status === "available-in-web-build") {
-    if (model.id === "smollm2-135m-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:smollm2-135m-instruct") {
+    if (model.id === "qwen3-0.6b-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:qwen3-0.6b") {
       if (benchmark.rating === "fast") return { label: "Fast local text speed · measured", color: "#21864b" };
       if (benchmark.rating === "usable") return { label: "Usable, slower · measured", color: "#b7791f" };
       if (benchmark.rating === "slow") return { label: "Slow local text speed · measured", color: "#c53030" };
@@ -55,7 +55,7 @@ export default function ModelAdvisor({ benchmark }: { benchmark?: LocalModelBenc
             <div style={{ fontSize: 12, opacity: .8, marginTop: 4 }}>{model.tier} tier · {formatBytes(model.downloadBytes)} · {model.modalities.join(" + ")} · {model.runtime}</div>
             <p style={{ fontSize: 13, margin: "6px 0" }}>{model.bestFor}</p>
             <p style={{ fontSize: 12, opacity: .75, margin: 0 }}>{model.notes}</p>
-            {model.id === "smollm2-135m-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:smollm2-135m-instruct" && <p role="status" style={{ fontSize: 12, margin: "8px 0 0", padding: "8px", borderRadius: 8, background: "rgba(125,125,125,.09)" }}><strong>{localBenchmarkRatingLabel(benchmark.rating)}</strong><br />{benchmark.tokensPerSecond.toFixed(1)} generated tokens/s · {benchmark.outputTokens} tokens in {benchmark.elapsedMs} ms<br /><span style={{ opacity: .75 }}>Measured locally on {new Date(benchmark.measuredAt).toLocaleString()}. This measures warm text generation, not canvas frame rate or drawing quality.</span></p>}
+            {model.id === "qwen3-0.6b-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:qwen3-0.6b" && <p role="status" style={{ fontSize: 12, margin: "8px 0 0", padding: "8px", borderRadius: 8, background: "rgba(125,125,125,.09)" }}><strong>{localBenchmarkRatingLabel(benchmark.rating)}</strong><br />{benchmark.tokensPerSecond.toFixed(1)} generated tokens/s · {benchmark.outputTokens} tokens in {benchmark.elapsedMs} ms<br /><span style={{ opacity: .75 }}>Measured locally on {new Date(benchmark.measuredAt).toLocaleString()}. This measures warm text generation, not canvas frame rate or drawing quality.</span></p>}
             <a href={model.sourceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 7, fontSize: 12 }}>Model details ↗</a>
           </article>;
         })}

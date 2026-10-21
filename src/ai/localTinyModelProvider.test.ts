@@ -2,20 +2,26 @@ import { describe, expect, it } from "vitest";
 import { LocalTinyModelProvider, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, type ModelWorker, type WorkerRequest, type WorkerResponse } from "./localTinyModelProvider";
 
 describe("LocalTinyModelProvider", () => {
-  it("advertises one compact text-only local model without pretending it has vision", async () => {
+  it("advertises Qwen3-0.6B as a text-only local model without pretending it has vision", async () => {
     const provider = new LocalTinyModelProvider();
     const models = await provider.listModels();
     expect(models).toHaveLength(1);
     expect(models[0]).toMatchObject({
-      id: "kuro-local:smollm2-135m-instruct",
+      id: "kuro-local:qwen3-0.6b",
       providerId: "kuro-local-browser",
       location: "local",
-      downloadBytes: 137_000_000,
+      downloadBytes: 370_000_000,
       license: "Apache-2.0",
       capabilities: ["chat"],
       metadata: { modelId: KURO_TINY_MODEL_ID, vision: false },
     });
-    expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(137_000_000);
+    expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(370_000_000);
+  });
+
+  it("uses the Qwen3-0.6B ONNX model", async () => {
+    expect(KURO_TINY_MODEL_ID).toBe("onnx-community/Qwen3-0.6B-DQ-ONNX");
+    const provider = new LocalTinyModelProvider();
+    expect(provider.displayName).toContain("Qwen3-0.6B");
   });
 
   it("fails closed for image-bearing requests instead of silently dropping the image", async () => {

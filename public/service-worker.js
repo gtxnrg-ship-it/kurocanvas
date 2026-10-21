@@ -123,8 +123,9 @@ async function collectSources(task) {
     if (!page || typeof page !== "object") return [];
     const title = typeof page.title === "string" ? page.title.trim() : "";
     const extract = plain(page.extract).slice(0, 3200);
-    const url = typeof page.fullurl === "string" && /^https:\/\/en\.wikipedia\.org\//i.test(page.fullurl)
-      ? page.fullurl
+    const suppliedUrl = typeof page.fullurl === "string" ? page.fullurl : "";
+    const url = suppliedUrl
+      ? (/^https:\/\/en\.wikipedia\.org\//i.test(suppliedUrl) ? suppliedUrl : "")
       : Number.isInteger(page.pageid) ? "https://en.wikipedia.org/?curid=" + Number(page.pageid) : "";
     if (!title || !extract || !url) return [];
     return [{ title, extract, url }];

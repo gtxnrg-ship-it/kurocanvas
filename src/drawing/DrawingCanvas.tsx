@@ -14,13 +14,14 @@ import { moveArtworkToLayerEdge, type LayerEdge } from './layerOrdering';
 import { applyStrokeAppearance } from './strokeAppearance';
 import { drawingGuardSignature } from './drawingGuard';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
+import { resolveBrushPressure } from './brushDynamics';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; opacity?: number; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; opacity?: number; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; pressureSensitivity?: number; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string; activeLayerId: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
@@ -131,7 +132,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   } else if (stroke.points.length === 1) {
     const p = stroke.points[0];
     ctx.beginPath();
-    ctx.arc(p.x, p.y, pressureWidth(p.pressure, stroke.size, preset), 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, pressureWidth(resolveBrushPressure(p.pressure, stroke.pressureSensitivity ?? 100), stroke.size, preset), 0, Math.PI * 2);
     ctx.fill();
   } else {
     const points = stroke.points;
@@ -140,7 +141,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
       const start = i === 1 ? points[0] : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const next = points[i + 1];
       const end = next ? { x: (b.x + next.x) / 2, y: (b.y + next.y) / 2 } : b;
-      const pressure = Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
+      const pressure = (resolveBrushPressure(a.pressure, stroke.pressureSensitivity ?? 100) + resolveBrushPressure(b.pressure, stroke.pressureSensitivity ?? 100)) / 2;
       ctx.beginPath();
       ctx.lineWidth = pressureWidth(pressure, stroke.size, preset);
       ctx.moveTo(start.x, start.y);
@@ -202,6 +203,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [textDraft, setTextDraft] = useState('');
   const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
+  const [pressureSensitivity, setPressureSensitivity] = useState(100);
   const [stabilizer, setStabilizer] = useState(0);
   const [symmetryMode, setSymmetryMode] = useState<SymmetryMode>('off');
   const [panelLayout, setPanelLayout] = useState<PanelLayoutPreset>('two-rows');
@@ -349,7 +351,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const refreshDocuments = useCallback(async () => {
     try { setDocuments(await drawingStorage.list(projectId)); }
     catch (error) { setNotice('Could not list local drawings: ' + (error instanceof Error ? error.message : 'unknown error')); }
-  }, []);
+  }, [projectId]);
   useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
 
   useEffect(() => {
@@ -737,7 +739,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' || tool === 'bubble' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), fillColor: tool === 'bubble' ? '#fffdfb' : undefined, brushPreset: tool === 'brush' ? brushPreset : undefined, color, opacity: strokeOpacity / 100, size, points: [start] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' || tool === 'bubble' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), fillColor: tool === 'bubble' ? '#fffdfb' : undefined, brushPreset: tool === 'brush' ? brushPreset : undefined, pressureSensitivity: tool === 'brush' ? pressureSensitivity : undefined, color, opacity: strokeOpacity / 100, size, points: [start] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1234,6 +1236,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       {tool === 'select' && selectedStroke && <div className="selection-transform-tools" aria-label="Selected artwork inspector"><span className="selection-inspector-title">Object</span><label className="selection-color-control">Color <input aria-label="Selected object color" type="color" value={/^#[0-9a-f]{6}$/i.test(selectedStroke.color) ? selectedStroke.color : '#171321'} disabled={selectedStrokeLocked} onFocus={checkpointSelectedEdit} onChange={e => setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { color: e.target.value }))}/></label><label className="selection-opacity-control">Opacity <input aria-label="Selected object opacity" type="range" min="0" max="100" value={Math.round((selectedStroke.opacity ?? 1) * 100)} disabled={selectedStrokeLocked} onPointerDown={checkpointSelectedEdit} onKeyDown={e => {if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key) && !e.repeat) checkpointSelectedEdit();}} onChange={e => setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { opacity: Number(e.target.value) / 100 }))}/><span>{Math.round((selectedStroke.opacity ?? 1) * 100)}%</span></label><label className="selection-opacity-control">Weight <input aria-label="Selected object stroke weight" type="range" min="1" max="256" value={Math.min(256,Math.max(1,Math.round(selectedStroke.size)))} disabled={selectedStrokeLocked} onPointerDown={checkpointSelectedEdit} onKeyDown={e => {if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key) && !e.repeat) checkpointSelectedEdit();}} onChange={e => setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { size: Number(e.target.value) }))}/><span>{Math.round(selectedStroke.size)}</span></label>{(selectedStroke.shape === 'rectangle' || selectedStroke.shape === 'ellipse') && <button type="button" disabled={selectedStrokeLocked} aria-pressed={!!selectedStroke.filled} onClick={() => {checkpointSelectedEdit();setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { filled: !selectedStroke.filled }));}}>{selectedStroke.filled ? 'Remove fill' : 'Fill shape'}</button>}<button type="button" disabled={selectedStrokeLocked} onClick={() => flipSelected('horizontal')} title="Mirror selected vector artwork left to right">Flip ↔</button><button type="button" disabled={selectedStrokeLocked} onClick={() => flipSelected('vertical')} title="Mirror selected vector artwork top to bottom">Flip ↕</button><button type="button" disabled={selectedStrokeLocked} onClick={() => reorderSelected('back')} title="Send selected artwork behind other objects on this layer">To back</button><button type="button" disabled={selectedStrokeLocked} onClick={() => reorderSelected('front')} title="Bring selected artwork in front of other objects on this layer">To front</button></div>}
       <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}{customColors.map(c => <span className="custom-swatch" key={c}><button aria-label={'Choose saved color '+c} title={'Saved '+c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/><button type="button" className="custom-swatch-remove" aria-label={'Remove saved color '+c} title="Remove swatch" onClick={() => removeCustomColor(c)}>×</button></span>)}<button type="button" className="add-color-swatch" onClick={addCurrentColorToPalette} title="Save the current color as a reusable swatch">+ Swatch</button><label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
       <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option><option value="watercolor">Watercolor wash</option><option value="dry-brush">Dry brush</option><option value="calligraphy">Calligraphy nib</option></select></label>
+      <label className="pressure-control" title="Set how strongly stylus pressure changes line thickness">Pressure <input aria-label="Brush pressure sensitivity" type="range" min="0" max="100" step="5" value={pressureSensitivity} onChange={e => setPressureSensitivity(Number(e.target.value))}/><output>{pressureSensitivity}%</output></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>

@@ -107,13 +107,17 @@ function isDepth(value: unknown): value is ResearchDepth {
 function isResearchSourceProvider(value: unknown): value is ResearchSourceProvider {
   return value === "wikipedia" || value === "crossref";
 }
-function isSupportedResearchSourceUrl(raw: string): boolean {
+function isSupportedResearchSourceUrl(raw: string, sourceProvider: ResearchSourceProvider): boolean {
   try {
     const url = new URL(raw);
     if (url.protocol !== "https:" || url.username || url.password) return false;
     const host = url.hostname.toLocaleLowerCase();
-    if (host === "en.wikipedia.org") return url.pathname.startsWith("/wiki/") || (url.pathname === "/" && url.searchParams.has("curid"));
+    if (host === "en.wikipedia.org") {
+      return sourceProvider === "wikipedia"
+        && (url.pathname.startsWith("/wiki/") || (url.pathname === "/" && url.searchParams.has("curid")));
+    }
     if (host === "doi.org" && !url.search && !url.hash) {
+      if (sourceProvider !== "crossref") return false;
       let path: string;
       try { path = decodeURIComponent(url.pathname); } catch { return false; }
       return /^\/10\.\d{4,9}\/\S+$/i.test(path);
@@ -141,7 +145,7 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
     if (!source || typeof source.title !== "string" || !source.title.trim() || source.title.length > 400
       || typeof source.extract !== "string" || source.extract.length > 3200
       || typeof source.url !== "string" || source.url.length > 2000) return true;
-    return !isSupportedResearchSourceUrl(source.url);
+    return !isSupportedResearchSourceUrl(source.url, task.sourceProvider ?? "wikipedia");
   })) errors.push("Research sources must be bounded HTTPS records from en.wikipedia.org or canonical doi.org DOI links.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");
   if (task.error !== undefined && typeof task.error !== "string") errors.push("Research error must be text.");
@@ -434,7 +438,7 @@ export async function searchWikipediaResearch(
 
 type CrossrefWork = Record<string, unknown>;
 function crossrefYear(work: CrossrefWork): string {
-  for (const key of ["published-print", "published-online", "published", "created"]) {
+  for (const key of ["published-print", "published-online", "published"]) {
     const value = work[key];
     if (!value || typeof value !== "object") continue;
     const parts = (value as { "date-parts"?: unknown })["date-parts"];
@@ -482,7 +486,7 @@ export function parseCrossrefWorksPayload(payload: unknown, maxSources = 8): Res
       "DOI: " + doi,
     ].filter(Boolean).join(". ");
     const extract = details + ". " + (abstract
-      ? "Abstract excerpt (deposited with Crossref; source may be copyright-protected): " + abstract
+      ? "Abstract excerpt (deposited with Crossref; source may be copyright-protected): " + abstract + (abstractTruncated ? " [excerpt truncated]" : "")
       : "Crossref metadata has no abstract for this record. Consult the linked publication record before relying on details not present here.");
     const encodedDoi = doi.split("/").map(part => encodeURIComponent(part)).join("/");
     return [{ title: title.slice(0, 400), url: "https://doi.org/" + encodedDoi, extract: extract.slice(0, 3200) }];

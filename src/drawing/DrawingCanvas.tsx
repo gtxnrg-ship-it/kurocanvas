@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2 } from 'lucide-react';
 import { drawingStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text'; text?: string; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
+type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
 const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false, opacity: 1, blendMode: 'normal' };
@@ -30,7 +31,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     ctx.fillStyle = stroke.color;
     ctx.font = '600 ' + Math.max(8, stroke.size) + 'px Inter, Trebuchet MS, sans-serif';
     ctx.textBaseline = 'top';
-    (stroke.text ?? '').split('\\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
+    (stroke.text ?? '').split('\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
   } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
@@ -65,6 +66,19 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.restore();
 }
 
+function getStrokeBounds(stroke: Stroke) {
+  const points = stroke.points;
+  const pad = Math.max(6, stroke.size);
+  const minX = Math.min(...points.map(point => point.x));
+  const minY = Math.min(...points.map(point => point.y));
+  const maxX = Math.max(...points.map(point => point.x));
+  const maxY = Math.max(...points.map(point => point.y));
+  const textLines = (stroke.text ?? '').split('\n');
+  const textWidth = stroke.shape === 'text' ? Math.max(12, ...textLines.map(line => line.length * stroke.size * 0.62)) : 0;
+  const textHeight = stroke.shape === 'text' ? textLines.length * stroke.size * 1.3 : 0;
+  return { x: minX - pad, y: minY - pad, width: Math.max(1, maxX - minX, textWidth) + pad * 2, height: Math.max(1, maxY - minY, textHeight) + pad * 2 };
+}
+
 function createSurface(width: number, height: number): HTMLCanvasElement | null {
   if (typeof document === 'undefined') return null;
   const surface = document.createElement('canvas');
@@ -80,6 +94,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
   const panRef = useRef<{ pointerX: number; pointerY: number; originX: number; originY: number } | null>(null);
+  const selectionDragRef = useRef<SelectionDrag | null>(null);
+  const moveSnapshotRef = useRef<Stroke[] | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
   const [documents, setDocuments] = useState<Array<{id:string;name?:string;updatedAt:string}>>([]);
   const [drawingId, setDrawingId] = useState('default-canvas-v1');
@@ -92,6 +108,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
   const [activeLayerId, setActiveLayerId] = useState(DEFAULT_LAYER.id);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
+  const [editUndoStack, setEditUndoStack] = useState<Stroke[][]>([]);
+  const [editRedoStack, setEditRedoStack] = useState<Stroke[][]>([]);
+  const [historyOrder, setHistoryOrder] = useState<Array<'edit'|'plan'>>([]);
+  const [redoOrder, setRedoOrder] = useState<Array<'edit'|'plan'>>([]);
   const [planUndoStack, setPlanUndoStack] = useState<PlanSnapshot[]>([]);
   const [planRedoStack, setPlanRedoStack] = useState<PlanSnapshot[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -173,7 +194,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   useEffect(() => {
     let cancelled = false;
     // History belongs to one document only; never replay another drawing's snapshots here.
-    setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]);
+    setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
     setLoaded(false); setSaveState('loading');
     drawingStorage.load(drawingId).then(saved => {
       if (cancelled) return;
@@ -245,7 +266,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
         const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
         docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
         setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
-        setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]);
+        setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]); setEditRedoStack([]);
         setSaveState('saved'); setNotice('Approved AI drawing applied and saved locally');
         setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
         onPlanResult(pendingPlan.id, 'success', 'Applied and saved locally');
@@ -271,13 +292,32 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       setNotice('Drag to move the canvas · zoom controls remain available');
       return;
     }
+    if (tool === 'select') {
+      const at = pointFromEvent(e);
+      const target = [...strokes].reverse().find(stroke => {
+        const layer = layers.find(item => item.id === (stroke.layerId || layers[0]?.id));
+        if (layer?.locked || layer?.visible === false) return false;
+        const bounds = getStrokeBounds(stroke);
+        return at.x >= bounds.x && at.x <= bounds.x + bounds.width && at.y >= bounds.y && at.y <= bounds.y + bounds.height;
+      });
+      if (!target) { setSelectedStrokeId(null); setNotice('Tap an unlocked object to select and move it.'); return; }
+      setSelectedStrokeId(target.id); e.currentTarget.setPointerCapture(e.pointerId);
+      selectionDragRef.current = { pointerX: e.clientX, pointerY: e.clientY, strokeId: target.id, startPoints: target.points.map(point => ({ ...point })), moved: false };
+      moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+      setNotice('Drag to move the selected drawing object'); return;
+    }
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
     if (tool === 'text') {
       if (!textDraft.trim()) { setNotice('Type your lettering in the toolbar, then tap the canvas to place it.'); return; }
       const at = pointFromEvent(e);
       const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, color, size: Math.max(12, size * 2), points: [at] };
-      setStrokes(old => [...old, lettering]); setRedoStack([]); setNotice('Text object placed · undo is available'); return;
+      moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+      const beforeText = moveSnapshotRef.current;
+      if (beforeText) setEditUndoStack(old => [...old, beforeText]);
+      setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
+      setStrokes(old => [...old, lettering]); setRedoStack([]); moveSnapshotRef.current = null; setNotice('Text object placed · undo is available'); return;
     }
+    moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
     activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' ? tool : undefined, color, size, points: [start] };
@@ -287,6 +327,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (panRef.current) {
       const pan = panRef.current;
       setPanOffset({ x: pan.originX + e.clientX - pan.pointerX, y: pan.originY + e.clientY - pan.pointerY });
+      return;
+    }
+    if (selectionDragRef.current) {
+      const drag = selectionDragRef.current;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dx = ((e.clientX - drag.pointerX) / Math.max(1, rect.width)) * docRef.current.width;
+      const dy = ((e.clientY - drag.pointerY) / Math.max(1, rect.height)) * docRef.current.height;
+      if (Math.abs(dx) + Math.abs(dy) > 0.25) drag.moved = true;
+      setStrokes(old => old.map(stroke => stroke.id === drag.strokeId ? { ...stroke, points: drag.startPoints.map(point => ({ ...point, x: point.x + dx, y: point.y + dy })) } : stroke));
       return;
     }
     if (!activeRef.current) return;
@@ -299,14 +348,39 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   };
   const pointerUp = () => {
     if (panRef.current) { panRef.current = null; return; }
+    if (selectionDragRef.current) {
+      const drag = selectionDragRef.current; selectionDragRef.current = null;
+      const beforeMove = moveSnapshotRef.current;
+      if (drag.moved && beforeMove) { setEditUndoStack(old => [...old, beforeMove]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice('Object moved · Undo is available'); }
+      moveSnapshotRef.current = null; return;
+    }
     if (!activeRef.current) return;
     setStrokes(old => [...old, activeRef.current!]);
     activeRef.current = null;
+    const beforeStroke = moveSnapshotRef.current;
+    if (beforeStroke) setEditUndoStack(old => [...old, beforeStroke]);
+    moveSnapshotRef.current = null; setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
     setRedoStack([]);
     setNotice('Drawing mark added · Undo is available');
   };
   const undo = () => {
-    if (planUndoStack.length) {
+    const action = historyOrder[historyOrder.length - 1];
+    if (action === 'plan' && planUndoStack.length) {
+      const snapshot = planUndoStack[planUndoStack.length - 1];
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
+      setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'plan']);
+      docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
+      setNotice('AI drawing plan undone as one step'); return;
+    }
+    if (action === 'edit' && editUndoStack.length) {
+      const previous = editUndoStack[editUndoStack.length - 1];
+      setEditRedoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
+      setEditUndoStack(old => old.slice(0, -1)); setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'edit']);
+      setStrokes(previous); setSelectedStrokeId(null); setRedoStack([]); setNotice('Manual edit undone'); return;
+    }
+    if (!action && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
       const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
@@ -318,7 +392,23 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone');
   };
   const redo = () => {
-    if (planRedoStack.length) {
+    const action = redoOrder[redoOrder.length - 1];
+    if (action === 'plan' && planRedoStack.length) {
+      const snapshot = planRedoStack[planRedoStack.length - 1];
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
+      setHistoryOrder(old => [...old, 'plan']); setRedoOrder(old => old.slice(0, -1));
+      docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
+      setNotice('AI drawing plan restored as one step'); return;
+    }
+    if (action === 'edit' && editRedoStack.length) {
+      const next = editRedoStack[editRedoStack.length - 1];
+      setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
+      setEditRedoStack(old => old.slice(0, -1)); setHistoryOrder(old => [...old, 'edit']); setRedoOrder(old => old.slice(0, -1));
+      setStrokes(next); setSelectedStrokeId(null); setRedoStack([]); setNotice('Manual edit restored'); return;
+    }
+    if (!action && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
       const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
@@ -329,7 +419,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (!redoStack.length) return;
     setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored');
   };
-  const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setNotice('Canvas cleared'); };
+  const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
   const exportPng = () => {
     const out = createSurface(docRef.current.width, docRef.current.height);
@@ -433,6 +523,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Line, rectangle, and ellipse tools create editable vector-like strokes. Pressure is used when your device reports it. The eraser only affects the active layer; Undo restores the last mark. PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
+        <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
         <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>
         <button className={tool==='eraser'?'chosen':''} onClick={() => setTool('eraser')} title="Eraser"><Eraser size={16}/><span>Eraser</span></button>
         <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
@@ -446,11 +537,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
       {tool==='text' && <label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
-      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
+      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
     <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>
-      <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}</div>
+      <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const bounds = getStrokeBounds(strokes.find(stroke => stroke.id === selectedStrokeId)!); return <div className="canvas-selection-outline" style={{ left: (bounds.x / 1600 * 100) + '%', top: (bounds.y / 1200 * 100) + '%', width: (bounds.width / 1600 * 100) + '%', height: (bounds.height / 1200 * 100) + '%' }} aria-hidden="true"/>; })()}</div>
     </div>
     {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>AI action · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>

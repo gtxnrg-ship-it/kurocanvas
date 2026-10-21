@@ -34,6 +34,20 @@ describe("local drawing document validation", () => {
     expect(validateLocalDrawingDocument(drawing({ projectId: undefined }), "project-a").join(" ")).toMatch(/different or missing project/);
   });
 
+  it("accepts valid stroke opacity and rejects values outside the 0–1 alpha range", () => {
+    expect(validateLocalDrawingDocument(drawing({
+      strokes: [{ id: "faded", layerId: "layer-1", tool: "brush", color: "#101010", size: 4, opacity: 0, points: [{ x: 1, y: 1 }] }],
+    }))).toEqual([]);
+    expect(validateLocalDrawingDocument(drawing({
+      strokes: [{ id: "faded", layerId: "layer-1", tool: "brush", color: "#101010", size: 4, opacity: 0.35, points: [{ x: 1, y: 1 }] }],
+    }))).toEqual([]);
+    for (const opacity of [-0.001, 1.001, Number.NaN, Number.POSITIVE_INFINITY, "0.5"]) {
+      expect(validateLocalDrawingDocument(drawing({
+        strokes: [{ id: "invalid-opacity", layerId: "layer-1", tool: "brush", color: "#101010", size: 4, opacity, points: [{ x: 1, y: 1 }] }],
+      })).join(" ")).toMatch(/Stroke opacity/);
+    }
+  });
+
   it("keeps legacy documents without layers and optional pressure compatible", () => {
     expect(validateLocalDrawingDocument(drawing({
       layers: undefined,

@@ -7,6 +7,7 @@
  */
 export type KuroResponseDepth = "quick" | "balanced" | "deep" | "exhaustive";
 
+const LOCAL_OUTPUT_LIMIT_NOTICE = "I reached Qwen3-0.6B's current output limit";
 const QUICK_REQUEST = /\b(?:quick(?:ly)?|brief(?:ly)?|short answer|one sentence|in a sentence|tl;?dr|just the answer|no explanation)\b/i;
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
 const HUGE_REQUEST = /\b(?:exhaustive|comprehensive|every single detail|leave nothing out|full specification|production[- ]ready|fully finish|end to end|entire system|all edge cases)\b/i;
@@ -77,6 +78,10 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
  * Turn model finish metadata into honest user-facing chat text.
  * Structured-output callers still validate/recover JSON with their own schema.
  */
+export function isKuroChatResponseTruncated(text: string): boolean {
+  return text.includes(LOCAL_OUTPUT_LIMIT_NOTICE);
+}
+
 export function formatKuroChatResponse(
   text: string,
   finishReason: "stop" | "length" | "cancelled" | "error",
@@ -84,7 +89,7 @@ export function formatKuroChatResponse(
   const content = text.trim();
   if (!content) return "The model returned an empty response. Please try again.";
   if (finishReason === "length") {
-    return content + "\n\n*I reached Qwen3-0.6B's current output limit, so this reply may be incomplete. Say “continue” and I'll carry on from here.*";
+    return content + "\n\n*" + LOCAL_OUTPUT_LIMIT_NOTICE + ", so this reply may be incomplete. Say “continue” and I'll carry on from here.*";
   }
   if (finishReason === "error") {
     return content + "\n\n*This response ended with a model error and may be incomplete.*";

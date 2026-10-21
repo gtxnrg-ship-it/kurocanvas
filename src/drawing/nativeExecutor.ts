@@ -59,7 +59,7 @@ export function applyNativeDrawingCommand(
       ...(command.fontFamily ? { fontFamily: command.fontFamily } : {}),
       ...(command.filled !== undefined ? { filled: command.filled } : {}),
       ...(command.fillColor ? { fillColor: command.fillColor } : {}),
-      ...(command.rotation !== undefined ? { rotation: command.rotation } : {}),
+      ...(command.rotation !== undefined ? { rotation: command.rotation * Math.PI / 180 } : {}),
       ...(command.brushPreset ? { brushPreset: command.brushPreset } : {}),
     };
     return {

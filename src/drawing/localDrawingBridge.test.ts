@@ -60,6 +60,14 @@ describe("local drawing command bridge", () => {
     expect(result.document.strokes[1].text).toBe("A new beginning");
     expect(result.document.strokes[1].fontFamily).toBe("comic");
   });
+  it("persists native shape rotation using the canvas renderer's radian convention", () => {
+    const result = applyCommandsToLocalDrawing(document, [{
+      ...stroke, id: "rotated-panel", shape: "rectangle", rotation: 90,
+      points: [{ x: 100, y: 100 }, { x: 200, y: 150 }],
+    }]);
+    expect(result.document.strokes[0].rotation).toBeCloseTo(Math.PI / 2);
+  });
+
   it("rejects out-of-bounds model output", () => {
     expect(() => applyCommandsToLocalDrawing(document, [{ ...stroke, points: [{ x: 99999, y: 1 }] }])).toThrow(/rejected/);
   });

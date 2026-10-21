@@ -5,7 +5,7 @@ export interface AIStrokePlan {
   commands: NativeDrawingCommand[];
 }
 
-const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
+const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
 const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
 const AI_MAX_ACTIONS = 48;
 const AI_MAX_POINTS_PER_STROKE = 128;
@@ -15,8 +15,9 @@ const MAX_REPAIR_OUTPUT_CHARS = 20_000;
 
 /**
  * Parse bounded, allowlisted model output against the active document.
- * Kuro may propose additions, removals, and safe layer-property changes only;
- * structural/destructive actions outside this allowlist remain unavailable.
+ * Kuro may propose native stroke additions, style edits, transforms, and safe
+ * layer-property changes. Every edit requires target-document context and passes
+ * the shared command validator before it can reach the executor.
  */
 export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = DEFAULT_BOUNDS): AIStrokePlan {
   if (raw.length > AI_MAX_PLAN_CHARS) {
@@ -48,7 +49,7 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
       throw new Error("This workflow only accepts approved native stroke and layer-property actions.");
     }
     const item = command as { type: string; points?: unknown };
-    if ((item.type === "stroke.remove" || item.type === "stroke.update") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");
+    if ((item.type === "stroke.remove" || item.type === "stroke.update" || item.type === "stroke.transform") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");
     if (item.type === "stroke.add") {
       if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > AI_MAX_POINTS_PER_STROKE) {
         throw new Error("Each proposed stroke must contain between 1 and " + AI_MAX_POINTS_PER_STROKE + " points.");

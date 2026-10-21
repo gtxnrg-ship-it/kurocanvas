@@ -18,6 +18,16 @@ describe("native drawing executor", () => {
     expect(result.inverse[0]).toMatchObject({ type: "stroke.remove", strokeId: "stroke-1" });
     expect(initial.strokes).toHaveLength(0);
   });
+  it("converts model-authored shape rotation from degrees to canvas radians", () => {
+    const result = applyNativeDrawingCommand(initial, {
+      ...add,
+      shape: "rectangle",
+      rotation: 90,
+      points: [{ x: 100, y: 100, pressure: 0.5 }, { x: 200, y: 150, pressure: 0.5 }],
+    });
+    expect(result.state.strokes[0].rotation).toBeCloseTo(Math.PI / 2);
+  });
+
   it("updates stroke style immutably and can restore the previous values", () => {
     const drawn = applyNativeDrawingCommand(initial, add).state;
     const edit: NativeDrawingCommand = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "stroke-1", patch: { color: "#abcdef", size: 9 } };
@@ -40,6 +50,20 @@ describe("native drawing executor", () => {
     expect(drawn.strokes[0].points).toEqual([{ x: 10, y: 20, pressure: 0.7 }]);
     expect(transformed.changed).toBe(true);
     expect(transformed.inverse).toHaveLength(2);
+  });
+
+  it("applies rotation transforms in degrees and preserves an exact reversible snapshot", () => {
+    const drawn = applyNativeDrawingCommand(initial, {
+      ...add, points: [{ x: 100, y: 100, pressure: 0.5 }, { x: 200, y: 100, pressure: 0.8 }],
+    }).state;
+    const transformed = applyNativeDrawingCommand(drawn, {
+      version: 1, id: "rotate-1", type: "stroke.transform", strokeId: "stroke-1",
+      translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotationDegrees: 90,
+    });
+    expect(transformed.state.strokes[0].rotation).toBeCloseTo(Math.PI / 2);
+    expect(transformed.state.strokes[0].points).toEqual(drawn.strokes[0].points);
+    const restored = applyNativeDrawingPlan(transformed.state, transformed.inverse);
+    expect(restored.state.strokes).toEqual(drawn.strokes);
   });
 
   it("rejects transforms that would move editable geometry outside the canvas", () => {

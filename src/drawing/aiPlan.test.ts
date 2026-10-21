@@ -34,6 +34,23 @@ describe("parseAIStrokePlan", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...update, strokeId: "missing" }] }), bounds)).toThrow(/not in the active document/i);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...remove, id: "remove-2" }] }), { ...bounds, lockedLayerIds: ["ink"] })).toThrow(/locked layer/i);
   });
+  it("accepts native transforms only with explicit existing, unlocked stroke context", () => {
+    const bounds = { width: 800, height: 600, layerIds: ["ink"], lockedLayerIds: [], strokeLayerById: { "existing-1": "ink" } };
+    const transform = {
+      version: 1, id: "transform-1", type: "stroke.transform", strokeId: "existing-1",
+      translateX: 10, translateY: 15, scaleX: 2, scaleY: 1.5, rotationDegrees: 30,
+    };
+    expect(parseAIStrokePlan(JSON.stringify({ summary: "Rotate the selected line", commands: [transform] }), bounds).commands)
+      .toMatchObject([{ type: "stroke.transform", strokeId: "existing-1", rotationDegrees: 30 }]);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "No document", commands: [transform] }), {
+      width: 800, height: 600, layerIds: ["ink"], lockedLayerIds: [],
+    })).toThrow(/active document context/i);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "Unknown object", commands: [{ ...transform, strokeId: "missing" }] }), bounds))
+      .toThrow(/not in the active document/i);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "Locked object", commands: [transform] }), { ...bounds, lockedLayerIds: ["ink"] }))
+      .toThrow(/locked layer/i);
+  });
+
   it("rejects out-of-bounds points and unknown layers", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, points: [{ x: 2000, y: 40 }] }] }))).toThrow(/rejected/i);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, layerId: "missing" }] }))).toThrow(/rejected/i);

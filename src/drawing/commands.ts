@@ -28,6 +28,7 @@ export interface AddStrokeCommand {
   fontFamily?: "comic" | "sans" | "serif";
   filled?: boolean;
   fillColor?: string;
+  /** Rotation in degrees at the command boundary; persisted canvas strokes use radians. */
   rotation?: number;
   brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
 }

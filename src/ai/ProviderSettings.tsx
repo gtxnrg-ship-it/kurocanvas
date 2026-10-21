@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { OpenAICompatibleProvider } from "./openAICompatibleProvider";
 import type { ModelDescriptor } from "./modelRegistry";
+import type { KuroVoiceIntensity } from "./kuroPersona";
 
 export interface ActiveProviderConfig {
   baseUrl: string;
@@ -12,11 +13,13 @@ export interface ActiveProviderConfig {
 interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
+  voiceIntensity: KuroVoiceIntensity;
+  onVoiceIntensityChange: (intensity: KuroVoiceIntensity) => void;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
 
-export default function ProviderSettings({ initialBaseUrl, initialModelUri, onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({ initialBaseUrl, initialModelUri, voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
   const [baseUrl, setBaseUrl] = useState(initialBaseUrl || "https://api.openai.com/v1");
   const [apiKey, setApiKey] = useState("");
   const [modelUri, setModelUri] = useState(initialModelUri);
@@ -54,6 +57,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, onSa
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
     <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local endpoints such as LM Studio or llama.cpp.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
+    <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p></fieldset>
     <label>API base URL<input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" autoComplete="url" /></label>
     <label>API key <span className="provider-muted">(kept in memory only; re-enter after refresh)</span><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="new-password" placeholder="Optional for local endpoints" /></label>
     <label className="provider-check"><input type="checkbox" checked={allowInsecureLocalhost} onChange={e=>setAllowInsecureLocalhost(e.target.checked)} /> Allow HTTP only for a localhost model endpoint</label>

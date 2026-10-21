@@ -305,12 +305,25 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   }, []);
 
   useEffect(() => {
-    const root = rootRef.current;
+    const root = modelContentRef.current;
     if (!root) return;
     clearGroup(root);
+    animationMixerRef.current?.stopAllAction();
+    animationMixerRef.current = null;
+    setAnimationClips([]);
+    setActiveAnimationIndex("");
     const inner = new THREE.Group(); root.add(inner);
     let cancelled = false;
     let objectUrl: string | undefined;
+    let activeMixer: THREE.AnimationMixer | null = null;
+    const proceduralTraits: ProceduralCharacterTraits = {
+      hair: selectedModel?.proceduralTraits?.hair ?? resolved?.traits.hair,
+      age: selectedModel?.proceduralTraits?.age ?? resolved?.traits.age,
+      outfit: selectedModel?.proceduralTraits?.outfit ?? resolved?.traits.outfit,
+      skinTone: selectedModel?.proceduralTraits?.skinTone,
+      eyeColor: selectedModel?.proceduralTraits?.eyeColor,
+      bodyType: selectedModel?.proceduralTraits?.bodyType,
+    };
     const finish = (notice: string) => {
       if (cancelled) return;
       boundsRef.current = new THREE.Box3().setFromObject(root);
@@ -322,18 +335,51 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       objectUrl = URL.createObjectURL(selectedModel.modelBlob);
       new GLTFLoader().load(objectUrl, gltf => {
         if (cancelled) { disposeObject(gltf.scene); return; }
-        try { normalizedModel(gltf.scene); inner.add(gltf.scene); finish("Loaded " + selectedModel.fileName + ". Orbit to inspect the model; adjust scar overlays below."); }
-        catch (error) { createProceduralCharacter(inner, resolved?.traits); finish(error instanceof Error ? error.message + " Showing a blockout instead." : "Invalid model. Showing a blockout instead."); }
+        try {
+          normalizedModel(gltf.scene);
+          inner.add(gltf.scene);
+          const clips = gltf.animations ?? [];
+          setAnimationClips(clips);
+          if (clips.length) {
+            const defaultIndex = Math.max(0, clips.findIndex(clip => /idle|breath|stand|rest/i.test(clip.name)));
+            const mixer = new THREE.AnimationMixer(gltf.scene);
+            activeMixer = mixer;
+            animationMixerRef.current = mixer;
+            mixer.clipAction(clips[defaultIndex]).reset().play();
+            setActiveAnimationIndex(String(defaultIndex));
+          }
+          finish("Loaded " + selectedModel.fileName + (clips.length ? " · native animation preview is running." : " · subtle native viewport motion is active; this GLB has no embedded animation clips."));
+        } catch (error) {
+          createProceduralCharacter(inner, proceduralTraits);
+          finish(error instanceof Error ? error.message + " Showing a procedural blockout instead." : "Invalid model. Showing a blockout instead.");
+        }
       }, undefined, () => {
         if (cancelled) return;
-        createProceduralCharacter(inner, resolved?.traits); finish("The GLB could not be loaded. Showing the procedural blockout; try a self-contained GLB.");
+        createProceduralCharacter(inner, proceduralTraits);
+        finish("The GLB could not be loaded. Showing the procedural blockout; try a self-contained GLB.");
       });
     } else {
-      createProceduralCharacter(inner, resolved?.traits);
-      finish(selectedModel ? "Showing the procedural 3D blockout for " + selectedModel.characterName + ". Hair silhouette and outfit colors reflect approved notes where recognizable; upload a GLB for a finished sculpt." : selectedProfile && selectedState ? "No model variant exists at " + selectedState.chapterLabel + ". Showing a blockout; upload a GLB while this chapter is selected to add a chapter-specific model." : "Create a character blockout or upload a GLB model to begin.");
+      createProceduralCharacter(inner, proceduralTraits);
+      finish(selectedModel
+        ? "Showing the native procedural character rig for " + selectedModel.characterName + ". The model can idle, flex, and take a combat-ready pose; chapter-linked scar overlays remain editable."
+        : selectedProfile && selectedState
+          ? "No model variant exists at " + selectedState.chapterLabel + ". Showing the chapter-aware procedural blockout; upload a GLB if you have a more detailed rig."
+          : "Create a native character blockout or upload a rigged GLB model to begin.");
     }
-    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedModel?.id, selectedModel?.sourceType, selectedModel?.modelBlob, selectedProfile?.id, selectedState?.id, selectedModel?.sourceType === "procedural" ? resolved?.traits.hair : undefined, selectedModel?.sourceType === "procedural" ? resolved?.traits.outfit : undefined]);
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (activeMixer && animationMixerRef.current === activeMixer) {
+        activeMixer.stopAllAction();
+        animationMixerRef.current = null;
+      }
+    };
+  }, [
+    selectedModel?.id, selectedModel?.sourceType, selectedModel?.modelBlob, selectedProfile?.id, selectedState?.id,
+    resolved?.traits.hair, resolved?.traits.age, resolved?.traits.outfit,
+    selectedModel?.proceduralTraits?.hair, selectedModel?.proceduralTraits?.age, selectedModel?.proceduralTraits?.outfit,
+    selectedModel?.proceduralTraits?.skinTone, selectedModel?.proceduralTraits?.eyeColor, selectedModel?.proceduralTraits?.bodyType,
+  ]);
 
   useEffect(() => {
     const scarRoot = scarRootRef.current;

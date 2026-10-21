@@ -13,6 +13,7 @@ import { flipStrokeGeometry, type FlipAxis } from './flipArtwork';
 import { moveArtworkToLayerEdge, type LayerEdge } from './layerOrdering';
 import { applyStrokeAppearance } from './strokeAppearance';
 import { saveDrawingWithReadback } from './drawingReadback';
+import { drawingGuardSignature } from './drawingGuard';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
@@ -174,7 +175,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
   return surface;
 }
 
-type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
+type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[]; expectedDocumentSignature: string } | null;
 export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error' | 'cancelled', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -453,6 +454,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })),
           layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
         };
+        if (drawingGuardSignature(current) !== pendingPlan.expectedDocumentSignature) {
+          throw new Error('This canvas changed after Kuro prepared the plan. Nothing was applied. Return to chat, inspect the latest canvas, and ask Kuro for a fresh proposal.');
+        }
         originalDocument = current;
         workingDocument = current;
         await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
@@ -463,6 +467,10 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           if (cancelled) break;
           const command = pendingPlan.commands[index];
           const previousStep = workingDocument!;
+          const latestSaved = await drawingStorage.load(drawingId, projectId);
+          if (!latestSaved || drawingGuardSignature(latestSaved) !== drawingGuardSignature(previousStep)) {
+            throw new Error('The canvas changed or was removed while Kuro was drawing. Execution stopped to protect newer work.');
+          }
           const step = applyCommandsToLocalDrawing(previousStep, [command]);
           if (step.changed) {
             // Persist and read back each native action before moving to the next one.

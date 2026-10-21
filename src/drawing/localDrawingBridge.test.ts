@@ -68,6 +68,36 @@ describe("local drawing command bridge", () => {
     expect(result.document.strokes[0].rotation).toBeCloseTo(Math.PI / 2);
   });
 
+  it("creates a layer, draws on it, renames it, and reverses the complete sequence", () => {
+    const plan = [
+      { version: 1, id: "create-details", type: "layer.add", layerId: "details", name: "Detail ink", index: 1 },
+      { ...stroke, id: "detail-stroke", layerId: "details" },
+      { version: 1, id: "rename-details", type: "layer.rename", layerId: "details", name: "Face details" },
+    ];
+    const result = applyCommandsToLocalDrawing(document, plan);
+    expect(result.document.layers?.map(layer => layer.name)).toEqual(["Ink", "Face details"]);
+    expect(result.document.strokes[0].layerId).toBe("details");
+    expect(result.inverse.map(command => command.type)).toEqual(["layer.rename", "stroke.remove", "layer.remove"]);
+    const undone = applyCommandsToLocalDrawing(result.document, result.inverse);
+    expect(undone.document.layers?.map(layer => layer.id)).toEqual(["ink"]);
+    expect(undone.document.strokes).toEqual([]);
+  });
+
+  it("reorders layers in document order and refuses to delete a non-empty layer", () => {
+    const layered: LocalDrawingDocument = {
+      ...document,
+      layers: [
+        { id: "ink", name: "Ink", visible: true, locked: false, opacity: 1, blendMode: "normal" },
+        { id: "tone", name: "Tone", visible: true, locked: false, opacity: 1, blendMode: "normal" },
+      ],
+    };
+    const reordered = applyCommandsToLocalDrawing(layered, [{ version: 1, id: "move-tone", type: "layer.reorder", layerId: "tone", index: 0 }]);
+    expect(reordered.document.layers?.map(layer => layer.id)).toEqual(["tone", "ink"]);
+    const withStroke = applyCommandsToLocalDrawing(layered, [{ ...stroke, layerId: "tone" }]).document;
+    expect(() => applyCommandsToLocalDrawing(withStroke, [{ version: 1, id: "remove-tone", type: "layer.remove", layerId: "tone" }]))
+      .toThrow(/contains strokes/i);
+  });
+
   it("rejects out-of-bounds model output", () => {
     expect(() => applyCommandsToLocalDrawing(document, [{ ...stroke, points: [{ x: 99999, y: 1 }] }])).toThrow(/rejected/);
   });

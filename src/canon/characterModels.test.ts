@@ -20,6 +20,12 @@ describe("3D character model records", () => {
     expect(validateCharacterModel(base({ sourceType: "uploaded-glb", fileName: "ren.glb", modelBlob: blob }))).toEqual([]);
   });
 
+  it("requires chapter-specific model variants to link to a finite approved-state order", () => {
+    const variant = base({ characterStateId: "state-12", storyOrder: 12, fileName: "ren-ch12.glb" });
+    expect(validateCharacterModel(variant)).toEqual([]);
+    expect(validateCharacterModel(base({ characterStateId: "state-12" })).join(" ")).toContain("state ID and story order");
+  });
+
   it("preserves the introduction and removal order for scar overlays", () => {
     const scar = { id: "scar-1", characterStateId: "state-12", introducedAtOrder: 12, removedAtOrder: 14, label: "Left eyebrow", x: 0.1, y: 0.34, z: 0.5, length: 0.08, angle: 45, color: "#8b343b" };
     expect(validateCharacterModel(base({ scarOverlays: [scar] }))).toEqual([]);

@@ -34,6 +34,30 @@ describe("durable story memory", () => {
     expect(result.records[0].id).toBe("chapter-12"); expect(result.assetRefs).toEqual(["panel-bridge-03", "template-flashback-blue"]);
   });
 
+  it("brings earlier approved chapter facts into a target-chapter recall without admitting future chapters", () => {
+    const older = record({ id: "chapter-1", chapterNumber: 1, storyOrder: 10, title: "The first meeting", summary: "Mira meets the red-scarf stranger at the station.", tags: ["stranger"] });
+    const target = record({ id: "chapter-2", chapterNumber: 2, storyOrder: 20, title: "The corridor collision", summary: "The red-scarf stranger bumps into Mira outside the academy.", tags: ["cameo"] });
+    const future = record({ id: "chapter-20", chapterNumber: 20, storyOrder: 200, title: "The reveal", summary: "The stranger is revealed as the future captain.", tags: ["payoff"] });
+    const timeless = record({ id: "world-rule", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: undefined, title: "Clue rule", summary: "Keep the first appearance unremarkable.", tags: ["continuity"] });
+    const result = retrieveStoryMemory([older, target, future, timeless], {
+      projectId: "series-a", chapterNumber: 2, text: "recap Mira red-scarf stranger", includePriorChapters: true, limit: 10,
+    });
+    expect(result.records.map(item => item.id)).toContain("chapter-2");
+    expect(result.records.map(item => item.id)).toContain("chapter-1");
+    expect(result.records.map(item => item.id)).toContain("world-rule");
+    expect(result.records.map(item => item.id)).not.toContain("chapter-20");
+    expect(result.records[0].id).toBe("chapter-2");
+  });
+
+  it("makes multiple timeline identities explicit rather than silently blending them", () => {
+    const main = record({ id: "main-event", chapterNumber: 2, timelineId: "main", summary: "Mira keeps the key." });
+    const echo = record({ id: "echo-event", chapterNumber: 2, timelineId: "echo", summary: "Mira gives away the key." });
+    const context = buildStoryMemoryContext(retrieveStoryMemory([main, echo], { projectId: "series-a", chapterNumber: 2, text: "Mira key", limit: 10 }));
+    expect(context).toContain("timeline main");
+    expect(context).toContain("timeline echo");
+    expect(context).toMatch(/TIMELINE SEPARATION WARNING/);
+  });
+
   it("prevents future chapter recaps from entering an earlier chapter prompt", () => {
     const earlier = record({ id: "chapter-2", chapterNumber: 2, storyOrder: 20, timelineId: "main", title: "Old bridge", summary: "Mira visits the bridge." });
     const current = record({ id: "chapter-3", chapterNumber: 3, storyOrder: 30, timelineId: "main", title: "Oath", summary: "Mira makes the oath." });

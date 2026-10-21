@@ -140,6 +140,23 @@ export function validateUniverseRecord(value: unknown): value is UniverseRecord 
     && !!item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata);
 }
 
+/** A project owns exactly one isolated universe; attached conversations belong inside it. */
+export function validateUniverseProjectPartition(universes: readonly UniverseRecord[]): string[] {
+  const ownerByProject = new Map<string, string>();
+  const errors: string[] = [];
+  for (const universe of universes) {
+    if (!universe || typeof universe.projectId !== "string" || !universe.projectId.trim()
+      || typeof universe.id !== "string" || !universe.id.trim()) continue;
+    const previous = ownerByProject.get(universe.projectId);
+    if (previous && previous !== universe.id) {
+      errors.push("A project cannot own multiple isolated universes. Create a separate project for each universe to keep story memory and canon isolated.");
+    } else {
+      ownerByProject.set(universe.projectId, universe.id);
+    }
+  }
+  return [...new Set(errors)];
+}
+
 export function validateConversationRecord(value: unknown, expectedUniverseId?: string): value is ConversationRecord {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<ConversationRecord>;

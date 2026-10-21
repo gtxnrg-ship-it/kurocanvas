@@ -111,9 +111,45 @@ describe("approved canon AI context", () => {
     expect(isStoryProductionRequest("Start Chapter 1")).toBe(true);
     expect(isStoryProductionRequest("Make panel 2")).toBe(true);
     expect(isStoryProductionRequest("Draw panel 3")).toBe(true);
+    expect(isStoryProductionRequest("Continue the story")).toBe(true);
+    expect(isStoryProductionRequest("Write the next installment")).toBe(true);
+    expect(isStoryProductionRequest("Illustrate the final battle")).toBe(true);
+    expect(isStoryProductionRequest("Generate a reveal scene")).toBe(true);
     expect(isStoryProductionRequest("Let's brainstorm the emperor privately")).toBe(false);
     expect(isStoryProductionRequest("Let's brainstorm Chapter 1")).toBe(false);
     expect(isStoryProductionRequest("Brainstorm and write Chapter 1")).toBe(true);
+  });
+
+  it("excludes later approved canon facts from an earlier story-production prompt", () => {
+    const secret: CanonEntity = { id: "secret", projectId: "series-a", kind: "character", name: "The Secret Emperor", aliases: [], status: "approved" };
+    const city: CanonEntity = { id: "sun-city", projectId: "series-a", kind: "location", name: "Sun City", aliases: [], status: "approved" };
+    const futureFact: CanonFact = {
+      id: "future-city-fall", projectId: "series-a", subjectId: "sun-city",
+      predicate: "destruction", value: "Sun City is destroyed after the treaty breaks",
+      status: "approved", storyOrder: 40,
+    };
+    const state = (id: string, characterId: string, storyOrder: number, chapterNumber: number, revealAtStoryOrder?: number): CharacterEvolutionState => ({
+      id, universeId: "u1", characterId, timelineId: "main", storyOrder, chapterNumber, status: "approved",
+      ...(revealAtStoryOrder === undefined ? {} : { revealAtStoryOrder }),
+      appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [], sourceMessageIds: [],
+      changeSummary: "Approved story point", createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const testBundle = {
+      ...bundle,
+      entities: [entity, secret, city],
+      facts: [fact("city-location", "approved", "The market is near the river"), futureFact],
+    };
+    const result = buildApprovedCanonContext(testBundle, {
+      projectId: "series-a",
+      userMessage: "Sun City destruction treaty breaks",
+      revealGate: {
+        enabled: true, universeId: "u1",
+        states: [state("hero-ch1", "hero", 10, 1), state("secret-preload", "secret", 5, 1, 40)],
+        chapterNumber: 1,
+      },
+    });
+    expect(result).toContain("Sun City (location)");
+    expect(result).not.toContain("Sun City is destroyed after the treaty breaks");
   });
 
   it("bounds the context size", () => {

@@ -419,10 +419,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           strokes: docRef.current.strokes, layers: layers.map(layer => ({ ...layer })),
           updatedAt: new Date().toISOString(),
         };
+        await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
+        if (cancelled) return;
         const applied = applyCommandsToLocalDrawing(current, pendingPlan.commands);
         if (!applied.changed) throw new Error('The plan contained no applicable changes.');
-        await drawingStorage.save(applied.document);
         if (cancelled) return;
+        await drawingStorage.save(applied.document);
+        if (cancelled) { await drawingStorage.save(current); return; }
         const nextStrokes = applied.document.strokes as Stroke[];
         const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
         docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };

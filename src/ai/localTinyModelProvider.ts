@@ -57,6 +57,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   readonly displayName = "Kuro Local · Qwen3-0.6B browser model";
   private progressListener?: ProgressListener;
   private worker?: ModelWorker;
+  private prepared = false;
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
 
@@ -70,7 +71,12 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 
   listModels(): Promise<ModelDescriptor[]> {
-    return Promise.resolve([{ ...MODEL, roles: [...MODEL.roles], capabilities: [...MODEL.capabilities] }]);
+    return Promise.resolve([{ ...MODEL, installed: this.prepared, roles: [...MODEL.roles], capabilities: [...MODEL.capabilities] }]);
+  }
+
+  /** True only when the model weights are loaded in this page's live worker. */
+  isPrepared(): boolean {
+    return this.prepared;
   }
 
   async isAvailable(): Promise<boolean> {
@@ -80,6 +86,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   async prepare(signal?: AbortSignal): Promise<void> {
     const response = await this.send({ type: "prepare" }, signal);
     if (response.type !== "ready") throw new Error("The local model worker did not finish preparing.");
+    this.prepared = true;
   }
 
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
@@ -91,6 +98,9 @@ export class LocalTinyModelProvider implements ModelProvider {
       }
       return { role: message.role, content: message.content };
     });
+    if (!this.prepared) {
+      throw new Error("Qwen3-0.6B has not been prepared in this session. Open Preferences and choose “Download & prepare Qwen3-0.6B”; Kuro will not download model weights from an ordinary chat message.");
+    }
     const bounded = boundMessages(messages, 12_000);
     const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, KURO_LOCAL_MAX_OUTPUT_TOKENS));
     const temperature = typeof request.temperature === "number" && Number.isFinite(request.temperature)
@@ -159,6 +169,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 
   private stopWorker(reason: Error, cancelledRequestId?: number): void {
+    this.prepared = false;
     const worker = this.worker;
     this.worker = undefined;
     if (worker) {

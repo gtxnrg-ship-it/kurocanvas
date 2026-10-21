@@ -10,7 +10,9 @@ const initialSnapshot = (): RelationshipSnapshot => ({state:"strangers",trust:10
 const lines = (value:string) => value.split("\n").map(item=>item.trim()).filter(Boolean);
 
 export default function RelationshipMemoryStudio({universeId,projectId,conversationId}:{universeId:string;projectId:string;conversationId:string}){
- const [records,setRecords]=useState<RelationshipRecord[]>([]);\n const [sourceMessages,setSourceMessages]=useState<ChatMessageRecord[]>([]);\n const [selectedSourceIds,setSelectedSourceIds]=useState<string[]>([]);
+ const [records,setRecords]=useState<RelationshipRecord[]>([]);
+ const [sourceMessages,setSourceMessages]=useState<ChatMessageRecord[]>([]);
+ const [selectedSourceIds,setSelectedSourceIds]=useState<string[]>([]);
  const [characters,setCharacters]=useState<CanonEntity[]>([]);
  const [characterAId,setCharacterAId]=useState("");
  const [characterBId,setCharacterBId]=useState("");

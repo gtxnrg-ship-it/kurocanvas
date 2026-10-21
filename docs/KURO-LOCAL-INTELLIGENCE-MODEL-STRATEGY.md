@@ -30,7 +30,7 @@ Official references:
 
 - **Implemented:** model-provider adapter, model discovery, non-streaming chat-completions requests, cancellation signal propagation, endpoint validation, a Qwen3.8 local endpoint preset, and provider adapter tests.
 - **Not implemented:** bundled model weights/runtime, automatic model download/installation, verified one-click startup, hardware auto-detection, a measured Kuro benchmark result, or ChatGPT-level parity.
-- **Important vision gap:** Qwen3.8 can accept image input, but Kuro's current live chat flow does not yet attach the canvas/reference images to its requests. Do not assume vision is active in the app just because the model supports it.
+- **Vision integration status:** when the selected model ID/name identifies Qwen3.8-27B, Kuro now rasterizes the current editable canvas to a bounded 1024-pixel JPEG preview and attaches it for drawing requests or explicit visual-inspection requests. Other models do not receive this image automatically. There is not yet a general user-upload/reference-image chat attachment flow or a verified iterative visual-QA loop. Treat this as an initial vision bridge, not complete visual-agent support.
 - **Important agent gap:** a chat completion is not the same as reliable native-tool execution. The shared action registry, result read-back, iterative visual QA, rollback and cancellation still need end-to-end closure.
 
 This path makes the model connection real without pretending a 55.6 GB model is bundled into a small web app.

@@ -93,6 +93,51 @@ describe("native drawing executor", () => {
     expect(result.inverse[0]).toMatchObject({ type: "layer.setOpacity", opacity: 1 });
     expect(initial.layers[0].opacity).toBe(1);
   });
+  it("creates a layer and reverses the entire layer-plus-stroke plan", () => {
+    const plan: NativeDrawingCommand[] = [
+      { version: 1, id: "create-detail", type: "layer.add", layerId: "detail", name: "Detail ink", index: 1 },
+      { version: 1, id: "detail-stroke", type: "stroke.add", layerId: "detail", tool: "brush", color: "#abcdef", size: 3, points: [{ x: 40, y: 45, pressure: 0.6 }] },
+    ];
+    const result = applyNativeDrawingPlan(initial, plan);
+    expect(result.state.layers.map(layer => layer.id)).toEqual(["ink", "detail"]);
+    expect(result.state.strokes[0].layerId).toBe("detail");
+    expect(result.inverse.map(command => command.type)).toEqual(["stroke.remove", "layer.remove"]);
+    const undone = applyNativeDrawingPlan(result.state, result.inverse);
+    expect(undone.state.layers).toEqual(initial.layers);
+    expect(undone.state.strokes).toEqual(initial.strokes);
+  });
+
+  it("renames and reorders layers with reversible inverses", () => {
+    const twoLayers = {
+      ...initial,
+      layers: [...initial.layers, { id: "tone", name: "Tone", order: 1, visible: true, locked: false, opacity: 1, blendMode: "normal" as const }],
+    };
+    const renamed = applyNativeDrawingCommand(twoLayers, { version: 1, id: "rename", type: "layer.rename", layerId: "tone", name: "Background wash" });
+    expect(renamed.state.layers[1].name).toBe("Background wash");
+    const restoredName = applyNativeDrawingCommand(renamed.state, renamed.inverse[0]);
+    expect(restoredName.state.layers[1].name).toBe("Tone");
+
+    const reordered = applyNativeDrawingCommand(twoLayers, { version: 1, id: "reorder", type: "layer.reorder", layerId: "tone", index: 0 });
+    expect(reordered.state.layers.map(layer => [layer.id, layer.order])).toEqual([["tone", 0], ["ink", 1]]);
+    const restoredOrder = applyNativeDrawingCommand(reordered.state, reordered.inverse[0]);
+    expect(restoredOrder.state.layers.map(layer => [layer.id, layer.order])).toEqual([["ink", 0], ["tone", 1]]);
+  });
+
+  it("removes only empty non-final layers and can restore the full layer record", () => {
+    const twoLayers = {
+      ...initial,
+      layers: [...initial.layers, { id: "tone", name: "Tone", order: 1, visible: false, locked: true, opacity: 0.4, blendMode: "multiply" as const }],
+    };
+    const removed = applyNativeDrawingCommand(twoLayers, { version: 1, id: "remove-empty", type: "layer.remove", layerId: "tone" });
+    expect(removed.state.layers.map(layer => layer.id)).toEqual(["ink"]);
+    expect(removed.inverse[0]).toMatchObject({ type: "layer.restore", index: 1, layer: { id: "tone", name: "Tone", visible: false, locked: true, opacity: 0.4, blendMode: "multiply" } });
+    const restored = applyNativeDrawingCommand(removed.state, removed.inverse[0]);
+    expect(restored.state.layers).toEqual(twoLayers.layers);
+    expect(() => applyNativeDrawingCommand(initial, { version: 1, id: "remove-last", type: "layer.remove", layerId: "ink" })).toThrow(/last remaining layer/);
+    const withStroke = applyNativeDrawingCommand(initial, add).state;
+    expect(() => applyNativeDrawingCommand({ ...withStroke, layers: [...withStroke.layers, { id: "tone", name: "Tone", order: 1, visible: true, locked: false, opacity: 1, blendMode: "normal" }] }, { version: 1, id: "remove-content", type: "layer.remove", layerId: "ink" })).toThrow(/contains strokes/);
+  });
+
   it("does not mutate original state when a plan fails partway through", () => {
     const bad: NativeDrawingCommand = { version: 1, id: "missing", type: "stroke.remove", strokeId: "not-there" };
     expect(() => applyNativeDrawingPlan(initial, [add, bad])).toThrow(/does not exist/);

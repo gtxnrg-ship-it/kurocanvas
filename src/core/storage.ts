@@ -402,7 +402,72 @@ export const drawingRevisionStorage = {
 };
 
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
+function equalDrawingValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((value, index) => equalDrawingValue(value, b[index]));
+  }
+  const left = a as Record<string, unknown>, right = b as Record<string, unknown>;
+  const leftKeys = Object.keys(left).filter(key => left[key] !== undefined).sort();
+  const rightKeys = Object.keys(right).filter(key => right[key] !== undefined).sort();
+  if (leftKeys.length !== rightKeys.length || leftKeys.some((key, i) => key !== rightKeys[i])) return false;
+  return leftKeys.every(key => equalDrawingValue(left[key], right[key]));
+}
+
+function sameDrawingContent(left: LocalDrawingDocument | undefined, right: LocalDrawingDocument | undefined): boolean {
+  if (!left || !right) return left === right;
+  const normalized = (document: LocalDrawingDocument) => ({
+    id: document.id, projectId: document.projectId ?? "", name: document.name ?? "",
+    version: document.version, width: document.width, height: document.height, background: document.background,
+    layers: (document.layers?.length ? document.layers : [{
+      id: "layer-default", name: "Sketch", visible: true, locked: false, opacity: 1, blendMode: "normal" as const,
+    }]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: layer.blendMode ?? "normal" })),
+    strokes: document.strokes,
+  });
+  return equalDrawingValue(normalized(left), normalized(right));
+}
+
 export const drawingStorage = {
+  /** Atomic compare-and-save: reject stale edits rather than overwriting another tab. */
+  async compareAndSave(expected: LocalDrawingDocument | undefined, document: LocalDrawingDocument): Promise<void> {
+    if (!document.projectId?.trim()) throw new Error("A drawing must have an owning project before it can be saved.");
+    const errors = validateLocalDrawingDocument(document, document.projectId);
+    if (errors.length) throw new Error("Drawing validation failed: " + errors.join(" "));
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(DRAWINGS, "readwrite");
+        const store = transaction.objectStore(DRAWINGS);
+        let comparisonError: Error | undefined;
+        const request = store.get(document.id);
+        request.onsuccess = () => {
+          const existing = request.result as LocalDrawingDocument | undefined;
+          if (!sameDrawingContent(existing, expected)) {
+            comparisonError = new Error("The drawing changed in storage since this step was prepared. No newer artwork was overwritten.");
+            transaction.abort();
+            return;
+          }
+          if (existing?.projectId && existing.projectId !== document.projectId) {
+            comparisonError = new Error("Universe isolation violation: a drawing cannot be reassigned to another project.");
+            transaction.abort();
+            return;
+          }
+          if (existing && !existing.projectId) {
+            comparisonError = new Error("This legacy drawing has no owning project. Explicitly migrate it before editing.");
+            transaction.abort();
+            return;
+          }
+          store.put({ ...document, updatedAt: new Date().toISOString() });
+        };
+        request.onerror = () => { comparisonError = request.error instanceof Error ? request.error : new Error("Could not inspect the drawing before saving."); };
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => { comparisonError ??= transaction.error ?? new Error("Atomic drawing save failed."); };
+        transaction.onabort = () => reject(comparisonError ?? transaction.error ?? new Error("Atomic drawing save was aborted."));
+      });
+    } finally { db.close(); }
+  },
   async save(document: LocalDrawingDocument): Promise<void> {
     if (!document.projectId?.trim()) {
       throw new Error("A drawing must have an owning project before it can be saved.");

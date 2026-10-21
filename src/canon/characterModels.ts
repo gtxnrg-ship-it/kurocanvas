@@ -20,6 +20,16 @@ export interface ProceduralCharacterTraits {
   bodyType?: "slim" | "average" | "athletic" | "stocky";
 }
 
+/** Merge only explicitly supplied traits so a camera/pose request can never erase a saved design. */
+export function mergeProceduralCharacterTraits(
+  existing?: ProceduralCharacterTraits,
+  patch?: Partial<ProceduralCharacterTraits>,
+): ProceduralCharacterTraits | undefined {
+  const supplied = patch ? Object.entries(patch).filter(([, value]) => value !== undefined) : [];
+  if (!supplied.length) return existing ? { ...existing } : undefined;
+  return { ...(existing ?? {}), ...Object.fromEntries(supplied) } as ProceduralCharacterTraits;
+}
+
 export interface CharacterModelRecord {
   id: string;
   projectId: string;

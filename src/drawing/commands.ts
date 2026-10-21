@@ -31,6 +31,8 @@ export interface AddStrokeCommand {
   /** Rotation in degrees at the command boundary; persisted canvas strokes use radians. */
   rotation?: number;
   brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
+  /** Per-stroke opacity in the inclusive range 0–1. */
+  opacity?: number;
 }
 
 export interface RemoveStrokeCommand {
@@ -45,7 +47,7 @@ export interface UpdateStrokeCommand {
   id: string;
   type: "stroke.update";
   strokeId: string;
-  patch: { tool?: "brush" | "eraser"; color?: string; size?: number };
+  patch: { tool?: "brush" | "eraser"; color?: string; size?: number; opacity?: number; brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy" };
 }
 
 /** Transform existing editable geometry in-place without flattening it to an image. */
@@ -191,6 +193,7 @@ export function validateDrawingCommand(
 
   switch (value.type) {
     case "stroke.add": {
+      if (value.opacity !== undefined && (!finite(value.opacity) || value.opacity < 0 || value.opacity > 1)) errors.push("Stroke opacity must be between 0 and 1.");
       if (bounds.strokeLayerById && Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.id)) errors.push("Added stroke ID already exists in the active document.");
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Stroke targets an unknown layer.");
       if (typeof value.layerId === "string" && (bounds.lockedLayerIds ?? []).includes(value.layerId)) errors.push("Stroke targets a locked layer.");
@@ -224,10 +227,12 @@ export function validateDrawingCommand(
       if (!record(value.patch)) { errors.push("Stroke update patch must be an object."); break; }
       const keys = Object.keys(value.patch);
       if (!keys.length) errors.push("Stroke update patch cannot be empty.");
-      if (keys.some(key => !["tool", "color", "size"].includes(key))) errors.push("Stroke update supports only tool, color, and size changes.");
+      if (keys.some(key => !["tool", "color", "size", "opacity", "brushPreset"].includes(key))) errors.push("Stroke update supports only tool, color, size, opacity, and brush preset changes.");
       if (value.patch.tool !== undefined && value.patch.tool !== "brush" && value.patch.tool !== "eraser") errors.push("Unsupported updated stroke tool.");
       if (value.patch.color !== undefined && (typeof value.patch.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.patch.color))) errors.push("Updated stroke color must be a six-digit hex color.");
       if (value.patch.size !== undefined && (!finite(value.patch.size) || value.patch.size <= 0 || value.patch.size > MAX_STROKE_SIZE)) errors.push("Updated stroke size is outside the supported range.");
+      if (value.patch.opacity !== undefined && (!finite(value.patch.opacity) || value.patch.opacity < 0 || value.patch.opacity > 1)) errors.push("Updated stroke opacity must be between 0 and 1.");
+      if (value.patch.brushPreset !== undefined && !["ink", "pencil", "marker", "airbrush", "watercolor", "dry-brush", "calligraphy"].includes(String(value.patch.brushPreset))) errors.push("Unsupported updated brush preset.");
       break;
     }
     case "stroke.transform": {

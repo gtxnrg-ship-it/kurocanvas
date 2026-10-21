@@ -41,6 +41,26 @@ function Mark(){return <div className="mark official-mark" aria-label="Kuro Canv
 export default function App(){
  const [mode,setMode]=useState<Mode>('home'); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const persistedMessageCount=useRef(0); const [working,setWorking]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const [kuroVoiceIntensity,setKuroVoiceIntensity]=useState<KuroVoiceIntensity>(()=>{try{const value=localStorage.getItem('kuro-voice-intensity');if(value==='subtle'||value==='playful'||value==='expressive')return value;}catch{}return 'playful';}); const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[]}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
  useEffect(()=>{try{localStorage.setItem('kuro-voice-intensity',kuroVoiceIntensity);}catch{}},[kuroVoiceIntensity]);
+ useEffect(()=>{
+  let cancelled=false;
+  if(!providerConfig.modelUri)return;
+  let localEndpoint=false;
+  try{
+   const url=new URL(providerConfig.baseUrl);
+   localEndpoint=url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)&&providerConfig.allowInsecureLocalhost;
+  }catch{}
+  // Reconnect only to a keyless loopback endpoint. Hosted credentials are never persisted.
+  if(!localEndpoint)return;
+  const provider=new OpenAICompatibleProvider({baseUrl:providerConfig.baseUrl,allowInsecureLocalhost:providerConfig.allowInsecureLocalhost});
+  void provider.listModels().then(models=>{
+   const model=models.find(item=>item.modelUri===providerConfig.modelUri||item.name===providerConfig.modelUri);
+   if(!cancelled&&model){
+    setActiveProvider({ ...providerConfig });
+    setProviderNotice('Reconnected locally · '+model.name);
+   }
+  }).catch(()=>{});
+  return()=>{cancelled=true;};
+ },[providerConfig]);
  useEffect(()=>{let alive=true;void (async()=>{try{
  const projects=await projectStorage.list();if(!alive)return;setLocalProjects(projects.map(item=>({id:item.id,name:item.name})));
  let universes=await universeStorage.list();

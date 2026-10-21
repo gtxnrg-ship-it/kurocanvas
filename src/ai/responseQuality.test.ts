@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKuroChatResponse, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
+import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
 
 describe("Kuro request-aware response quality", () => {
   it("does not expand greetings and explicit brevity requests into essays", () => {
@@ -61,5 +61,30 @@ describe("truthful model finish reporting", () => {
 
   it("flags a partial response ending with a runtime error", () => {
     expect(formatKuroChatResponse("Partial answer", "error")).toContain("may be incomplete");
+  });
+});
+
+
+describe("conversation continuation harness", () => {
+  it("tells Kuro to continue from the last unfinished point rather than restart", () => {
+    const guidance = getKuroResponseQualityGuidance("continue");
+    expect(guidance).toContain("CONTINUATION REQUEST");
+    expect(guidance).toMatch(/immediately preceding assistant answer/i);
+    expect(guidance).toMatch(/do not restart the topic/i);
+    expect(guidance).toMatch(/last unfinished point/i);
+  });
+
+  it("recognizes natural continuation phrasing without changing normal guidance", () => {
+    expect(getKuroResponseQualityGuidance("go on with the explanation")).toContain("CONTINUATION REQUEST");
+    expect(getKuroResponseQualityGuidance("finish that")).toContain("CONTINUATION REQUEST");
+    expect(getKuroResponseQualityGuidance("Explain how a world economy could work.")).not.toContain("CONTINUATION REQUEST");
+  });
+});
+
+
+describe("truncated reply continuation affordance", () => {
+  it("shows continuation only when the output-limit notice exists", () => {
+    expect(isKuroChatResponseTruncated("A normal answer.")).toBe(false);
+    expect(isKuroChatResponseTruncated(formatKuroChatResponse("Partial answer", "length"))).toBe(true);
   });
 });

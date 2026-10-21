@@ -7,6 +7,7 @@
  */
 export type KuroResponseDepth = "quick" | "balanced" | "deep" | "exhaustive";
 
+const LOCAL_OUTPUT_LIMIT_NOTICE = "I reached Qwen3-0.6B's current output limit";
 const QUICK_REQUEST = /\b(?:quick(?:ly)?|brief(?:ly)?|short answer|one sentence|in a sentence|tl;?dr|just the answer|no explanation)\b/i;
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
 const HUGE_REQUEST = /\b(?:exhaustive|comprehensive|every single detail|leave nothing out|full specification|production[- ]ready|fully finish|end to end|entire system|all edge cases)\b/i;
@@ -23,6 +24,10 @@ export function inferKuroResponseDepth(message: string): KuroResponseDepth {
 
 export function getKuroResponseQualityGuidance(message: string): string {
   const depth = inferKuroResponseDepth(message);
+  const continuationRequested = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i.test(message.trim());
+  const continuationInstruction = continuationRequested
+    ? "CONTINUATION REQUEST: The user is asking you to continue the immediately preceding assistant answer. Use the recent conversation as the source of where it stopped. Continue from the last unfinished point; do not restart the topic, repeat the finished sections, or write a new introduction. Preserve the existing structure and constraints, and complete any unfinished list, code block, or explanation."
+    : "When a user asks for a revision or follow-up, apply it to the active subject and preserve the already established constraints unless they explicitly change them.";
   const depthInstruction: Record<KuroResponseDepth, string> = {
     quick: "Use a direct, natural answer. Do not inflate a simple exchange into an essay.",
     balanced: "Give a complete, helpful answer with the key reasoning and a useful example when it adds value.",
@@ -33,6 +38,7 @@ export function getKuroResponseQualityGuidance(message: string): string {
     "KURO RESPONSE QUALITY CONTRACT",
     "Interpret the user's intended meaning, not merely literal keywords. Their English may be fragmented, informal, misspelled, or grammatically imperfect; do not correct it or demand polished prompts unless they ask. Use the conversation and project context to infer intent generously. Ask one focused question only when a material ambiguity would change the result; otherwise state a reasonable assumption and proceed.",
     "Understand before answering: connect the request to relevant earlier decisions, preserve named details and emotional nuance, and address every important part of a multi-part request. Do not bluff, falsely claim certainty, or ask the user to repeat information already available.",
+    continuationInstruction,
     "Answer the actual request first, then develop it at the depth it deserves. Prefer meaningful explanation, examples, trade-offs, alternate possibilities, and practical follow-through over generic enthusiasm, filler, or repeated conclusions. The user values substantial detail for creative and technical work; do not default to an artificially short answer for a complex discussion.",
     "For story creation, consider motivation, subtext, dialogue, pacing, consequences, physical continuity, setting details, visual readability, recurring motifs, foreshadowing, callbacks, Easter eggs, subtle cameos, and future payoffs when relevant. Keep author-only planning distinct from what readers should see at that point in the story. An intentionally requested cameo or clue is not an accidental continuity error; preserve its intended subtlety and do not expose a secret identity on-page unless the author asks.",
     "Keep suggestions separate from approved canon. Offer multiple genuinely distinct directions when the user is exploring possibilities; explain what each option changes and why it may work. Do not turn every response into a list if conversational prose is clearer.",
@@ -72,6 +78,10 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
  * Turn model finish metadata into honest user-facing chat text.
  * Structured-output callers still validate/recover JSON with their own schema.
  */
+export function isKuroChatResponseTruncated(text: string): boolean {
+  return text.includes(LOCAL_OUTPUT_LIMIT_NOTICE);
+}
+
 export function formatKuroChatResponse(
   text: string,
   finishReason: "stop" | "length" | "cancelled" | "error",
@@ -79,7 +89,7 @@ export function formatKuroChatResponse(
   const content = text.trim();
   if (!content) return "The model returned an empty response. Please try again.";
   if (finishReason === "length") {
-    return content + "\n\n*I reached Qwen3-0.6B's current output limit, so this reply may be incomplete. Say “continue” and I'll carry on from here.*";
+    return content + "\n\n*" + LOCAL_OUTPUT_LIMIT_NOTICE + ", so this reply may be incomplete. Say “continue” and I'll carry on from here.*";
   }
   if (finishReason === "error") {
     return content + "\n\n*This response ended with a model error and may be incomplete.*";

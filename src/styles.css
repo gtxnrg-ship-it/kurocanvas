@@ -492,3 +492,7 @@
 .drawing-blocker-cancel:hover{background:#3b2752;border-color:#a58ac4}
 .drawing-blocker-cancel:focus-visible{outline:2px solid #d8c5ff;outline-offset:3px}
 @media(prefers-reduced-motion:reduce){.drawing-step.status-running .drawing-step-icon{animation:none}}
+
+.continue-answer{display:inline-flex;align-items:center;gap:7px;margin:8px 0 2px;padding:7px 11px;border:1px solid #594575;border-radius:9px;background:#21172f;color:#e9dcff;font-size:11px;font-weight:650;cursor:pointer}
+.continue-answer:hover{background:#2c2040;border-color:#8c6eb2}
+.continue-answer:focus-visible{outline:2px solid #d8c5ff;outline-offset:3px}

@@ -433,7 +433,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         for (const record of writes) byId.set(record.id, record);
         return [...byId.values()].sort((a,b)=>a.characterName.localeCompare(b.characterName)||(a.storyOrder??0)-(b.storyOrder??0));
       });
-      setModelId(updated.id); setMessage(success);
+      setModelId(updated.id); setStateId(updated.characterStateId ?? ""); setMessage(success);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the character model."); }
     finally { setBusy(false); }
   }
@@ -644,7 +644,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
           ...(command.skinTone ? { skinTone: command.skinTone } : {}),
           ...(command.eyeColor ? { eyeColor: command.eyeColor } : {}),
           ...(command.bodyType ? { bodyType: command.bodyType } : {}),
-        });
+        }, command.characterStateId);
         return;
       case "model.motionPreset":
         await applyMotionPreset(command.preset);

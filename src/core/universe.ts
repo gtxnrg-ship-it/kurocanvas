@@ -47,7 +47,6 @@ export interface ConversationRecord {
   createdAt: string;
   updatedAt: string;
   lifecycle: ConversationLifecycle;
-  messages: ChatMessageRecord[];
   metadata: Record<string, unknown>;
 }
 
@@ -90,7 +89,6 @@ export function createChatUniverse(title = "Untitled universe", projectId = newI
     createdAt: now,
     updatedAt: now,
     lifecycle: "active",
-    messages: [],
     metadata: {},
   };
   return { universe, homeConversation };
@@ -152,9 +150,8 @@ export function validateConversationRecord(value: unknown, expectedUniverseId?: 
     || typeof item.title !== "string"
     || (item.lifecycle !== "active" && item.lifecycle !== "archived")
     || typeof item.createdAt !== "string" || typeof item.updatedAt !== "string"
-    || !Array.isArray(item.messages)
     || !item.metadata || typeof item.metadata !== "object" || Array.isArray(item.metadata)) return false;
-  return item.messages.every(message => validateChatMessageRecord(message, item.id, item.universeId));
+  return true;
 }
 
 export function validateChatMessageRecord(value: unknown, conversationId?: string, universeId?: string): value is ChatMessageRecord {

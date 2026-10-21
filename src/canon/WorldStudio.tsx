@@ -9,9 +9,14 @@ const statuses: CanonStatus[] = ["approved", "proposed", "inferred", "contradict
 const kinds = ["character", "location", "faction", "event", "object", "rule", "species", "other"];
 const makeId = () => crypto.randomUUID();
 
-export default function WorldStudio() {
+type WorldStudioProps = { projectId?: string; lockedToProjectId?: boolean };
+
+export default function WorldStudio({ projectId: externalProjectId, lockedToProjectId = false }: WorldStudioProps = {}) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectId, setProjectId] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  // Embedded in a universe, the parent owns project selection: the bible may never
+  // silently switch to another project's canon. Standalone mode keeps the old picker.
+  const projectId = externalProjectId ?? selectedProjectId;
   const [bundle, setBundle] = useState<CanonBundle | null>(null);
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
@@ -29,8 +34,8 @@ export default function WorldStudio() {
     try {
       const list = await projectStorage.list();
       setProjects(list);
-      if (!projectId && list.length) setProjectId(list[0].id);
-      if (projectId && !list.some(p => p.id === projectId)) { setProjectId(""); setBundle(null); }
+      if (!projectId && externalProjectId === undefined && list.length) setSelectedProjectId(list[0].id);
+      if (projectId && !list.some(p => p.id === projectId) && externalProjectId === undefined) { setSelectedProjectId(""); setBundle(null); }
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not load projects."); }
   }
   async function loadWorld(id: string) {
@@ -99,7 +104,7 @@ export default function WorldStudio() {
 
   return <section className="world-studio">
     <div className="world-head"><div><small>PROJECT MEMORY · LOCAL FIRST</small><h2><BookOpen size={21}/> World bible</h2><p>Keep characters, places, events, and rules attached to the correct series. Proposed facts never silently become approved canon.</p></div><button disabled={busy} onClick={() => void refreshProjects()}><RefreshCw size={14}/> Refresh projects</button></div>
-    <label className="world-project">Active project <select value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">Choose a saved project…</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+    <label className="world-project">{lockedToProjectId ? "Universe-owned project" : "Active project"} <select value={projectId} disabled={lockedToProjectId} onChange={e => setSelectedProjectId(e.target.value)}><option value="">Choose a saved project…</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
     {!projects.length && <p className="world-empty">Create a project in the section below first. World memory is intentionally scoped to a saved project.</p>}
     {bundle && <>
       <p className="world-message" role="status">{message}</p>

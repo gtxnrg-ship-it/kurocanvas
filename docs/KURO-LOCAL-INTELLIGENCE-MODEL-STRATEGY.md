@@ -14,21 +14,11 @@ Why it is the first candidate to evaluate:
 
 Do not silently lock this in as the forever winner. Benchmark it against a smaller Qwen3.8 family member and at least one other permissively licensed model on a reproducible Kuro evaluation set. Model versions and licenses must be pinned to exact revisions before packaging or fine-tuning.
 
-## Separate image-generation model
+## Kuro is an art agent, not an image generator
 
-**black-forest-labs/FLUX.1-schnell** — https://huggingface.co/black-forest-labs/FLUX.1-schnell
+Kuro's defining creative path uses the actual native tools in KuroCanvas. She plans, executes, inspects, and revises real editable drawing operations through a typed tool registry shared with the manual UI. A generated bitmap is not the answer to a drawing request. Any optional external generative model is outside the core product definition and must never replace native tool execution.
 
-The published model card lists Apache-2.0, 12B parameters, and local use through Diffusers/ComfyUI. It is a candidate for image generation experiments, not a replacement for Kuro's editable native canvas. It is also a large model; device capability detection and optional model downloads are required. Evaluate whether its output and licensing are suitable for Kuro's intended distribution before making it a shipped dependency.
-
-A language model does not automatically generate images, and an image generator does not reliably preserve every character's identity across arbitrary scenes. Character consistency requires reference conditioning, approved design sheets, controlled prompts/parameters, comparisons, and a visual QA loop. Generated images should appear in chat and the Vault with their source prompt, model/revision, reference assets, and approval status.
-
-## Non-negotiable runtime requirement: no paid AI API dependency
-
-Kuro must be able to run inference locally without sending prompts or artwork to a paid hosted AI API. A desktop distribution may bundle or install a local inference runtime and download weights only with the user's consent. The model should be selected and managed by Kuro; users should not need to configure arbitrary provider URLs or API keys.
-
-An internal loopback connection to a local runtime is an implementation detail, not a hosted AI API dependency. It must bind to loopback only, use strict request validation, and never expose a model server to the LAN by default. The web/PWA build cannot assume it can load a 55 GB model in the browser or bypass mobile OS memory limits. Android needs a separately tested small-model path or an explicitly documented companion runtime; desktop can offer the larger model when hardware permits. Never claim fully offline support until model weights and every required tool are present locally.
-
-## Kuro is the product identity, not just a system prompt
+## Kuro is the product identity, not just a system prompt/
 
 Kuro should consistently introduce herself as Kuro, but identity wording alone is not fine-tuning. Use a layered design:
 1. **Kuro behavior specification:** tone, uncertainty, clarifying questions, teaching-by-doing, and no fabricated memory.

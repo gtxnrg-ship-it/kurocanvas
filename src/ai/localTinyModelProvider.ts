@@ -4,10 +4,10 @@ import { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI
 export { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
-type WorkerRequest =
+export type WorkerRequest =
   | { id: number; type: "prepare" }
   | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
-type WorkerResponse =
+export type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
   | { id: number; type: "result"; text: string; finishReason: "stop" | "length" }

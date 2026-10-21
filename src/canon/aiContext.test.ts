@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isStoryProductionRequest } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -10,6 +10,32 @@ const fact = (id: string, status: CanonFact["status"], value: unknown): CanonFac
 const bundle = { ...createEmptyCanon("series-a"), entities: [entity], facts: [fact("f-approved", "approved", "She is the heir"), fact("f-proposed", "proposed", "She is immortal"), fact("f-inferred", "inferred", "She fears fire")] };
 
 describe("approved canon AI context", () => {
+  it("resolves the target chapter from the latest approved state at the requested story order", () => {
+    const state = (id: string, storyOrder: number, chapterNumber: number): CharacterEvolutionState => ({
+      id, universeId: "u1", characterId: "hero", timelineId: "main", storyOrder, chapterNumber,
+      status: "approved", appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [],
+      sourceMessageIds: [], changeSummary: "Approved position", createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const result = resolveApprovedRevealPoint({
+      enabled: true, universeId: "u1", timelineId: "main", storyOrder: 20,
+      states: [state("hero-ch1", 10, 1), state("hero-ch2", 20, 2)],
+    });
+    expect(result).toEqual({ timelineId: "main", storyOrder: 20, chapterNumber: 2, ambiguous: false });
+  });
+
+  it("fails closed when the requested chapter conflicts with the approved story-order mapping", () => {
+    const state = (id: string, storyOrder: number, chapterNumber: number): CharacterEvolutionState => ({
+      id, universeId: "u1", characterId: "hero", timelineId: "main", storyOrder, chapterNumber,
+      status: "approved", appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [],
+      sourceMessageIds: [], changeSummary: "Approved position", createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const result = resolveApprovedRevealPoint({
+      enabled: true, universeId: "u1", timelineId: "main", storyOrder: 20, chapterNumber: 1,
+      states: [state("hero-ch1", 10, 1), state("hero-ch2", 20, 2)],
+    });
+    expect(result.ambiguous).toBe(true);
+  });
+
   it("includes approved facts while excluding proposals and inferences", () => {
     const result = buildApprovedCanonContext(bundle, { projectId: "series-a", userMessage: "Mira secret" });
     expect(result).toContain("She is the heir");

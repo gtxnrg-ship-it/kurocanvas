@@ -656,14 +656,19 @@ async function pumpQueue(): Promise<void> {
           await researchTaskStorage.update(task.id, task.projectId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined });
           continue;
         }
-        const completed: ResearchTaskRecord = {
-          ...current,
-          status: "completed", progress: 100,
+        // Complete with a conditional, project-scoped update instead of put/save:
+        // a deletion can occur between the read above and this write, and must never
+        // be undone by a late network response recreating the task.
+        const completed = await researchTaskStorage.update(task.id, task.projectId, {
+          status: "completed",
+          progress: 100,
           stage: sources.length ? "Research sources collected" : "Research completed — no matching entries from " + ((task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref" : "Wikipedia"),
-          sources, completedAt: new Date().toISOString(), leaseUntil: undefined,
-          error: undefined, updatedAt: new Date().toISOString(),
-        };
-        await researchTaskStorage.save(completed);
+          sources,
+          completedAt: new Date().toISOString(),
+          leaseUntil: undefined,
+          error: undefined,
+        });
+        if (!completed) continue;
         notifyResearchCompletion(completed);
       } catch (error) {
         const current = await researchTaskStorage.get(task.id).catch(() => undefined);

@@ -59,20 +59,22 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       assets['kuro/character-models.v1.json'] = JSON.stringify(await Promise.all(characterModels.map(async model => ({ ...model, modelBlob: undefined, modelDataUrl: model.modelBlob ? await blobToDataUrl(model.modelBlob) : undefined }))));
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
-      const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
+      const referencedDrawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
         .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length).trim()).filter(Boolean))];
       const availableDrawings = await drawingStorage.list(id);
+      // Include every saved canvas page in the backup, not only pages linked from Story Vault.
+      const drawingIds = [...new Set([...availableDrawings.map(drawing => drawing.id), ...referencedDrawingIds])];
       const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
       if (missingDrawings.length) {
         const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.memoryTitles.join(', ') + ')').join('; ');
         throw new Error('Export cancelled to protect project completeness. These Story Vault drawings are missing: ' + details + '. Recover or remove the broken references, then export again.');
       }
-      let linkedDrawings = 0;
+      let exportedDrawings = 0;
       for (const drawingId of drawingIds) {
         const drawing = await drawingStorage.load(drawingId, id);
         if (!drawing) throw new Error('Export cancelled because drawing "' + drawingId + '" disappeared during packaging. Nothing was downloaded; retry after checking local storage.');
         assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
-        linkedDrawings++;
+        exportedDrawings++;
       }
       const content = serializeKuroPackage(createKuroPackage(project, assets));
       const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+json' }));
@@ -81,7 +83,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + linkedDrawings + ' linked drawings.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + exportedDrawings + ' saved drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }

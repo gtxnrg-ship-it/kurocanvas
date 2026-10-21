@@ -11,7 +11,8 @@ import { buildApprovedCanonContext } from './canon/aiContext';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
-import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, type CharacterVisualState } from './canon/styleBible';
+import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts } from './canon/styleBible';
+import { proposeVisualStatesFromEvidence } from './canon/visualStateCapture';
 import StyleBibleStudio from './canon/StyleBibleStudio';
 import { buildStoryMemoryContext, retrieveStoryMemory, shouldCaptureStoryMemory } from './canon/storyMemory';
 import StoryVault from './canon/StoryVault';
@@ -75,24 +76,7 @@ if(activeProjectId && captureStory){
     const visualCandidates=Array.isArray(parsed.visualStates)?parsed.visualStates:[];
     if(visualCandidates.length){
       const bible=await styleBibleStorage.load(activeProjectId) ?? createEmptyStyleBible(activeProjectId);
-      const additions:CharacterVisualState[]=[];
-      for(const item of visualCandidates.slice(0,8)){
-        const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
-        const characterName=typeof item.characterName==='string'?item.characterName.trim():'';
-        const chapterNumber=Number(item.chapterNumber);
-        const chapterInEvidence=evidence.match(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/i);
-        if(!evidence||!text.includes(evidence)||!characterName||!evidence.includes(characterName)||!chapterInEvidence||Number(chapterInEvidence[1])!==chapterNumber)continue;
-        const fields=['age','hair','eyes','scars','outfit','body','accessories','injuries','other'] as const;
-        const visual:Record<string,string>={};
-        for(const field of fields){
-          const value=typeof item[field]==='string'?item[field]!.trim():'';
-          if(value && evidence.includes(value))visual[field]=value;
-        }
-        if(!fields.some(field=>visual[field]))continue;
-        if(bible.characterStates.some(state=>state.status!=='superseded'&&state.characterName.toLocaleLowerCase()===characterName.toLocaleLowerCase()&&state.chapterNumber===chapterNumber&&state.sourceEvidence===evidence))continue;
-        const storyOrder=Number.isFinite(item.storyOrder)&&Number(item.storyOrder)>=0?Number(item.storyOrder):chapterNumber;
-        additions.push({id:crypto.randomUUID(),characterName,storyOrder,chapterNumber,chapterLabel:'Chapter '+chapterNumber,sourceEvidence:evidence,...visual,status:'proposed'});
-      }
+      const additions=proposeVisualStatesFromEvidence(visualCandidates,text,bible.characterStates,()=>crypto.randomUUID());
       if(additions.length){
         await styleBibleStorage.save({...bible,characterStates:[...bible.characterStates,...additions],updatedAt:new Date().toISOString()});
         visualSaved=additions.length;

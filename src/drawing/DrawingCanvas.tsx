@@ -25,7 +25,23 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.fillStyle = stroke.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (stroke.points.length === 1) {
+  if (stroke.shape && stroke.points.length) {
+    const start = stroke.points[0];
+    const end = stroke.points[stroke.points.length - 1];
+    ctx.lineWidth = stroke.size;
+    ctx.beginPath();
+    if (stroke.shape === 'line') {
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+    } else if (stroke.shape === 'rectangle') {
+      ctx.rect(Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+    } else {
+      const rx = Math.abs(end.x - start.x) / 2;
+      const ry = Math.abs(end.y - start.y) / 2;
+      ctx.ellipse((start.x + end.x) / 2, (start.y + end.y) / 2, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+  } else if (stroke.points.length === 1) {
     const p = stroke.points[0];
     ctx.beginPath();
     ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2);

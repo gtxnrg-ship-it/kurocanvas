@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { artDirectionStorage, canonStorage, characterModelStorage, drawingStorage, projectStorage, referenceSourceStorage, storyMemoryStorage, styleBibleStorage, type LocalDrawingDocument } from '../core/storage';
+import { artDirectionStorage, canonStorage, characterModelStorage, chatMessageStorage, characterEvolutionStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
 import { validateArtDirection, type ArtDirectionBible } from '../canon/artDirection';
@@ -11,6 +11,10 @@ import { validateReferenceSource, type ReferenceSourceRecord } from '../canon/re
 import { blobToDataUrl, dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from '../canon/characterModels';
 import WorldStudio from '../canon/WorldStudio';
 import { collectProjectExportDrawingIds, findMissingDrawingReferences } from './exportPreflight';
+import { rehomeUniversePackage, serializeUniversePackage } from '../core/universePackage';
+import type { ChatMessageRecord, ConversationRecord } from '../core/universe';
+import type { RelationshipRecord } from '../canon/relationshipMemory';
+import type { CharacterEvolutionState } from '../canon/characterEvolution';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -59,6 +63,24 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       assets['kuro/character-models.v1.json'] = JSON.stringify(await Promise.all(characterModels.map(async model => ({ ...model, modelBlob: undefined, modelDataUrl: model.modelBlob ? await blobToDataUrl(model.modelBlob) : undefined }))));
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
+
+      // Export the project-bound universe and its full transcript/continuity records.
+      const universes = (await universeStorage.list()).filter(universe => universe.projectId === id);
+      const conversations: ConversationRecord[] = [];
+      const messages: ChatMessageRecord[] = [];
+      const relationships: RelationshipRecord[] = [];
+      const characterStates: CharacterEvolutionState[] = [];
+      for (const universe of universes) {
+        const scopedConversations = await conversationStorage.list(universe.id);
+        conversations.push(...scopedConversations);
+        for (const conversation of scopedConversations) {
+          messages.push(...await chatMessageStorage.list(universe.id, conversation.id));
+        }
+        relationships.push(...await relationshipStorage.list(universe.id));
+        characterStates.push(...await characterEvolutionStorage.list(universe.id));
+      }
+      Object.assign(assets, serializeUniversePackage({ universes, conversations, messages, relationships, characterStates }));
+
       const availableDrawings = await drawingStorage.list(id);
       const drawingIds = collectProjectExportDrawingIds(memories, availableDrawings.map(drawing => drawing.id));
       const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
@@ -80,7 +102,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + exportedDrawings + ' saved drawings.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + exportedDrawings + ' saved drawings, ' + universes.length + ' universes, ' + conversations.length + ' conversations, ' + messages.length + ' chat messages, ' + relationships.length + ' relationship records, and ' + characterStates.length + ' character timeline states.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }

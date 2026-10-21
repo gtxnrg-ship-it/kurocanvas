@@ -27,6 +27,6 @@ describe("project export drawing preflight", () => {
   it("ignores non-drawing references but flags malformed drawing references", () => {
     expect(findMissingDrawingReferences([
       { id: "m1", title: "Notes", assetRefs: ["https://example.com/reference", "drawing:"] },
-    ], [])).toEqual([]);
+    ], [])).toEqual([{ drawingId: "(empty ID)", memoryTitles: ["Notes"] }]);
   });
 });

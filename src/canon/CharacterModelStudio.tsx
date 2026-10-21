@@ -350,7 +350,16 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
       </div>
       <p className="character-model-message" role="status">{message}</p>
       <div className="character-model-layout">
-        <div className="character-model-viewer"><div ref={hostRef} className="character-model-canvas"/><div className="character-model-viewer-hint">Drag to orbit · scroll to zoom · touch supported</div>{selectedModel&&<div className="character-model-viewer-label"><b>{selectedModel.characterName}</b><span>{selectedState?.chapterLabel ?? "No approved visual state"}</span></div>}</div>
+        <div className="character-model-viewer">
+          <div ref={hostRef} className="character-model-canvas" />
+          <div className="character-model-viewer-hint">Drag to orbit · scroll to zoom · touch supported</div>
+          {selectedModel && (
+            <div className="character-model-viewer-label">
+              <b>{selectedModel.characterName}</b>
+              <span>{selectedState?.chapterLabel ?? "No approved visual state"}</span>
+            </div>
+          )}
+        </div>
         <aside className="character-model-inspector">
           <h3>Visual continuity</h3>
           {selectedModel ? <><div className="character-model-meta"><b>{selectedModel.sourceType==="uploaded-glb" ? selectedModel.fileName : "Procedural blockout rig"}</b><small>{selectedModel.sourceType==="uploaded-glb" ? "Local GLB · editable model view" : "Preview geometry · not final character art"}</small><small>Variant: {selectedModel.characterStateId ? styleBible?.characterStates.find(state=>state.id===selectedModel.characterStateId)?.chapterLabel ?? "chapter-specific" : "base model"}</small></div>

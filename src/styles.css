@@ -398,3 +398,8 @@
 @keyframes kuro-orbit-float-a{0%,100%{translate:0 0}50%{translate:0 -9px}}
 @keyframes kuro-orbit-float-b{0%,100%{translate:0 0;rotate:0deg}50%{translate:6px 7px;rotate:18deg}}
 @media(prefers-reduced-motion:reduce){.workspace-preview-spin,.home-hero-art .ring-one,.home-hero-art .ring-two,.home-hero-art .hero-core,.home-hero-art .orbit-a,.home-hero-art .orbit-b,.home-hero-art .orbit-c{animation:none!important}.home-hero-art .ring-one{transform:rotate(-28deg)}.home-hero-art .ring-two{transform:rotate(42deg)}}
+
+.pressure-control{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid rgba(167,139,250,.22);border-radius:9px;background:rgba(24,20,37,.78);font-size:11px;color:#cfc5e3;white-space:nowrap}
+.pressure-control input[type=range]{width:76px;accent-color:var(--purple);cursor:pointer}
+.pressure-control output{min-width:30px;color:#f3edff;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.pressure-control{gap:4px;padding:5px 6px}.pressure-control input[type=range]{width:58px}}

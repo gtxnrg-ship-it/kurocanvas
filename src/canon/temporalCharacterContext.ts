@@ -35,6 +35,7 @@ export function buildTemporalCharacterContext(
   const maxOutputCharacters = Number.isFinite(options.maxOutputCharacters)
     ? Math.max(500, Math.min(30000, Math.floor(options.maxOutputCharacters!))) : 10000;
   const requestedIds = [...new Set(options.characterIds.filter(id => typeof id === "string" && id.trim()))].slice(0, maxCharacters);
+  if (!requestedIds.length) return "TEMPORAL CHARACTER CANON: No character IDs were selected. Do not invent which character versions apply.";
   const lines = [
     "TEMPORAL CHARACTER CANON — APPROVED STATES ONLY",
     "Universe: " + options.universeId,

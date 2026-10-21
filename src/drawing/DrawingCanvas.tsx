@@ -613,7 +613,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan undone as one step'); return;
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit undone' : 'AI drawing plan undone as one step'); return;
     }
     if (!strokes.length) return;
     setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone');
@@ -641,7 +641,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan restored as one step'); return;
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit restored' : 'AI drawing plan restored as one step'); return;
     }
     if (!redoStack.length) return;
     setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored');

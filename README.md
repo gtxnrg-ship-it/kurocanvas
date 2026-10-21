@@ -199,4 +199,4 @@ No license has been selected yet. Do not assume this repository is open source u
 
 ---
 
-**Current release decision: not ready for production or APK distribution.** The branch is progressing and its configured CI checks currently pass, but the complete creative-agent loop, platform packaging and full end-to-end validation are still required.
+**Current release decision: not ready for production or APK distribution.** The last confirmed automated code-check run passed, but the current head must pass its own checks. The Pages preview is still blocked until a repository maintainer enables GitHub Pages. The complete creative-agent loop, Android packaging and full end-to-end validation are still required.

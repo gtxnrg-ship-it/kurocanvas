@@ -7,7 +7,7 @@ import type { NativeDrawingCommand } from './drawing/commands';
 import { parseAIStrokePlan } from './drawing/aiPlan';
 import ProjectManager from './projects/ProjectManager';
 import { artDirectionStorage, canonStorage, chatMessageStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, storyMemoryStorage, styleBibleStorage, universeStorage } from './core/storage';
-import { createChatUniverse, type UniverseRecord } from './core/universe';
+import { createChatUniverse } from './core/universe';
 import { createProject } from './core/project';
 import { buildApprovedCanonContext } from './canon/aiContext';
 import { createEmptyCanon } from './canon/universe';

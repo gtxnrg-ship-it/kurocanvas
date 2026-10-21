@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArtDirectionContext, createEmptyArtDirection, validateArtDirection } from "./artDirection";
+import { buildArtDirectionContext, createEmptyArtDirection, parseArtDirectionSynthesis, validateArtDirection } from "./artDirection";
 
 describe("project art direction bible", () => {
   it("creates an empty project-scoped style contract", () => {
@@ -25,6 +25,27 @@ describe("project art direction bible", () => {
     expect(context).toContain("Shoulder-length hair");
     expect(context).toContain("Example series → friendship dynamics");
     expect(context).toContain("do not reproduce exact characters");
+  });
+
+
+  it("parses only editable fields from a structured synthesis draft", () => {
+    const parsed = parseArtDirectionSynthesis(JSON.stringify({
+      title: "Original urban romance",
+      visualStyle: "Consistent expressive webtoon linework.",
+      linework: "Stable contour hierarchy.",
+      visualInvariants: "Scars persist after introduction.",
+      projectId: "should-not-overwrite",
+      influences: [{ id: "should-not-overwrite" }],
+    }));
+    expect(parsed.title).toBe("Original urban romance");
+    expect(parsed.visualStyle).toContain("webtoon");
+    expect((parsed as Record<string, unknown>).projectId).toBeUndefined();
+    expect(parsed.influences).toBeUndefined();
+  });
+
+  it("rejects malformed or incomplete art-direction synthesis", () => {
+    expect(() => parseArtDirectionSynthesis("not json")).toThrow(/invalid JSON/i);
+    expect(() => parseArtDirectionSynthesis(JSON.stringify({ title: "Incomplete" }))).toThrow(/core visual rules/i);
   });
 
   it("bounds context length and validates malformed influences", () => {

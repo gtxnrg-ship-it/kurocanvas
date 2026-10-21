@@ -42,8 +42,11 @@ jobs:
       - name: Install required Android platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Pin current stable npm CLI for reproducible dependency resolution
+        run: npm install --global npm@11.21.0
+
       - name: Install application dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Run regression tests
         run: npm test

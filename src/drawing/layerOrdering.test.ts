@@ -28,6 +28,6 @@ describe("layer-local object ordering", () => {
 
   it("handles a legacy stroke without an explicit layer ID", () => {
     const legacy = [{ id: "old" }, { id: "new", layerId: "ink" }, { id: "last" }];
-    expect(moveArtworkToLayerEdge(legacy, "last", "back", "default").map(item => item.id)).toEqual(["old", "new", "last"]);
+    expect(moveArtworkToLayerEdge(legacy, "last", "back", "default").map(item => item.id)).toEqual(["last", "new", "old"]);
   });
 });

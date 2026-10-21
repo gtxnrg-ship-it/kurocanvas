@@ -15,6 +15,13 @@ describe("drawing command validation", () => {
   it("rejects duplicate command IDs in one plan", () => {
     expect(validateDrawingPlan([validStroke, { ...validStroke }], bounds).errors.some(e => e.includes("Duplicate command ID"))).toBe(true);
   });
+  it("rejects removal of unknown strokes and strokes on locked layers", () => {
+    const remove = { version: 1, id: "remove-1", type: "stroke.remove", strokeId: "stroke-existing" };
+    const documentBounds = { ...bounds, strokeLayerById: { "stroke-existing": "ink" } };
+    expect(validateDrawingCommand(remove, documentBounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...remove, strokeId: "missing" }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand(remove, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
+  });
   it("parses editable shape and lettering metadata", () => {
     const bubble = { ...validStroke, shape: "bubble", fillColor: "#fffdfb", points: [{x:20,y:30},{x:220,y:140}] };
     expect(validateDrawingCommand(bubble, bounds).valid).toBe(true);

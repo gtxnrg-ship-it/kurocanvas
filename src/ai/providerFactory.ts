@@ -1,4 +1,3 @@
-import { OpenAICompatibleProvider } from "./openAICompatibleProvider";
 import { getKuroModelAdapter } from "./kuroModelAdapter";
 import { KURO_TINY_MODEL_URI } from "./localTinyModelProvider";
 
@@ -6,8 +5,10 @@ export const LOCAL_TINY_BASE_URL = "local://kuro-tiny";
 export const LOCAL_TINY_MODEL_URI = KURO_TINY_MODEL_URI;
 
 export interface ProviderFactoryConfig {
+  /** Retained for migration compatibility; Kuro's production adapter is local-only. */
   baseUrl: string;
   modelUri: string;
+  /** Accepted only for compatibility with previously saved settings; never sent or stored. */
   apiKey?: string;
   allowInsecureLocalhost: boolean;
 }
@@ -16,22 +17,23 @@ export function isLocalTinyConfig(config: Pick<ProviderFactoryConfig, "baseUrl">
   return config.baseUrl === LOCAL_TINY_BASE_URL;
 }
 
+/**
+ * Resolve the single model adapter used by every Kuro harness.
+ * Legacy remote-provider settings intentionally fail closed rather than silently
+ * routing user prompts, project canon, or creator work to a hosted endpoint.
+ */
 export function createConfiguredProvider(
   config: ProviderFactoryConfig,
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
 ) {
-  if (isLocalTinyConfig(config)) {
-    const provider = getKuroModelAdapter();
-    if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
-      provider.setProgressListener(onProgress);
-    }
-    return provider;
+  if (!isLocalTinyConfig(config) || config.modelUri !== LOCAL_TINY_MODEL_URI) {
+    throw new Error("Kuro currently uses only on-device Qwen3-0.6B. Reopen Preferences to migrate the saved model settings.");
   }
-  return new OpenAICompatibleProvider({
-    baseUrl: config.baseUrl,
-    apiKey: config.apiKey,
-    allowInsecureLocalhost: config.allowInsecureLocalhost,
-  });
+  const provider = getKuroModelAdapter();
+  if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
+    provider.setProgressListener(onProgress);
+  }
+  return provider;
 }
 
 export async function prepareLocalTinyModel(

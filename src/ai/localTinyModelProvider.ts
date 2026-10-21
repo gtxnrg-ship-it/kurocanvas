@@ -1,7 +1,7 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
-import { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-export { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
@@ -29,7 +29,7 @@ type PendingRequest = {
 };
 
 const MODEL: ModelDescriptor = {
-  id: "kuro-local:smollm2-135m-instruct",
+  id: KURO_TINY_MODEL_DESCRIPTOR_ID,
   name: "Kuro Tiny · SmolLM2 135M Instruct",
   providerId: "kuro-local-browser",
   location: "local",

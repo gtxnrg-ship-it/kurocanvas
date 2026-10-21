@@ -419,6 +419,19 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (!redoStack.length) return;
     setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored');
   };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
+      const modifier = event.ctrlKey || event.metaKey;
+      if (!modifier) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      else if (key === 'y') { event.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo]);
   const selectedStroke = selectedStrokeId ? strokes.find(stroke => stroke.id === selectedStrokeId) : undefined;
   const snapshotStrokes = () => strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
   const removeSelected = () => {

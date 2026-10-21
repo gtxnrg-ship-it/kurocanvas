@@ -303,14 +303,14 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const restoreVersionCheckpoint = async (revisionId: string, title: string) => {
     if (!globalThis.confirm('Restore "' + title + '"? Your current drawing will be saved as a new checkpoint first.')) return;
     try {
+      const revision = await drawingRevisionStorage.load(revisionId, drawingId);
+      if (!revision) throw new Error('That version no longer exists for this drawing.');
       const current: LocalDrawingDocument = {
         id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background, strokes: JSON.parse(JSON.stringify(strokes)), layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
       };
       await drawingStorage.save(current);
       await drawingRevisionStorage.create(drawingId, 'Before restore · ' + new Date().toLocaleString(), current);
-      const revision = await drawingRevisionStorage.load(revisionId, drawingId);
-      if (!revision) throw new Error('That version no longer exists for this drawing.');
       await preloadDrawingImages(revision.document.strokes as Stroke[]);
       const restored = { ...revision.document, id: drawingId, name: drawingName, updatedAt: new Date().toISOString() };
       await drawingStorage.save(restored);

@@ -52,7 +52,9 @@ export interface RestoreStrokeCommand {
     size: number;
     points: DrawingPoint[];
   /** Optional native canvas primitive metadata; these remain editable strokes. */
-  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble";
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+  imageDataUrl?: string;
+  imageName?: string;
   text?: string;
   fontFamily?: "comic" | "sans" | "serif";
   filled?: boolean;

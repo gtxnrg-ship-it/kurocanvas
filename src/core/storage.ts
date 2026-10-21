@@ -124,7 +124,7 @@ export interface LocalDrawingDocument {
     fillColor?: string;
     filled?: boolean;
     rotation?: number;
-    brushPreset?: "ink" | "pencil" | "marker" | "airbrush";
+    brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
     color: string;
     size: number;
     points: Array<{ x: number; y: number; pressure: number }>;

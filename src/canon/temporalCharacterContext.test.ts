@@ -95,8 +95,8 @@ describe("temporal character prompt context", () => {
       universeId: "u1", timelineId: "main", storyOrder: 20, characterIds: ["c1"],
     });
     expect(output).toContain("Body instance: old-body");
-    expect(output).toContain("height: 183 cm");
-    expect(output).toContain("stage: active");
+    expect(output).toContain("Height/build: 183 cm");
+    expect(output).toContain("[broken-arm; fracture; active]");
     expect(output).not.toContain("new-body");
     expect(output).not.toContain("Age: 15");
     const later = buildTemporalCharacterContext([oldBody, reborn], {

@@ -263,3 +263,14 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.
+
+
+## 2026-10-21 — North-star acceptance contract
+
+- [x] Make the user's full north-star experience explicit in `docs/PRODUCT-SPEC.md`: conversational creative briefing before substantial execution; visible progressive reference-to-rough-to-linework-to-color/shadow/highlight/detail passes; editable, reversible native operations; durable thousand-chapter continuity through project-scoped retrieval rather than a fictional unlimited prompt; and distinct phone/tablet/desktop experiences with honest platform boundaries.
+- [ ] Implement the earliest incomplete dependency from the roadmap: stabilize and test the real canvas/document/layer/persistence/export lifecycle, then integrate the native executor and approval queue with that lifecycle.
+- [ ] Add integration evidence for the real approval-to-visible-canvas-to-persisted-document path, including cancellation, undo/rollback and failure recovery.
+- [ ] Expand continuity storage from lexical retrieval foundations to evidence-backed temporal/event/relationship retrieval and a user-editable World Bible; never represent a thousand-chapter memory target as an unlimited model context window.
+- [ ] Verify phone/tablet/desktop behavior separately on actual supported devices. Responsive layout alone is not platform parity.
+
+This is a requirements/acceptance-contract update only. It does not mark any product capability implemented or verified.

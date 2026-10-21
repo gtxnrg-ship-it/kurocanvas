@@ -266,3 +266,43 @@ Evaluate Kuro as a complete system rather than assuming model size predicts outc
 - Phone/tablet/desktop usability, interruption recovery, offline behavior, and resource use.
 
 Track failures and regression fixtures over time. A beautiful demo is not proof of reliability; improvements should be demonstrated against fixed representative tasks and human review where subjective quality is involved.
+
+
+## 20. Production handoff, format conversion, and publishing adapters
+
+Kuro is not complete when a chapter looks finished inside the editor. A creator must be able to package it, validate it, and move it into the format required by the destination platform without rebuilding the chapter manually.
+
+### 20.1 One canonical project, many exports
+
+Keep a durable, editable native project as the source of truth. Exports are derived deliverables, never destructive conversions of the only copy. A chapter/package should preserve, where applicable:
+- Final page/panel artwork at configured dimensions and resolution, plus editable source layers and text objects in the native project.
+- Reading order, panel/page boundaries, chapter title/number, series metadata, language, credits, and creator-defined publication order.
+- Dialogue/lettering source text separately from flattened output where the destination supports it.
+- Fonts and asset references with licensing/provenance notes, plus a manifest of included files and any missing/unlicensed resources.
+- Export profile, color profile, dimensions, compression, bleed/safe-area settings where relevant, and warnings about lossy flattening or unsupported features.
+
+Provide output profiles for long-strip Webtoon-style vertical comics, paginated manga/comic pages, individual image sequences, PDF proof/review, and a complete editable project/archive. Support high-resolution images without accidental resampling, incorrect ordering, or quality loss. Preserve original project data and offer preview/re-import checks before finalizing an export.
+
+### 20.2 Preflight and release gate
+
+Before export, validate required files, image dimensions/format/size limits, page/panel order, empty or duplicate panels, text clipping, balloon reading order, font availability, metadata, transparent/flattened backgrounds, color conversion, and destination-specific constraints. Show actionable errors and warnings with a preview; never silently discard layers, fonts, text, or unsupported effects. The user explicitly confirms a final package when conversion is lossy.
+
+Every export receives a manifest and reproducible profile settings. Where feasible, include checksums and a validation report so creators can verify that uploaded assets match the approved package. Exports must be repeatable from the same source and settings.
+
+### 20.3 Platform adapter architecture
+
+Use destination adapters behind a common contract: capability discovery, authentication status, format/metadata mapping, preflight, package creation, upload or handoff, draft creation where supported, result/status retrieval, and error recovery. Keep platform-specific constraints out of the editor core. Adapters must declare what they support instead of pretending every site supports every action.
+
+- **MangaDex:** provide a validated export/package workflow and, only where the official API and account permissions permit, a supported chapter-upload flow. Respect MangaDex's current API requirements, manga/chapter metadata, scanlation/translation credits, language, volume/chapter ordering, and community rules. If a safe, supported direct upload is unavailable, deliver a ready-to-upload package with a clear checklist and official destination link.
+- **WEBTOON CANVAS:** provide a vertical-scroll export profile that checks image slicing/dimensions, ordering, file limits, text legibility, and episode metadata against current official requirements. Direct publishing is allowed only if an official, authorized integration exists; otherwise provide a ready-to-upload package and guided handoff to the creator's dashboard.
+- **Other hosting/publishing services:** add adapters incrementally based on documented official APIs, export requirements, creator demand, and policy/licensing. Avoid brittle scraping, credential collection outside approved auth, or automation that violates platform terms.
+
+### 20.4 User approval, credentials, and publication safety
+
+Publishing is a consequential external action. Prepare, validate, and preview freely; require explicit confirmation before uploading, creating a public draft, scheduling, or publishing. Show the exact destination, account, series, chapter, visibility, files, and metadata before submission. Never publish publicly based on ambiguous chat intent. Keep tokens in the platform's approved secure storage, never in project archives, logs, prompts, or exported manifests. Support revoke/disconnect, least privilege, upload retries that avoid accidental duplicate chapters, and a clear receipt/history of actions.
+
+### 20.5 Delivery states and portability acceptance
+
+Distinguish clearly between: **exported locally**, **preflight passed**, **ready to upload**, **uploaded as draft**, **scheduled**, and **published**. A file existing locally is not proof of an upload; an upload response is not proof of publication. Report the platform's returned status and link only when confirmed.
+
+Acceptance scenarios include: export a vertical episode and paginated chapter from one project without losing the editable source; catch text overflow before packaging; reproduce the same package from the same revision; recover from a failed upload without duplicating a chapter; prepare a ready-to-upload MangaDex package; and prepare a WEBTOON-compatible vertical episode with a destination-specific preflight report. Direct integration acceptance tests must use official documented capabilities and a non-public test/draft path where available.

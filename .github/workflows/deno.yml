@@ -20,10 +20,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
-      - name: Install dependencies
-        run: npm install
+      - name: Pin npm version used by reproducible CI
+        run: npm install --global npm@11.6.0
 
-      - name: TypeScript checks and production build
-        run: npm run build
+      - name: Install exactly from committed lockfile
+        run: npm ci --no-audit --no-fund --legacy-peer-deps
+
+      - name: Required acceptance sequence (typecheck, tests, production build)
+        run: npm run typecheck && npm test && npm run build

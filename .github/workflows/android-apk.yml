@@ -45,17 +45,11 @@ jobs:
       - name: Pin npm version with the known peer-graph fix
         run: npm install --global npm@11.6.0
 
-      - name: Resolve dependency graph into a per-run lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
-
-      - name: Install locked application dependencies
+      - name: Install exactly from committed lockfile
         run: npm ci --no-audit --no-fund --legacy-peer-deps
 
-      - name: Run regression tests
-        run: npm test
-
-      - name: Type-check and build web application
-        run: npm run build
+      - name: Required acceptance sequence (typecheck, tests, production build)
+        run: npm run typecheck && npm test && npm run build
 
       - name: Generate the native Android project
         run: npx cap add android

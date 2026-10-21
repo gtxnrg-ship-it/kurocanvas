@@ -1,7 +1,7 @@
 # Kuro Canvas
 
-> 📱 **Android test APK:** [Open the rolling release page](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) · [Direct APK download URL](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)  
-> The direct download is available only after the Android workflow successfully builds and publishes the APK. **No published APK could be verified during the 21 October 2026 audit.** Recent jobs ended before any runner step started, so they did not produce a test package. Check [Android APK build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) for the newest result; a successful run also uploads a **kuro-canvas-debug-apk** artifact. This is a debug-signed test build, not a production release.
+> 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  
+> The rolling release is updated only after the Android workflow passes its checks and assembles an APK. The release page identifies the exact source commit for that binary; while a newer build is running, the download can temporarily lag behind `main`. This is a debug-signed test package, not a production or Play Store release, and it has not been smoke-tested on a physical device in this audit.
 
 **Create · Draw · Tell · Together.**
 
@@ -40,7 +40,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Local browser model | Experimental | Optional text-only model runs in a worker, supports cancellation and reports a local speed benchmark; real-device quality/performance remain unverified |
 | Hosted OpenAI-compatible provider | Integration implemented | Requires a compatible endpoint and valid configuration |
 | Portable project/export workflows | Partial | Packages include universe transcripts, relationship/timeline canon, drawings and revision checkpoints; browser round-trip and corruption-recovery testing remain |
-| Android APK | Packaging workflow added | Await a successful workflow run and inspect the generated artifact on a real device |
+| Android APK | Rolling debug-signed APK published | The release page records the source commit and SHA-256; install/launch and low-end Android validation still need a physical-device test |
 | Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
 
 Statuses describe the code and current development scope; they are not a promise that every row is fully verified.
@@ -61,13 +61,13 @@ This is the intended development-preview URL. Availability depends on GitHub Pag
 
 ### Option 3 — Run it locally
 
-Requirements: **Node.js 20+** and npm.
+Requirements: **Node.js 22+** and npm (Capacitor 8 requires Node 22 or newer).
 
 ```bash
 git clone https://github.com/gtxnrg-ship-it/kurocanvas.git
 cd kurocanvas
 git switch main
-npm install
+npm ci
 npm run dev
 ```
 
@@ -103,9 +103,9 @@ This is a practical smoke test, not a substitute for the full release test suite
 
 **[Download the latest Android test APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)**
 
-The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) runs regression tests, type-checks and builds the web app, packages it into a Capacitor Android project, and assembles an installable debug APK. A successful run publishes a rolling development release at the direct link above and also attaches a **kuro-canvas-debug-apk** workflow artifact.
+The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) runs the required typecheck/test/production-build sequence, packages the web app into a Capacitor Android project, and assembles an installable debug APK. The rolling development release at the direct link above contains the latest successful published build and its release notes identify the source commit. Each run also attaches a **kuro-canvas-debug-apk** workflow artifact.
 
-- If the direct link is not populated yet, open the [Android build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml), select the newest successful run, and download its **kuro-canvas-debug-apk** artifact.
+- Check the release notes' source commit before installing if a newer build is still running; alternatively, open [Android build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml), select the successful run for the exact commit you want, and download its **kuro-canvas-debug-apk** artifact.
 - The APK is **debug-signed for testing**, not signed for Play Store or production distribution. Review the build's source commit and SHA-256 file in the release/artifact.
 - Each CI run can use a new debug signing key. If Android refuses to install an update over an older test build, uninstall the previous test APK first, then install the new one.
 - This packages the current web application in an Android WebView; it does **not** prove offline model inference, background jobs after Android kills the app, native notifications on every device, or polished low-end performance. Those need device-specific validation.
@@ -214,4 +214,4 @@ No license has been selected yet. Do not assume this repository is open source u
 
 ---
 
-**Current release decision: early-alpha test APK only; not production-ready.** The APK link is a release destination that becomes valid after the first successful Android APK workflow. Check the current main-branch Actions status before testing. Full tool coverage, iterative visual QA, story-memory reliability, real-device Android testing, and the remaining end-to-end acceptance tests are still required.
+**Current release decision: early-alpha Android test APK is published; not production-ready.** The APK link is a real rolling release, but it may lag `main` until the next successful Android build. Match the release's recorded source commit to the code you want to test. Full tool coverage, iterative visual QA, story-memory reliability, physical-device Android validation, and remaining end-to-end acceptance tests are still required.

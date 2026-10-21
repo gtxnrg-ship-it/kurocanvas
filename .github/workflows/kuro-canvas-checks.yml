@@ -22,8 +22,6 @@ jobs:
           node-version: 24
       - name: Pin npm version with the known peer-graph fix
         run: npm install --global npm@11.6.0
-      - name: Resolve dependency graph into a per-run lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund --legacy-peer-deps
       - name: Dependency security audit (diagnostic)
@@ -44,10 +42,8 @@ jobs:
               vulnerabilities: items
             }, null, 2));
           '
-      - name: Automated regression tests
-        run: npm test
-      - name: TypeScript checks and production build
-        run: npm run build
+      - name: Required acceptance sequence (typecheck, tests, production build)
+        run: npm run typecheck && npm test && npm run build
       - name: Upload testable web build
         uses: actions/upload-artifact@v4
         with:

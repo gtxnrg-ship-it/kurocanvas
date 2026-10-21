@@ -30,9 +30,7 @@ jobs:
           node-version: 24
       - name: Pin npm version with the known peer-graph fix
         run: npm install --global npm@11.6.0
-      - name: Resolve dependency graph into a per-run lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
-      - name: Install locked dependencies
+      - name: Install exactly from committed lockfile
         run: npm ci --no-audit --no-fund --legacy-peer-deps
       - name: Verify TypeScript
         run: npm run typecheck

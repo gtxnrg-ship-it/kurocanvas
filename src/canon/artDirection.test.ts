@@ -43,6 +43,12 @@ describe("project art direction bible", () => {
     expect(parsed.influences).toBeUndefined();
   });
 
+  it("recovers a fenced JSON draft and still enforces the core visual rules", () => {
+    const parsed = parseArtDirectionSynthesis('Here is the draft:\n\`\`\`json\n{"title":"New identity","visualStyle":"Expressive linework","linework":"Stable contour hierarchy","visualInvariants":"Keep scars consistent"}\n\`\`\`');
+    expect(parsed.title).toBe("New identity");
+    expect(parsed.visualStyle).toBe("Expressive linework");
+  });
+
   it("rejects malformed or incomplete art-direction synthesis", () => {
     expect(() => parseArtDirectionSynthesis("not json")).toThrow(/invalid JSON/i);
     expect(() => parseArtDirectionSynthesis(JSON.stringify({ title: "Incomplete" }))).toThrow(/core visual rules/i);

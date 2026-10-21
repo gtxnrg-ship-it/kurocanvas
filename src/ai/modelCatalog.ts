@@ -50,7 +50,7 @@ export const KURO_MODEL_CATALOG: readonly KuroModelOption[] = [
   },
   {
     id: "gemma3n-e2b-native", name: "Gemma 3n E2B (int4)", tier: "mid",
-    platforms: ["android", "ios", "tablet"], runtime: "litert-native",
+    platforms: ["android", "ios", "tablet"], runtime: "litert-lm",
     downloadBytes: 3_655_827_456, minMemoryBytes: 8 * 1024 ** 3, modalities: ["text", "image", "audio"],
     bestFor: "On-device multimodal understanding on capable phones and tablets",
     status: "native-runtime-needed", sourceUrl: "https://github.com/google-ai-edge/gallery/blob/main/model_allowlists/1_0_10.json",
@@ -58,7 +58,7 @@ export const KURO_MODEL_CATALOG: readonly KuroModelOption[] = [
   },
   {
     id: "gemma3n-e4b-native", name: "Gemma 3n E4B (int4)", tier: "flagship",
-    platforms: ["android", "ios", "tablet"], runtime: "litert-native",
+    platforms: ["android", "ios", "tablet"], runtime: "litert-lm",
     modalities: ["text", "image", "audio"], bestFor: "Higher-quality multimodal tasks on flagship mobile hardware",
     status: "native-runtime-needed", sourceUrl: "https://deepmind.google/models/gemma/gemma-3n/",
     notes: "Mobile-first model family, but practical package size and compatibility depend on the exact export and runtime."

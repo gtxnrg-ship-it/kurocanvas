@@ -107,7 +107,6 @@ export function createConversationInUniverse(universe: UniverseRecord, title = "
     createdAt: now,
     updatedAt: now,
     lifecycle: "active",
-    messages: [],
     metadata: {},
   };
 }

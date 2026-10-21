@@ -1,5 +1,6 @@
 import { buildProjectDeletionManifest } from "./projectDeletion";
 import { validateLocalDrawingDocument } from "./drawingDocument";
+import { sameDrawingContent } from "./drawingCompare";
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
@@ -402,33 +403,6 @@ export const drawingRevisionStorage = {
 };
 
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
-function equalDrawingValue(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    return a.every((value, index) => equalDrawingValue(value, b[index]));
-  }
-  const left = a as Record<string, unknown>, right = b as Record<string, unknown>;
-  const leftKeys = Object.keys(left).filter(key => left[key] !== undefined).sort();
-  const rightKeys = Object.keys(right).filter(key => right[key] !== undefined).sort();
-  if (leftKeys.length !== rightKeys.length || leftKeys.some((key, i) => key !== rightKeys[i])) return false;
-  return leftKeys.every(key => equalDrawingValue(left[key], right[key]));
-}
-
-function sameDrawingContent(left: LocalDrawingDocument | undefined, right: LocalDrawingDocument | undefined): boolean {
-  if (!left || !right) return left === right;
-  const normalized = (document: LocalDrawingDocument) => ({
-    id: document.id, projectId: document.projectId ?? "", name: document.name ?? "",
-    version: document.version, width: document.width, height: document.height, background: document.background,
-    layers: (document.layers?.length ? document.layers : [{
-      id: "layer-default", name: "Sketch", visible: true, locked: false, opacity: 1, blendMode: "normal" as const,
-    }]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: layer.blendMode ?? "normal" })),
-    strokes: document.strokes,
-  });
-  return equalDrawingValue(normalized(left), normalized(right));
-}
-
 export const drawingStorage = {
   /** Atomic compare-and-save: reject stale edits rather than overwriting another tab. */
   async compareAndSave(expected: LocalDrawingDocument | undefined, document: LocalDrawingDocument): Promise<void> {

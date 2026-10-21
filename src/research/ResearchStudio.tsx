@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, Bell, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Pause, Play, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import {
   cancelResearchTask, enqueueResearchTask, isResearchQueuePaused, pauseResearchQueue, requestResearchNotificationPermission,
-  researchTaskStorage, resumeResearchQueue, retryResearchTask, type ResearchDepth, type ResearchTaskRecord,
+  researchTaskStorage, resumeResearchQueue, retryResearchTask, type ResearchDepth, type ResearchSourceProvider, type ResearchTaskRecord,
 } from "./researchQueue";
 import "./researchStudio.css";
 
@@ -22,6 +22,7 @@ const timeLabel = (value: string) => {
 export default function ResearchStudio({ projectId, projects, onAskKuro }: Props) {
   const [query, setQuery] = useState("");
   const [depth, setDepth] = useState<ResearchDepth>("deep");
+  const [sourceProvider, setSourceProvider] = useState<ResearchSourceProvider>("wikipedia");
   const [tasks, setTasks] = useState<ResearchTaskRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -70,7 +71,7 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
     if (query.trim().length < 2) { setMessage("Describe at least two characters of the research topic."); return; }
     setBusy(true);
     try {
-      const task = await enqueueResearchTask({ projectId, query: query.trim(), depth });
+      const task = await enqueueResearchTask({ projectId, query: query.trim(), depth, sourceProvider });
       setQuery("");
       setMessage("Research queued for “" + task.query + "”. The queue is saved locally and will resume when Kuro opens again.");
       await refresh();
@@ -114,10 +115,14 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
         <textarea id="kuro-research-query" value={query} onChange={event => setQuery(event.target.value)} rows={3} maxLength={1800}
           placeholder="e.g. Research late Edo-period policing, common street clothing, sword schools, and how urban districts were organized. Collect details useful for an original fictional city." required />
         <div className="research-compose-bottom">
+          <label>Source collection<select value={sourceProvider} onChange={event => setSourceProvider(event.target.value as ResearchSourceProvider)}>
+            <option value="wikipedia">Wikipedia · encyclopedia starting points</option>
+            <option value="crossref">Crossref · scholarly publication metadata</option>
+          </select></label>
           <label>Research depth<select value={depth} onChange={event => setDepth(event.target.value as ResearchDepth)}>{DEPTHS.map(item => <option key={item.value} value={item.value}>{item.label} — {item.note}</option>)}</select></label>
           <button type="submit" disabled={busy || query.trim().length < 2}>{busy ? <LoaderCircle className="research-spin" size={15}/> : <Plus size={15}/>} Add research task</button>
         </div>
-        <p className="research-source-note">Current source collector uses English Wikipedia's public API and preserves article URLs with each extract. Treat the results as starting sources to compare—not as unquestionable truth or approved story canon.</p>
+        <p className="research-source-note">Wikipedia provides encyclopedia extracts; Crossref provides scholarly publication metadata and abstracts only when deposited. Results are not a full literature review or automatic fact-check. Review the source, compare independent evidence, and approve canon changes yourself.</p>
       </form>
       <div className="research-queue-head"><div><h3>Research queue</h3><span>{counts.queued} queued · {counts.running} running · {counts.completed} completed · {counts.failed} need attention</span></div>
         {paused ? <button type="button" onClick={() => { resumeResearchQueue(); setPaused(false); setMessage("Research queue resumed."); }}><Play size={14}/> Resume queue</button>
@@ -126,7 +131,7 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
       {tasks.length === 0 ? <div className="research-empty"><BookOpen size={18}/><span>No research tasks yet. Add a topic above; finished source material can later be included in Kuro's chat context.</span></div> :
         <div className="research-task-list">{tasks.map(task => <article className={"research-task research-task-"+task.status} key={task.id}>
           <div className="research-task-top">
-            <div><span className={"research-status research-status-"+task.status}>{task.status === "completed" ? <CheckCircle2 size={12}/> : task.status === "failed" ? <AlertCircle size={12}/> : task.status === "running" ? <LoaderCircle className="research-spin" size={12}/> : task.status === "cancelled" ? <X size={12}/> : <ClockStatus/>}{task.status}</span><small>{task.depth} · queued {timeLabel(task.createdAt)}</small></div>
+            <div><span className={"research-status research-status-"+task.status}>{task.status === "completed" ? <CheckCircle2 size={12}/> : task.status === "failed" ? <AlertCircle size={12}/> : task.status === "running" ? <LoaderCircle className="research-spin" size={12}/> : task.status === "cancelled" ? <X size={12}/> : <ClockStatus/>}{task.status}</span><small>{(task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref scholarly metadata" : "Wikipedia"} · {task.depth} · queued {timeLabel(task.createdAt)}</small></div>
             <div className="research-task-actions">
               {(task.status === "queued" || task.status === "running") && <button type="button" onClick={() => void cancel(task)}><X size={12}/> Cancel</button>}
               {task.status === "failed" && <button type="button" onClick={() => void retry(task)}><RefreshCw size={12}/> Retry</button>}
@@ -137,8 +142,8 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
           {task.status === "running" && <><div className="research-progress-track"><span style={{ width: task.progress + "%" }}/></div><small>{task.stage} · {task.progress}%</small></>}
           {task.error && <p className="research-task-error">{task.error}</p>}
           {task.status === "completed" && <div className="research-complete-line">{task.sources.length} source summaries · {task.stage}</div>}
-          {task.sources.length > 0 && <div className="research-sources">{task.sources.map((source, index) => <details key={source.url}><summary><span>{index+1}. {source.title}</span><small>Source excerpt</small></summary><p>{source.extract}</p><a href={source.url} target="_blank" rel="noreferrer">Open source <ExternalLink size={11}/></a></details>)}</div>}
-          {task.status === "completed" && <button type="button" className="research-ask-kuro" onClick={() => onAskKuro("Use the source-linked research in my Research Vault about: " + task.query + ". Synthesize the findings in detail for the active universe. Separate documented facts from interpretation and fictional additions, cite the saved article URLs, suggest useful worldbuilding/story/visual applications, and propose rather than silently approve any canon changes.")}><BookOpen size={14}/> Develop this with Kuro</button>}
+          {task.sources.length > 0 && <div className="research-sources">{task.sources.map((source, index) => <details key={source.url}><summary><span>{index+1}. {source.title}</span><small>{(task.sourceProvider ?? "wikipedia") === "crossref" ? "Bibliographic metadata / abstract" : "Encyclopedia extract"}</small></summary><p>{source.extract}</p><a href={source.url} target="_blank" rel="noreferrer">Open source <ExternalLink size={11}/></a></details>)}</div>}
+          {task.status === "completed" && <button type="button" className="research-ask-kuro" onClick={() => onAskKuro("Use the source-linked research in my Research Vault about: " + task.query + ". Synthesize the findings in detail for the active universe. Separate documented facts from interpretation and fictional additions, cite the saved source URLs, explain gaps or uncertainty, suggest useful worldbuilding/story/visual applications, and propose rather than silently approve any canon changes.")}><BookOpen size={14}/> Develop this with Kuro</button>}
         </article>)}</div>}
     </>}
     <p className="research-status-message" role="status" aria-live="polite">{message}</p>

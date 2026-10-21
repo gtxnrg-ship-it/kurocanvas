@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, normalizeImportedResearchTasks, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, createResearchTask, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
 
@@ -65,6 +65,42 @@ describe("Kuro research queue records", () => {
     expect(sources[0].extract).toContain("Ming dynasty");
     expect(sources[0].extract).not.toContain("<b>");
     expect(sources[0].url).toContain("en.wikipedia.org");
+  });
+
+  it("parses Crossref work metadata, cleans markup, and builds canonical DOI links", () => {
+    const sources = parseCrossrefWorksPayload({ message: { items: [
+      {
+        DOI: "10.1234/test-paper",
+        title: ["A Study of <jats:italic>Worldbuilding</jats:italic>"],
+        author: [{ given: "Ada", family: "Lovelace" }, { given: "Grace", family: "Hopper" }],
+        publisher: "Example Press",
+        "container-title": ["Journal of Example Studies"],
+        "published-print": { "date-parts": [[2024, 5, 2]] },
+        abstract: "<jats:p>This &amp; that is a deposited abstract.</jats:p>",
+      },
+      { DOI: "not-a-doi", title: ["Invalid record"] },
+      { DOI: "10.1234/missing-title", title: [] },
+    ] } });
+    expect(sources).toHaveLength(1);
+    expect(sources[0].title).toBe("A Study of Worldbuilding");
+    expect(sources[0].url).toBe("https://doi.org/10.1234/test-paper");
+    expect(sources[0].extract).toContain("Authors: Ada Lovelace, Grace Hopper");
+    expect(sources[0].extract).toContain("Published: 2024");
+    expect(sources[0].extract).toContain("This & that is a deposited abstract.");
+    expect(sources[0].extract).not.toContain("<jats:");
+  });
+
+  it("keeps older saved tasks valid and permits only canonical DOI metadata URLs", () => {
+    const oldTask = createResearchTask({ projectId: "series-a", query: "history of printing", depth: "balanced" }, () => "old-task");
+    const scholarly = createResearchTask({ projectId: "series-a", query: "history of printing", depth: "deep", sourceProvider: "crossref" }, () => "scholarly-task");
+    const doiSource = { title: "A publication", url: "https://doi.org/10.1234/example", extract: "DOI: 10.1234/example." };
+    expect(oldTask.sourceProvider).toBe("wikipedia");
+    expect(validateResearchTask({ ...oldTask, sourceProvider: undefined, sources: [] }, "series-a")).toEqual([]);
+    expect(validateResearchTask({ ...scholarly, sources: [doiSource] }, "series-a")).toEqual([]);
+    expect(validateResearchTask({ ...scholarly, sources: [{ ...doiSource, url: "https://evil.example/10.1234/example" }] }, "series-a"))
+      .toContain("Research sources must be bounded HTTPS records from en.wikipedia.org or canonical doi.org DOI links.");
+    expect(validateResearchTask({ ...scholarly, sourceProvider: "arbitrary" }, "series-a"))
+      .toContain("Research source provider is invalid.");
   });
 
   it("builds factual research context only for the active project and relevant topic", async () => {

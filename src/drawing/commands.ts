@@ -195,7 +195,7 @@ export function validateDrawingCommand(
   switch (value.type) {
     case "stroke.add": {
       if (value.opacity !== undefined && (!finite(value.opacity) || value.opacity < 0 || value.opacity > 1)) errors.push("Stroke opacity must be between 0 and 1.");
-      if (bounds.strokeLayerById && typeof value.id === "string" && Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.id)) errors.push("Added stroke ID already exists in the active document.");
+      if (bounds.strokeLayerById && typeof value.id === "string" && Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, String(value.id))) errors.push("Added stroke ID already exists in the active document.");
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Stroke targets an unknown layer.");
       if (typeof value.layerId === "string" && (bounds.lockedLayerIds ?? []).includes(value.layerId)) errors.push("Stroke targets a locked layer.");
       if (value.tool !== "brush" && value.tool !== "eraser") errors.push("Unsupported stroke tool.");

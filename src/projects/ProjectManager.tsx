@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
-import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
+import { parseKuroPackage, parseKuroArchive, serializeKuroArchive, createKuroPackage } from '../core/package';
 import { artDirectionStorage, canonStorage, characterModelStorage, drawingStorage, projectStorage, referenceSourceStorage, storyMemoryStorage, styleBibleStorage, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
@@ -74,11 +74,11 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
         linkedDrawings++;
       }
-      const content = serializeKuroPackage(createKuroPackage(project, assets));
-      const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+json' }));
+      const content = serializeKuroArchive(createKuroPackage(project, assets));
+      const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+zip' }));
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
+      anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + linkedDrawings + ' linked drawings.');
@@ -92,7 +92,9 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
     setBusy(true);
     try {
       if (file.size > 50 * 1024 * 1024) throw new Error('This file exceeds the 50 MB import limit.');
-      const imported = parseKuroPackage(await file.text());
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const isZip = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+      const imported = isZip ? parseKuroArchive(bytes) : parseKuroPackage(await file.text());
       // Give each import a fresh local identity so importing the same package cannot
       // silently overwrite a project that is already on this device.
       const project: KuroProject = {
@@ -259,7 +261,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       <div className="project-manager-actions">
         <button disabled={busy} onClick={() => inputRef.current?.click()}><Upload size={15}/> Import package</button>
         <button disabled={busy} onClick={createNew}><Plus size={15}/> New project</button>
-        <input ref={inputRef} type="file" accept=".kuro.json,.json,application/json" hidden onChange={event => void importProject(event.target.files?.[0])}/>
+        <input ref={inputRef} type="file" accept=".kuro,.kuro.json,.json,application/json" hidden onChange={event => void importProject(event.target.files?.[0])}/>
       </div>
     </div>
     <p role="status" className="project-manager-message">{message}</p>

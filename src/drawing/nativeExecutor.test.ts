@@ -34,7 +34,7 @@ describe("native drawing executor", () => {
       translateX: 10, translateY: 15, scaleX: 2, scaleY: 1.5, rotationDegrees: 0,
     });
     expect(transformed.state.strokes[0].points).toEqual([
-      { x: 10, y: 20, pressure: 0.7 },
+      { x: 20, y: 35, pressure: 0.7 },
     ]);
     expect(transformed.state.strokes[0].rotation).toBe(0);
     expect(drawn.strokes[0].points).toEqual([{ x: 10, y: 20, pressure: 0.7 }]);

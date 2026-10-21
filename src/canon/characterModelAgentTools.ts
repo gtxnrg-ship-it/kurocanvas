@@ -12,7 +12,7 @@ export type CharacterCameraPreset =
 export type CharacterMotionPreset = "idle" | "relaxed" | "flex" | "combat-ready";
 
 export type CharacterModelAgentCommand =
-  | { version: 1; id: string; type: "model.createBlockout"; characterName: string; hair?: string; age?: string; outfit?: string; skinTone?: string; eyeColor?: string; bodyType?: "slim" | "average" | "athletic" | "stocky" }
+  | { version: 1; id: string; type: "model.createBlockout"; characterName: string; characterStateId?: string; hair?: string; age?: string; outfit?: string; skinTone?: string; eyeColor?: string; bodyType?: "slim" | "average" | "athletic" | "stocky" }
   | { version: 1; id: string; type: "model.motionPreset"; preset: CharacterMotionPreset }
   | { version: 1; id: string; type: "camera.preset"; preset: CharacterCameraPreset }
   | { version: 1; id: string; type: "camera.zoom"; factor: number }
@@ -71,11 +71,12 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
     }
     seen.add(rawCommand.id);
     if (rawCommand.type === "model.createBlockout") {
-      const allowed = ["version", "id", "type", "characterName", "hair", "age", "outfit", "skinTone", "eyeColor", "bodyType"];
+      const allowed = ["version", "id", "type", "characterName", "characterStateId", "hair", "age", "outfit", "skinTone", "eyeColor", "bodyType"];
       if (Object.keys(rawCommand).some(key => !allowed.includes(key))
         || typeof rawCommand.characterName !== "string" || !rawCommand.characterName.trim() || rawCommand.characterName.length > 120) {
         throw new Error("Native model creation needs a character name and only supported trait fields.");
       }
+      if (rawCommand.characterStateId !== undefined && (typeof rawCommand.characterStateId !== "string" || !rawCommand.characterStateId.trim() || rawCommand.characterStateId.length > 160)) throw new Error("Character state ID must be a non-empty bounded string.");
       for (const key of ["hair", "age", "outfit", "skinTone", "eyeColor"] as const) {
         if (rawCommand[key] !== undefined && (typeof rawCommand[key] !== "string" || rawCommand[key].trim().length > 160)) {
           throw new Error("Character trait " + key + " must be a string of at most 160 characters.");
@@ -86,6 +87,7 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
       }
       commands.push({
         version: 1, id: rawCommand.id, type: "model.createBlockout", characterName: rawCommand.characterName.trim(),
+        ...(typeof rawCommand.characterStateId === "string" ? { characterStateId: rawCommand.characterStateId.trim() } : {}),
         ...(typeof rawCommand.hair === "string" ? { hair: rawCommand.hair.trim() } : {}),
         ...(typeof rawCommand.age === "string" ? { age: rawCommand.age.trim() } : {}),
         ...(typeof rawCommand.outfit === "string" ? { outfit: rawCommand.outfit.trim() } : {}),
@@ -133,7 +135,7 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
 
 export function describeCharacterModelAgentCommand(command: CharacterModelAgentCommand): string {
   switch (command.type) {
-    case "model.createBlockout": return "Create native procedural 3D blockout for " + command.characterName;
+    case "model.createBlockout": return "Create native procedural 3D blockout for " + command.characterName + (command.characterStateId ? " at approved character state " + command.characterStateId : " as the base model");
     case "model.motionPreset": return "Animate procedural character preview: " + command.preset.replace(/-/g, " ");
     case "camera.preset": return "Set camera to " + command.preset.replace(/-/g, " ") + " view";
     case "camera.zoom": return (command.factor >= 1 ? "Zoom in " : "Zoom out ") + Math.round(Math.abs(command.factor - 1) * 100) + "%";

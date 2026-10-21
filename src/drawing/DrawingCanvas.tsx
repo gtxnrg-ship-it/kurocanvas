@@ -687,15 +687,47 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const snapshotStrokes = () => strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
   const removeSelected = () => {
     if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before deleting this object.'); return; }
     setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
     setStrokes(old => old.filter(stroke => stroke.id !== selectedStroke.id)); setSelectedStrokeId(null); setNotice('Selected object deleted · Undo is available');
   };
   const duplicateSelected = () => {
     if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before duplicating this object.'); return; }
     const duplicate: Stroke = { ...selectedStroke, id: crypto.randomUUID(), points: selectedStroke.points.map(point => ({ ...point, x: point.x + 24, y: point.y + 24 })) };
     setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
     setStrokes(old => [...old, duplicate]); setSelectedStrokeId(duplicate.id); setNotice('Object duplicated · Undo is available');
   };
+  const nudgeSelected = (dx: number, dy: number, checkpoint: boolean) => {
+    if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before moving this object.'); return; }
+    if (checkpoint) {
+      setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']);
+      setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
+    }
+    setStrokes(old => old.map(stroke => stroke.id === selectedStroke.id ? { ...stroke, points: stroke.points.map(point => ({ ...point, x: point.x + dx, y: point.y + dy })) } : stroke));
+    setNotice('Moved selected object ' + (dx || dy ? '· Undo is available' : ''));
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(target.tagName))) return;
+      const key = event.key.toLowerCase();
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && key === 'd' && tool === 'select' && selectedStroke) { event.preventDefault(); duplicateSelected(); return; }
+      if (modifier || event.altKey || !selectedStroke) return;
+      if ((key === 'delete' || key === 'backspace') && tool === 'select') { event.preventDefault(); removeSelected(); return; }
+      if (tool !== 'select') return;
+      const step = event.shiftKey ? 10 : 1;
+      const delta = key === 'arrowleft' ? [-step,0] : key === 'arrowright' ? [step,0] : key === 'arrowup' ? [0,-step] : key === 'arrowdown' ? [0,step] : null;
+      if (delta) { event.preventDefault(); nudgeSelected(delta[0], delta[1], !event.repeat); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [tool, selectedStrokeId, strokes, layers, duplicateSelected, removeSelected, nudgeSelected]);
   const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
   const importReferenceImage = async (file?: File) => {
@@ -930,7 +962,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
 
   return <section className="alt drawing-alt">
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
+    {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. In Select mode, arrow keys nudge objects (Shift for 10 px), Delete removes, and Ctrl/Cmd+D duplicates. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>

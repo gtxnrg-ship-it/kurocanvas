@@ -38,7 +38,7 @@ describe("local model context budget", () => {
       { role: "user", content: "The active request must remain last." },
     ], 1_000);
     expect(bounded.map(message => message.role)).toEqual(["system", "user", "assistant", "user"]);
-    expect(bounded.at(-1)?.content).toBe("The active request must remain last.");
+    expect(bounded[bounded.length - 1]?.content).toBe("The active request must remain last.");
   });
 
   it("handles tiny budgets without exceeding the requested limit", () => {
@@ -49,7 +49,7 @@ describe("local model context budget", () => {
         { role: "user", content: "Keep the active request." },
       ], budget);
       expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(budget);
-      expect(bounded.at(-1)?.role).toBe("user");
+      expect(bounded[bounded.length - 1]?.role).toBe("user");
     }
   });
 });

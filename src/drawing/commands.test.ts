@@ -81,6 +81,19 @@ describe("drawing command validation", () => {
     expect(validateDrawingCommand({ ...restore, index: 99 }, bounds).valid).toBe(false);
   });
 
+  it("validates plans against the evolving layer and stroke state", () => {
+    const documentBounds = { width: 800, height: 600, layerIds: ["ink"], lockedLayerIds: [], strokeLayerById: { "existing-stroke": "ink" } };
+    const plan = [
+      { version: 1, id: "create-layer-command", type: "layer.add", layerId: "detail", name: "Detail", index: 1 },
+      { version: 1, id: "new-stroke", type: "stroke.add", layerId: "detail", tool: "brush", color: "#112233", size: 3, points: [{ x: 10, y: 10 }] },
+      { version: 1, id: "remove-new-stroke", type: "stroke.remove", strokeId: "new-stroke" },
+      { version: 1, id: "remove-detail", type: "layer.remove", layerId: "detail" },
+    ];
+    expect(validateDrawingPlan(plan, documentBounds).valid).toBe(true);
+    const invalid = [plan[0], { ...plan[1], layerId: "missing-layer" }];
+    expect(validateDrawingPlan(invalid, documentBounds).valid).toBe(false);
+  });
+
   it("parses valid JSON and rejects malformed JSON", () => {
     expect(parseDrawingPlan(JSON.stringify([validStroke]), bounds)).toHaveLength(1);
     expect(() => parseDrawingPlan("{", bounds)).toThrow(/valid JSON/);

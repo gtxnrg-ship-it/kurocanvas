@@ -2,6 +2,9 @@ import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from
 import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
 export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+
+/** Upper bound for mobile-friendly native-tool plans and longer creative responses. */
+export const KURO_LOCAL_MAX_OUTPUT_TOKENS = 1024;
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
@@ -89,7 +92,7 @@ export class LocalTinyModelProvider implements ModelProvider {
       return { role: message.role, content: message.content };
     });
     const bounded = boundMessages(messages, 12_000);
-    const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, 512));
+    const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, KURO_LOCAL_MAX_OUTPUT_TOKENS));
     const temperature = typeof request.temperature === "number" && Number.isFinite(request.temperature)
       ? Math.max(0, Math.min(request.temperature, 1.2))
       : 0.7;

@@ -1,0 +1,59 @@
+.character-timeline-studio{margin:22px 0;padding:20px;border:1px solid var(--line,#30283e);border-radius:16px;background:linear-gradient(145deg,#171321,#100e17);color:#f2edf9}
+.timeline-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.timeline-head small{font-size:9px;letter-spacing:1.3px;color:#b69aff;font-weight:800}
+.timeline-head h2{display:flex;align-items:center;gap:9px;margin:7px 0;font:700 20px Manrope,sans-serif}
+.timeline-head h2 svg{color:#b69aff}
+.timeline-head p,.timeline-fieldset>p{max-width:820px;font-size:11px;line-height:1.7;color:#aaa0bd;margin:0 0 14px}
+.timeline-head>button,.timeline-editor button,.timeline-record-actions button,.timeline-condition button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #463655;border-radius:8px;padding:8px 10px;background:#211a2d;color:#e6dcf5;font:inherit;font-size:10px;cursor:pointer}
+.timeline-editor button:disabled,.timeline-head button:disabled{opacity:.45;cursor:not-allowed}
+.timeline-editor{display:grid;gap:13px}
+.timeline-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.timeline-form-grid label,.timeline-fieldset>label,.timeline-condition label,.timeline-condition-add label{min-width:0;display:flex;flex-direction:column;gap:6px;color:#cfc5dd;font-size:10px}
+.timeline-editor input:not([type=checkbox]),.timeline-editor select,.timeline-editor textarea{box-sizing:border-box;width:100%;min-width:0;padding:9px 10px;border:1px solid #3b304b;border-radius:8px;background:#0c0a12;color:#f2edf9;font:inherit;font-size:11px;line-height:1.5}
+.timeline-editor textarea{resize:vertical}
+.timeline-editor input:focus,.timeline-editor select:focus,.timeline-editor textarea:focus{outline:2px solid #9273ce;outline-offset:1px}
+.timeline-fieldset{min-width:0;margin:0;padding:15px;border:1px solid #332a42;border-radius:12px;background:#100e17}
+.timeline-fieldset h3{display:flex;align-items:center;gap:7px;margin:0 0 6px;color:#e8def8;font-size:13px}
+.timeline-fieldset h3 svg{color:#b69aff}
+.timeline-fieldset>label{margin:10px 0}
+.timeline-unknown{display:flex!important;flex-direction:row!important;align-items:center;gap:7px!important;color:#a89ab9!important;font-size:9px!important}
+.timeline-unknown input[type=checkbox]{accent-color:#b69aff;margin:0;width:13px;height:13px;flex-shrink:0}
+.timeline-muted{margin:8px 0;color:#8d829f;font-size:10px;line-height:1.6}
+.timeline-condition-list{display:grid;gap:9px;margin:12px 0}
+.timeline-condition{display:grid;grid-template-columns:minmax(130px,1fr) 110px 100px 90px;gap:9px;align-items:end;padding:11px;border:1px solid #3d334a;border-radius:10px;background:#15111e}
+.timeline-condition>div{min-width:0;display:flex;flex-direction:column;gap:5px}
+.timeline-condition>div b{font-size:11px;color:#eee5fa}
+.timeline-condition>div span{font-size:9px;color:#998eaa}
+.timeline-condition .condition-description{grid-column:span 2}
+.timeline-condition button{justify-self:start;grid-column:1/-1}
+.timeline-condition-add{display:grid;grid-template-columns:1fr 1.3fr 1.1fr .8fr .9fr .8fr;gap:9px;align-items:end;margin-top:12px;padding:12px;border:1px dashed #4b3b60;border-radius:10px}
+.timeline-condition-add .condition-description{grid-column:span 3}
+.timeline-condition-options{display:flex;gap:16px;flex-wrap:wrap;margin-top:13px}
+.timeline-primary{justify-self:start!important;padding:11px 15px!important;border:0!important;background:#b69aff!important;color:#1b1525!important;font-weight:800!important}
+.timeline-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 10px}
+.timeline-history-head h3{margin:0;font-size:14px}
+.timeline-history-head>span{font-size:10px;color:#a99cbb}
+.timeline-history{display:grid;gap:9px}
+.timeline-record{padding:13px;border:1px solid #393046;border-radius:11px;background:#100e17}
+.timeline-record.approved{border-left:3px solid #71c7a2}
+.timeline-record.proposed{border-left:3px solid #d8b96f}
+.timeline-record.superseded{opacity:.8}
+.timeline-record-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.timeline-record-top>div{display:grid;gap:5px;min-width:0}
+.timeline-record-top small{font-size:9px;color:#a69ab8}
+.timeline-record-top b{font-size:12px;color:#eee7f8;overflow-wrap:anywhere}
+.timeline-status{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;padding:5px 7px;border-radius:99px;background:#282136;color:#d4c8e6;font-size:9px}
+.timeline-status.approved{background:#1b332b;color:#a8dfc7}
+.timeline-status.proposed{background:#3b3020;color:#f1d69e}
+.timeline-record>p{font-size:10px;line-height:1.6;color:#b2a8c1;overflow-wrap:anywhere}
+.timeline-record-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.timeline-record-actions button{font-size:10px}
+.timeline-record-actions .timeline-danger{border-color:#70434b;color:#f2b7bd}
+.timeline-preserved{display:inline-flex;align-items:center;gap:5px;padding:8px 2px;color:#8fbaa7;font-size:10px}
+.timeline-empty{display:grid;justify-items:start;gap:8px;padding:22px;border:1px dashed #40334f;border-radius:12px;color:#bdb0d2}
+.timeline-empty svg{color:#c1a8f0}
+.timeline-empty b{font-size:13px;color:#eee6f9}
+.timeline-empty span{font-size:11px;line-height:1.6;color:#a99fba}
+.timeline-message{margin:12px 0 0;padding:10px 12px;border:1px solid #332a42;border-radius:9px;background:#12101a;color:#bcb1d1;font-size:10px;line-height:1.6}
+@media(max-width:900px){.timeline-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.timeline-condition-add{grid-template-columns:repeat(3,minmax(0,1fr))}.timeline-condition-add .condition-description{grid-column:span 3}.timeline-condition{grid-template-columns:repeat(2,minmax(0,1fr))}.timeline-condition .condition-description{grid-column:span 2}}
+@media(max-width:560px){.character-timeline-studio{padding:13px}.timeline-head{flex-direction:column}.timeline-form-grid,.timeline-condition-add,.timeline-condition{grid-template-columns:1fr}.timeline-condition .condition-description,.timeline-condition-add .condition-description{grid-column:span 1}.timeline-record-top{flex-direction:column}.timeline-condition-options{flex-direction:column;gap:10px}.timeline-history-head{align-items:flex-start;flex-direction:column}}

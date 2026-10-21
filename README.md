@@ -98,7 +98,7 @@ This is a practical smoke test, not a substitute for the full release test suite
 - **[Check official Kuro Canvas releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases/latest)** — if a release later includes an APK, download it only from the official release assets.
 - **[Browse all releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases)**.
 - **Current way to test on Android:** open the hosted preview above in Chrome if it is available, or run the app locally and access it from the phone on the same network. The local development server must be reachable from the device.
-- **Home-screen app option:** the app now includes a web-app manifest. If the hosted preview is available and Chrome offers it, use the browser menu → **Install app** or **Add to Home screen**. This creates a browser-installed web app, **not an APK**, and does not promise offline access. Browser storage can still be cleared by the user or operating system.
+- **Home-screen shortcut:** you may be able to use Chrome's **Add to Home screen** menu, but this is only a browser shortcut—not a packaged or verified installable app. No offline guarantee is made, and browser storage can be cleared by the user or operating system.
 
 Before an APK can be advertised as downloadable, the project needs a verified Android packaging path, a reproducible build, application ID/versioning, appropriate permissions and storage behavior, installation testing on real devices, and a release artifact attached to an official GitHub release. Signing and update/distribution instructions must also be documented. **The links above are release destinations, not a claim that an APK is currently available.**
 

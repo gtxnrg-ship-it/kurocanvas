@@ -33,7 +33,7 @@ describe("OpenAICompatibleProvider", () => {
 
   it("lists model IDs from an OpenAI-compatible endpoint", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
-      data: [{ id: "Qwen/Qwen3.8-27B", owned_by: "local" }, { id: "" }],
+      data: [{ id: "local-model-a", owned_by: "local" }, { id: "" }],
     })) as unknown as typeof fetch;
     const provider = new OpenAICompatibleProvider({
       baseUrl: "http://localhost:8000/v1",
@@ -46,25 +46,21 @@ describe("OpenAICompatibleProvider", () => {
 
     expect(models).toHaveLength(1);
     expect(models[0]).toMatchObject({
-      name: "Qwen/Qwen3.8-27B",
-      modelUri: "Qwen/Qwen3.8-27B",
+      name: "local-model-a",
+      modelUri: "local-model-a",
       providerId: "test",
       location: "local",
-      capabilities: ["chat", "vision", "structured-output"],
-      roles: ["reasoning", "planning", "vision", "coding", "story-writing", "continuity", "research", "fast-helper"],
+      capabilities: ["chat"],
+      roles: ["reasoning", "planning", "story-writing", "continuity", "fast-helper"],
       installed: true,
       enabled: true,
     });
     expect(fetchImpl).toHaveBeenCalledWith("http://localhost:8000/v1/models", expect.any(Object));
   });
 
-  it("exposes Qwen hardware estimates and license for device-aware selection", async () => {
+  it("does not infer vision capability or hardware estimates from an arbitrary model name", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
-      data: [
-        { id: "Qwen/Qwen3.8-27B" },
-        { id: "Qwen/Qwen3.8-27B-FP8" },
-        { id: "Inferact/Qwen3.8-27B-NVFP4" },
-      ],
+      data: [{ id: "Qwen/Qwen3.8-27B" }, { id: "small-vision-model" }],
     })) as unknown as typeof fetch;
     const provider = new OpenAICompatibleProvider({
       baseUrl: "http://localhost:8000/v1",
@@ -75,21 +71,9 @@ describe("OpenAICompatibleProvider", () => {
 
     const models = await provider.listModels();
 
-    expect(models[0]).toMatchObject({
-      downloadBytes: 55_563_006_776,
-      memoryBytes: 67 * 1024 ** 3,
-      license: "Apache-2.0",
-    });
-    expect(models[1]).toMatchObject({
-      downloadBytes: 30_866_866_928,
-      memoryBytes: 38 * 1024 ** 3,
-      license: "Apache-2.0",
-    });
-    expect(models[2]).toMatchObject({
-      downloadBytes: 26_381_249_312,
-      memoryBytes: 32 * 1024 ** 3,
-      license: "Apache-2.0",
-    });
+    expect(models).toHaveLength(2);
+    expect(models.every(item => item.capabilities.length === 1 && item.capabilities[0] === "chat")).toBe(true);
+    expect(models.every(item => item.downloadBytes === undefined && item.memoryBytes === undefined && item.license === undefined)).toBe(true);
   });
 
   it("sends the selected model and messages to chat completions", async () => {

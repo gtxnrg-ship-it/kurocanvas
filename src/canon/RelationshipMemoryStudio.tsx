@@ -6,7 +6,6 @@ import type { CanonEntity } from "./universe";
 import type { ChatMessageRecord } from "../core/universe";
 
 const states: RelationshipState[] = ["strangers","acquaintances","allies","friends","close-friends","rivals","enemies","estranged","romantic","family","custom"];
-const initialSnapshot = (): RelationshipSnapshot => ({state:"strangers",trust:10,warmth:10,tension:10,emotionalNotes:[],interactionPattern:[],boundaries:[],unresolvedWounds:[]});
 const lines = (value:string) => value.split("\n").map(item=>item.trim()).filter(Boolean);
 
 export default function RelationshipMemoryStudio({universeId,projectId,conversationId}:{universeId:string;projectId:string;conversationId:string}){
@@ -20,7 +19,7 @@ export default function RelationshipMemoryStudio({universeId,projectId,conversat
  const [trust,setTrust]=useState(10);const [warmth,setWarmth]=useState(10);const [tension,setTension]=useState(10);
  const [emotionalNotes,setEmotionalNotes]=useState("");const [interactionPattern,setInteractionPattern]=useState("");const [boundaries,setBoundaries]=useState("");const [unresolvedWounds,setUnresolvedWounds]=useState("");
  const [selectedId,setSelectedId]=useState("");const [nextState,setNextState]=useState<RelationshipState>("friends");
- const [storyOrder,setStoryOrder]=useState("1");const [eventTitle,setEventTitle]=useState("");const [eventSummary,setEventSummary]=useState("");const [eventCause,setEventCause]=useState("");const [sourceIds,setSourceIds]=useState("");
+ const [storyOrder,setStoryOrder]=useState("1");const [eventTitle,setEventTitle]=useState("");const [eventSummary,setEventSummary]=useState("");const [eventCause,setEventCause]=useState("");
  const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
  async function reload(){if(!universeId||!projectId)return;const [saved,canon,messages]=await Promise.all([relationshipStorage.list(universeId),canonStorage.load(projectId),conversationId?chatMessageStorage.list(universeId,conversationId):Promise.resolve([])]);setRecords(saved);setCharacters((canon?.entities??[]).filter(entity=>entity.kind.toLocaleLowerCase().includes("character")&&entity.status==="approved"));setSourceMessages(messages.slice(-40).reverse());setSelectedId(current=>saved.some(item=>item.id===current)?current:(saved[0]?.id??""));}
  useEffect(()=>{let alive=true;void (async()=>{try{await reload();}catch(error){if(alive)setNotice(error instanceof Error?error.message:"Could not load relationship memory.");}})();return()=>{alive=false;};},[universeId,projectId,conversationId]);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, Bell, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Pause, Play, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import {
-  cancelResearchTask, enqueueResearchTask, pauseResearchQueue, requestResearchNotificationPermission,
+  cancelResearchTask, enqueueResearchTask, isResearchQueuePaused, pauseResearchQueue, requestResearchNotificationPermission,
   researchTaskStorage, resumeResearchQueue, retryResearchTask, type ResearchDepth, type ResearchTaskRecord,
 } from "./researchQueue";
 import "./researchStudio.css";
@@ -30,8 +30,10 @@ export default function ResearchStudio({ projectId, projects, onProjectChange, o
 
   async function refresh() {
     if (!projectId) { setTasks([]); return; }
-    try { setTasks(await researchTaskStorage.list(projectId)); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Could not load saved research tasks."); }
+    try {
+      setTasks(await researchTaskStorage.list(projectId));
+      setPaused(await isResearchQueuePaused());
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not load saved research tasks."); }
   }
 
   useEffect(() => {

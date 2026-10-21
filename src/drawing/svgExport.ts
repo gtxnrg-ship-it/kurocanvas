@@ -116,11 +116,20 @@ export function buildSvgDocument(options: SvgExportOptions): string {
   for (const layer of visibleLayers) {
     const id = 'kuro-layer-' + safeId(layer.id);
     const layerStrokes = strokes.filter(stroke => (stroke.layerId || layers[0]?.id) === layer.id);
-    const erasers = layerStrokes.filter(stroke => stroke.tool === 'eraser').map(eraserMaskMark).join('');
-    defs.push('<mask id="' + id + '-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + n(width) + '" height="' + n(height) + '"><rect width="100%" height="100%" fill="white"/>' + erasers + '</mask>');
-    const artwork = layerStrokes.filter(stroke => stroke.tool !== 'eraser').map(strokeMarkup).join('');
+    let artwork = '';
+    let eraserIndex = 0;
+    for (const stroke of layerStrokes) {
+      if (stroke.tool === 'eraser') {
+        const maskId = id + '-erase-' + eraserIndex++;
+        defs.push('<mask id="' + maskId + '-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + n(width) + '" height="' + n(height) + '"><rect width="100%" height="100%" fill="white"/>' + eraserMaskMark(stroke) + '</mask>');
+        // Mask only what has already been painted so later strokes remain visible, like canvas destination-out.
+        artwork = '<g mask="url(#' + maskId + '-mask)">' + artwork + '</g>';
+      } else {
+        artwork += strokeMarkup(stroke);
+      }
+    }
     const blend = layer.blendMode && layer.blendMode !== 'normal' ? ' style="mix-blend-mode:' + esc(layer.blendMode) + '"' : '';
-    body.push('<g opacity="' + n(layer.opacity ?? 1) + '"' + blend + '><g mask="url(#' + id + '-mask)">' + artwork + '</g></g>');
+    body.push('<g opacity="' + n(layer.opacity ?? 1) + '"' + blend + '>' + artwork + '</g>');
   }
   return '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="' + n(width) + '" height="' + n(height) + '" viewBox="0 0 ' + n(width) + ' ' + n(height) + '"><defs>' + defs.join('') + '</defs>' + body.join('') + '</svg>';
 }

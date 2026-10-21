@@ -5,7 +5,7 @@ export interface AIStrokePlan {
   commands: NativeDrawingCommand[];
 }
 
-const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
+const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
 const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
 
 /**

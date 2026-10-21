@@ -5,8 +5,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Box, Plus, RefreshCw, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
-import { resolveActiveScarOverlays, selectCharacterModelVariant, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
-import { describeCharacterModelAgentCommand, type CharacterCameraPreset, type CharacterModelAgentCommand } from "./characterModelAgentTools";
+import { resolveActiveScarOverlays, selectCharacterModelVariant, type CharacterModelRecord, type ProceduralCharacterTraits, type ScarOverlay } from "./characterModels";
+import { describeCharacterModelAgentCommand, type CharacterCameraPreset, type CharacterModelAgentCommand, type CharacterMotionPreset } from "./characterModelAgentTools";
 import "./characterModelStudio.css";
 
 type ProjectChoice = { id: string; name: string };
@@ -46,40 +46,97 @@ function addMesh(group: THREE.Group, geometry: THREE.BufferGeometry, color: stri
   if (scale) mesh.scale.set(...scale);
   mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh;
 }
-function createProceduralCharacter(group: THREE.Group, traits?: { hair?: string; age?: string; outfit?: string }) {
+function createProceduralCharacter(group: THREE.Group, traits?: ProceduralCharacterTraits) {
   const hairText = traits?.hair?.toLocaleLowerCase() ?? "";
   const outfitText = traits?.outfit?.toLocaleLowerCase() ?? "";
-  const longHair = /long|shoulder|grown.?out|waist|flowing|back.?length/i.test(hairText);
+  const skinText = traits?.skinTone?.toLocaleLowerCase() ?? "";
+  const eyeText = traits?.eyeColor?.toLocaleLowerCase() ?? "";
+  const longHair = /long|shoulder|grown.?out|waist|flowing|back.?length|ponytail|braid/i.test(hairText);
   const shavedHair = /shaved|buzz.?cut|bald/i.test(hairText);
   const hair = /silver|white|grey|gray/i.test(hairText) ? "#c7cad5"
     : /blond|golden|yellow/i.test(hairText) ? "#d1ad62"
     : /red|ginger|auburn/i.test(hairText) ? "#9d5140"
     : /blue/i.test(hairText) ? "#3e5797"
+    : /green|emerald/i.test(hairText) ? "#3c7868"
+    : /purple|violet/i.test(hairText) ? "#77539b"
+    : /pink/i.test(hairText) ? "#c8799a"
     : /brown|chestnut/i.test(hairText) ? "#51392f" : "#282638";
-  const clothes = /red|crimson/i.test(outfitText) ? "#8f3c4a"
+  const clothes = /red|crimson|maroon/i.test(outfitText) ? "#8f3c4a"
     : /white|cream/i.test(outfitText) ? "#d7d7d2"
     : /green|emerald/i.test(outfitText) ? "#3d796a"
-    : /black/i.test(outfitText) ? "#252632"
-    : /red|crimson/i.test(outfitText) ? "#8f3c4a" : "#536d9d";
-  const skin = "#d5ad92", trousers = "#292f42", shoes = "#171b24";
-  addMesh(group,new THREE.SphereGeometry(.32,32,24),skin,[0,2.04,0],[.82,1.08,.78]);
+    : /purple|violet/i.test(outfitText) ? "#654e91"
+    : /blue|navy/i.test(outfitText) ? "#425d91"
+    : /black|dark/i.test(outfitText) ? "#252632"
+    : /brown|leather/i.test(outfitText) ? "#634a3b" : "#536d9d";
+  const skin = /deep|very dark|dark brown|ebony/i.test(skinText) ? "#603c31"
+    : /dark|brown|mahogany/i.test(skinText) ? "#865b46"
+    : /tan|olive/i.test(skinText) ? "#b68260"
+    : /pale|porcelain/i.test(skinText) ? "#ead0bd"
+    : "#d5ad92";
+  const iris = /blue|azure/i.test(eyeText) ? "#4c87c9"
+    : /green|emerald/i.test(eyeText) ? "#45936e"
+    : /gold|amber|yellow/i.test(eyeText) ? "#bd9037"
+    : /red|crimson/i.test(eyeText) ? "#a94d59"
+    : /purple|violet/i.test(eyeText) ? "#8564be"
+    : /grey|gray|silver/i.test(eyeText) ? "#8797a7"
+    : /brown|hazel/i.test(eyeText) ? "#704832" : "#25222b";
+  const bodyType = traits?.bodyType ?? "average";
+  const bodyWidth = bodyType === "stocky" ? 1.2 : bodyType === "athletic" ? 1.07 : bodyType === "slim" ? 0.88 : 1;
+  const ageText = traits?.age?.toLocaleLowerCase() ?? "";
+  const ageNumber = Number(ageText.match(/\b\d{1,3}\b/)?.[0] ?? NaN);
+  const height = Number.isFinite(ageNumber) && ageNumber > 0
+    ? ageNumber < 10 ? 0.72 : ageNumber < 14 ? 0.82 : ageNumber < 18 ? 0.92 : 1
+    : /child|little kid|young child/i.test(ageText) ? 0.74 : /young teen/i.test(ageText) ? 0.88 : 1;
+  const trousers = /light|white|cream/i.test(outfitText) ? "#d7d7d2" : "#292f42";
+  const shoes = "#171b24";
+
+  const head = addMesh(group,new THREE.SphereGeometry(.32,32,24),skin,[0,2.04,0],[.82,1.08,.78]);
   addMesh(group,new THREE.SphereGeometry(.335,32,24),hair,[0,shavedHair?2.2:2.245,-.035],[1.04, shavedHair ? 0.32 : longHair ? 0.66 : 0.52, .93]);
   addMesh(group,new THREE.SphereGeometry(.25,24,20),hair,[0,longHair?1.86:1.99,-.19],[longHair?1.2:1.15,longHair?1.55:1.1,.8]);
-  addMesh(group,new THREE.CapsuleGeometry(.29,.57,5,12),clothes,[0,1.34,0],[1.02,1,0.75]);
-  addMesh(group,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[-.4,1.36,0],[1,1,.85]).rotation.z=-.17;
-  addMesh(group,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[.4,1.36,0],[1,1,.85]).rotation.z=.17;
-  addMesh(group,new THREE.CapsuleGeometry(.12,.62,5,12),trousers,[-.16,.62,0],[1,1,.9]);
-  addMesh(group,new THREE.CapsuleGeometry(.12,.62,5,12),trousers,[.16,.62,0],[1,1,.9]);
+  addMesh(group,new THREE.CapsuleGeometry(.29,.57,5,12),clothes,[0,1.34,0],[1.02*bodyWidth,1,.75*bodyWidth]);
+
+  const leftArmPivot = new THREE.Group();
+  leftArmPivot.position.set(-.36*bodyWidth,1.6,0);
+  leftArmPivot.rotation.z = -.17;
+  group.add(leftArmPivot);
+  addMesh(leftArmPivot,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[0,-.25,0],[1,1,.85]);
+
+  const rightArmPivot = new THREE.Group();
+  rightArmPivot.position.set(.36*bodyWidth,1.6,0);
+  rightArmPivot.rotation.z = .17;
+  group.add(rightArmPivot);
+  addMesh(rightArmPivot,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[0,-.25,0],[1,1,.85]);
+
+  const leftLegPivot = new THREE.Group();
+  leftLegPivot.position.set(-.16*bodyWidth,.93,0);
+  leftLegPivot.rotation.z = -.02;
+  group.add(leftLegPivot);
+  addMesh(leftLegPivot,new THREE.CapsuleGeometry(.12,.62,5,12),trousers,[0,-.3,0],[1,1,.9]);
+
+  const rightLegPivot = new THREE.Group();
+  rightLegPivot.position.set(.16*bodyWidth,.93,0);
+  rightLegPivot.rotation.z = .02;
+  group.add(rightLegPivot);
+  addMesh(rightLegPivot,new THREE.CapsuleGeometry(.12,.62,5,12),trousers,[0,-.3,0],[1,1,.9]);
+
   addMesh(group,new THREE.SphereGeometry(.14,20,16),shoes,[-.17,.12,.045],[1,.62,1.55]);
   addMesh(group,new THREE.SphereGeometry(.14,20,16),shoes,[.17,.12,.045],[1,.62,1.55]);
   addMesh(group,new THREE.SphereGeometry(.035,16,12),"#f5e7d5",[-.095,2.055,.235],[1,1,.45]);
   addMesh(group,new THREE.SphereGeometry(.035,16,12),"#f5e7d5",[.095,2.055,.235],[1,1,.45]);
-  addMesh(group,new THREE.SphereGeometry(.018,12,8),"#25222b",[-.095,2.055,.255],[1,1,.45]);
-  addMesh(group,new THREE.SphereGeometry(.018,12,8),"#25222b",[.095,2.055,.255],[1,1,.45]);
+  addMesh(group,new THREE.SphereGeometry(.019,12,8),iris,[-.095,2.055,.257],[1,1,.45]);
+  addMesh(group,new THREE.SphereGeometry(.019,12,8),iris,[.095,2.055,.257],[1,1,.45]);
   addMesh(group,new THREE.ConeGeometry(.04,.1,12),skin,[0,1.99,.255]);
   addMesh(group,new THREE.TorusGeometry(.09,.009,5,24,Math.PI), "#754e4b",[0,1.94,.235]);
+  if (/scarf|cravat|tie/i.test(outfitText)) {
+    addMesh(group,new THREE.TorusGeometry(.16,.045,8,28),clothes,[0,1.72,.02],[.9,.85,.85]);
+  }
+  group.scale.y = height;
+  group.userData.proceduralRig = {
+    head, leftArmPivot, rightArmPivot, leftLegPivot, rightLegPivot,
+    baseLeftArmZ: leftArmPivot.rotation.z, baseRightArmZ: rightArmPivot.rotation.z,
+    baseLeftLegZ: leftLegPivot.rotation.z, baseRightLegZ: rightLegPivot.rotation.z,
+  };
 }
-
 function normalizedModel(model: THREE.Object3D) {
   const initial = new THREE.Box3().setFromObject(model);
   const initialSize = initial.getSize(new THREE.Vector3());

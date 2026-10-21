@@ -334,7 +334,17 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
           ...universePackage,
         });
       } catch (error) {
-        await researchTaskStorage.removeProject(project.id).catch(() => undefined);
+        try {
+          await researchTaskStorage.removeProject(project.id);
+        } catch (cleanupError) {
+          const importMessage = error instanceof Error ? error.message : 'Unknown project import failure.';
+          const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : 'Unknown research cleanup failure.';
+          throw new Error(
+            'Project import failed: ' + importMessage
+            + '. Cleanup of research records for the incomplete import also failed: ' + cleanupMessage
+            + '. Check local research history before retrying so orphaned records can be recovered.'
+          );
+        }
         throw error;
       }
       await refresh();

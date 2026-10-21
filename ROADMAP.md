@@ -1,276 +1,127 @@
 # Kuro Canvas Master Roadmap
 
-Kuro Canvas is a local-first, chat-first manga/manhua/Webtoon creation studio. Its AI should plan and execute **real, inspectable native drawing operations**; generated images must not silently replace the drawing workflow.
+Kuro is a **tool-using creative agent**, not a generative-image chatbot. Her model plans work; the app's native drawing and project tools must perform the work on editable documents. This board is the current engineering truth source for finishing and handing the project to its creators.
 
-## Status vocabulary
-- **Planned** — not implemented.
-- **In progress** — implementation has started.
-- **Implemented** — code exists, but end-to-end verification may be incomplete.
-- **Verified** — relevant tests or real workflows passed.
-- **Blocked** — a dependency or issue prevents progress.
+## How to read this board
 
-Do not mark a feature Verified based on UI presence or type definitions alone. Link a PR, test run, or reproducible manual test when changing status.
+- **Code present** means relevant source exists; it does not mean the full user journey works.
+- **Test added** means a regression test exists; do not call it verified until the test actually runs and passes.
+- **Verified** requires a passing reproducible check or an explicitly recorded hands-on test.
+- **Blocked** means required infrastructure or a device/provider is unavailable.
 
-## Current recorded foundations
-These items have appeared in the repository's PR history. Their integration and current-main status should still be checked where noted.
-- Responsive React + TypeScript + Vite application shell.
-- Basic 2D canvas drawing, brush/eraser, undo/redo and PNG export.
-- Local autosave/recovery and multiple drawings using IndexedDB.
-- Layer data model, layer controls and per-layer rendering/isolation.
-- Local project/template storage and basic JSON project import/export.
-- Model-role/provider contracts, privacy-aware memory primitives, local memory persistence, typed tool registry and initial AI orchestrator.
-- Build workflow based on Node/npm; PR #18's recorded workflow runs passed for its commit.
+Never mark a feature complete because its component, type, or README description exists. Never claim research, drawing, saving, rollback, APK creation, or testing unless there is evidence that the action happened.
 
-## Immediate stabilization
-- [x] Reconcile recent PR history: PR #17, #21, #25, #26, #27, #28, #29 and #30 are merged; PR #15 is closed unmerged and superseded by #27/#28.
-- [x] Add persistent README handoff rules and master documentation (PR #29).
-- [x] Add exhaustive product specification (this documentation PR; see docs/PRODUCT-SPEC.md).
-- [x] Add provider-to-chat UI and model discovery (PR #30; GitHub Actions passed for PR head).
-- [ ] Verify provider end-to-end against a real hosted and local endpoint; no real endpoint has been tested in this workflow.
-- [x] Add initial Vitest regression tests for command validation, native executor behavior, queue transitions, and local drawing bridge (PRs #37–#38; CI must run them).\n- [ ] Expand regression tests for visible canvas integration, layer isolation, document switching, autosave/recovery and export.
-- [ ] Verify current main production build after all merged changes; keep roadmap aligned with CI.
+## Current verification snapshot
 
-## Phase 1 — Real model connection
-- [x] Implement an OpenAI-compatible chat-completions adapter in `src/ai/openAICompatibleProvider.ts` (implemented; verify via CI and real endpoint tests).
-- [x] Add provider URL security validation: HTTPS for remote endpoints and explicitly enabled HTTP only for localhost.
-- [x] Add provider settings UI to test an endpoint, list models, and select a model.
-- [x] Connect Chat to the configured model and display provider errors honestly (PR #30 merged; PR-head CI passed; real endpoint testing still pending).
-- [x] Keep API keys in application memory only; persist only the endpoint, selected model ID and localhost policy.
-- [x] Explain browser-side credential exposure and that requests go to the configured provider.
-- [ ] Add cancellation, timeouts, streaming and robust retry/rate-limit handling.
-- [ ] Validate structured model output against strict schemas before using it for plans or tools.
-- [ ] Add automated tests and verify against real hosted and local compatible endpoints.
-- [x] Connect the first bounded model-to-canvas drawing path with explicit approval (PRs #41–#42; stroke additions only; real-provider/browser verification still pending).
+Last repository-wide status check: **21 October 2026**.
 
-## Phase 2 — Native drawing-action engine
-- [x] Define a first versioned, strictly validated native command schema for stroke addition and basic layer visibility/opacity/lock changes in src/drawing/commands.ts (schema foundation only; not yet wired to the canvas).
-- [ ] Connect the typed tool registry and drawing-action queue to the visible canvas lifecycle (the first approved stroke-only path is wired separately; queue/timeline integration remains). Atomic multi-action queue transition helper and regression tests are implemented in PR #55; not yet integrated into the visible canvas.
-- [ ] Validate coordinates, sizes, colors, document/layer IDs and operation limits.
-- [ ] Prohibit arbitrary code execution and unrestricted filesystem/network access.
-- [x] Add a basic approval card and rendered preview of the exact validated stroke-only plan (PR #41 and follow-up preview); [ ] add queue-backed statuses and action provenance.
-- [ ] Add a visible action timeline, pause/resume/cancel, checkpoints and grouped undo/rollback (current canvas undo remains stroke-by-stroke).
-- [ ] Ensure cancelled work cannot continue executing queued actions.
+- Main branch: [`main`](https://github.com/gtxnrg-ship-it/kurocanvas/tree/main).
+- The latest inspected CI jobs ended as failed before a runner executed any step: job records showed `runner_id: 0` and empty step lists. This is an infrastructure/startup failure, **not evidence that the source passed or failed TypeScript or tests**. Inspect [all Actions runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions).
+- No successful Android release asset was found at the [rolling APK release URL](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest). Do not tell users an APK is available until the binary can actually be downloaded, installed, and smoke-tested.
+- A live GitHub Pages deployment is not established until the deploy job succeeds and the site opens.
+- The CI workflows currently resolve a dependency graph during the run rather than installing from a checked-in `package-lock.json`. Reproducibility must be fixed before calling the build release-grade.
+- The codebase has a useful automated test suite, but a test file is not a passing test report. Current-main tests, production build, Android packaging, and on-device journeys still need fresh evidence.
 
-## Phase 3 — Persistent universe memory
-- [x] Add project-scoped canon entity/fact data types, validation, bounded retrieval, contradiction warnings and retcon-impact calculation (PR #47; data-layer foundation only).\n- [x] Add IndexedDB persistence API for canon bundles, isolated by project ID (this PR; not yet wired to a world UI or existing project lifecycle).\n- [ ] Project-scoped universe bible UI for world rules, factions, locations, characters and relationships.
-- [ ] Events, timelines, injuries, deaths, possessions, travel and other stateful continuity.
-- [ ] Separate approved canon from proposed, inferred, contradicted and superseded information.
-- [ ] Represent unknown distinctly from false; never silently promote inference into canon.
-- [ ] Track what each character knows versus what is true in the world.
-- [ ] Track clues, secrets, foreshadowing and intended payoffs.
-- [ ] Attach provenance to source notes, chapters, scenes, panels or events.
-- [x] Add deterministic relevance-ranked canon retrieval API with project isolation and status/story-order filtering (PR #47; lexical matching only, not semantic search).\n- [x] Wire approved, project-scoped canon retrieval into chat and drawing-planning prompts (PR #53; lexical retrieval improved in PR #54; CI passed). Inspect/edit/search workflows remain incomplete.
-- [ ] Require approval for retcons and show their downstream impact.
-- [ ] Add export, import, recovery and project-scoped privacy controls; connect canon storage to the unified project lifecycle.
+## Existing implementation foundations — not blanket completion claims
 
-## Phase 4 — Chapter-to-panel workflow
-- [ ] Discuss and approve a structured series bible.
-- [ ] Create chapter briefs, outline, scene breakdown and panel-by-panel plans.
-- [ ] Include composition, camera, poses, expressions, dialogue, mood and pacing.
-- [ ] Generate rough stick-figure thumbnails through native drawing operations.
-- [ ] Show each panel being drawn in real time.
-- [ ] Progressively refine roughs into shapes, anatomy, backgrounds, linework, shadows and details.
-- [ ] Allow panel-level revisions without restarting unrelated work.
-- [ ] Add lettering, continuity checks and approval gates for outline, thumbnails, finished panels and chapter.
-- [ ] Resume interrupted plans and trace revisions.
+| Area | Source-level foundation present | Remaining proof or gap |
+|---|---|---|
+| App and navigation | React + TypeScript + Vite; chat, canvas, reader, research, Vault and settings areas | Full journeys, touch navigation, accessibility and mobile layout still need execution checks |
+| Model providers | OpenAI-compatible endpoint configuration/discovery, request deadlines, cancellation and bounded response parsing | No real hosted/local endpoint has been validated in this handoff; streaming and provider-specific compatibility vary |
+| Local model | Browser worker, WASM inference, cache use, progress, cancellation and a text-only small-model path | Downloads weights on demand; not a fully bundled/offline model; text-only and tightly output-bounded; real Android speed/quality unknown |
+| Response harness | Request-aware answer depth, creator-friendly persona, explicit limits and no-fabricated-success rules | Prompt quality is not a guarantee of model reasoning, output length, consistency or provider policy |
+| Conversation context | Bounded, relevance-ranked turn selection plus separate durable project records | Retrieval misses, context selection quality and very-long-series performance require adversarial regression tests; no literal unlimited context |
+| World and canon | World Bible, art direction/style Bible, project-scoped references, story memory, relationships and character evolution | Search/edit/revision UX, contradictions/retcons, evidence coverage and scale remain incomplete |
+| Temporal story continuity | Chapter/story coordinates, approved states, reveal filtering, memory relevance ranking and recall guards | Needs end-to-end tests across early/late chapters, alternate timelines, out-of-order scenes and full-series planning |
+| Native drawing | Editable strokes, primitives, layers, transforms, validation, approval preview, save/read-back verification and rollback foundations | Not yet a professional drawing application or autonomous production artist; command coverage and iterative visual QA remain limited |
+| 3D character references | Procedural character blockout, camera and trait/state foundations | Not a complete sculpting, modeling, rigging, retargeting or animation editor |
+| Research queue | Persistent research tasks, progress/state, cancellation, Wikipedia search, source excerpts, notifications when supported | Primarily Wikipedia-only; no robust multi-source scholarly/primary-source discovery or automated fact verification |
+| Project packages | Versioned `.kuro.json`, drawing/revision serialization, project data import/export and research-history transfer | Size limit, asset coverage and cross-database recovery need more tests; unlinked legacy canvases and some binary references are not included |
+| Project lifecycle | Project data has scoped deletion logic; this pass adds a delete UI, research-task cleanup and compensation on failed primary deletion | New lifecycle tests still need execution; multi-tab and storage-failure recovery need real browser testing |
+| Android | Capacitor configuration and automated debug-APK workflow | No verified APK artifact/release; device install, permissions, offline behavior, memory use and low-end-phone performance unverified |
+| Deployment | GitHub Actions build/deploy workflows and a documented preview URL | Actions runner startup and Pages availability are unresolved until successful workflow evidence appears |
 
-## Phase 5 — Drawing engine quality
-- [ ] Real viewport pan/zoom, pressure-sensitive input and stylus testing.
-- [ ] Correct layer order, opacity, blend modes and export compositing.
-- [ ] Layer groups, clipping masks, alpha lock, selection, transforms, lasso, shapes and configurable brushes.
-- [ ] Reference-image layers, canvas resize/crop and operation recovery.
-- [ ] Performance and regression tests on large canvases and lower-powered devices.
+## Release blockers — finish in this order
 
-## Phase 6 — Comics and Webtoon production
-- [ ] Shared comic document model: series, chapters, scenes, panels, artwork and lettering.
-- [ ] Panel layout, borders, gutters, margins and reading direction.
-- [ ] Infinite/virtualized vertical strip and long-chapter navigation.
-- [ ] Speech bubbles, tails, narration, sound effects and typography controls.
-- [ ] Panel-level revisions and chapter-level continuity checks.
-- [ ] Export PNG/JPEG/WebP, PDF, CBZ and split long-strip presets.
-- [ ] Validate output dimensions, order and target-platform constraints.
+### P0 — Restore a reproducible verification path
 
-## Phase 7 — Creative Vault
-- [ ] Searchable, versioned assets for characters, locations, props, costumes, backgrounds, references and panels.
-- [ ] Character sheets, expressions, outfit variants and visual history.
-- [ ] Reusable environments, panel layouts and production templates.
-- [ ] Provenance, approval status, tags, duplicate detection and dependency tracking.
-- [ ] Warn when a changed asset affects existing or planned panels.
+- [ ] Resolve why Actions jobs cannot obtain a runner; inspect repository Actions availability, billing/minute limits and current GitHub service/account constraints. Do not misdiagnose an empty job as a TypeScript failure.
+- [ ] Commit a lockfile generated by a working clean install and change CI to use deterministic `npm ci` against it; remove per-run dependency re-resolution once the lockfile is valid.
+- [ ] Run the full test suite and production build on the actual latest `main` SHA; resolve every real failure before handoff.
+- [ ] Build the debug APK, verify its checksum and provenance, publish the release asset, download it from the public release URL, install it, and launch it on a real Android device.
+- [ ] Record the exact source SHA, workflow run, test results and APK checksum; do not use an old artifact as evidence for newer code.
+- [ ] Confirm Pages deployment independently of the build job, or mark hosted preview unavailable.
 
-## Phase 8 — On-demand 3D reference studio
-- [ ] Poseable mannequins, camera/perspective controls and lighting.
-- [ ] Reusable environments, props and saved reference scenes.
-- [ ] Import validation and capture/export of 3D references into the 2D workflow.
-- [ ] Lazy-load assets, dispose GPU resources and provide a low-resource fallback.
+### P1 — Complete native drawing as a trustworthy agent workflow
 
-## Phase 9 — Research and references
-- [ ] Research workflow prioritizing museums, archives, scholarly and authoritative sources.
-- [ ] Present multiple candidate references when available.
-- [ ] Record source URLs, attribution, licenses and usage restrictions.
-- [ ] Let the user compare, combine, reject and approve references.
-- [ ] Link approved references to designs and separate facts from creative interpretation.
-- [ ] Cache approved references for offline access.
+- [ ] Inventory each visible canvas operation and decide whether Kuro can call it through a validated native action schema. Unsupported actions must be explained, not pretended.
+- [ ] Add an inspectable action timeline with per-action status, selected-step retry, pause/resume/cancel, provenance, checkpoints, and grouped undo/rollback.
+- [ ] Ensure approval is bound to the exact document, layer, and plan shown in the preview; reject stale approvals after the document changes.
+- [ ] Close coverage gaps for layer create/rename/reorder, selections, masks/blending, reference/image placement, lettering and comic-panel operations where the editor supports them.
+- [ ] Add viewport pan/zoom coordinate transforms, pressure/coalesced input, touch/stylus and large-document performance tests.
+- [ ] Add a drawing loop in which Kuro inspects the *actual* rendered/editable result, identifies visible defects, revises selected regions, and stops honestly when its tools cannot complete the request.
+- [ ] Test corrupt storage, interrupted saves, switching active drawings, locked/hidden layers, rollback and read-back mismatch. Never report success based only on model text.
 
-## Phase 10 — Optional voice and atmosphere
-- [ ] Configurable character voice profiles and supported speech synthesis.
-- [ ] Speaker attribution, bubble reading, synchronized narration and optional auto-scroll.
-- [ ] Optional scene music/ambience with mute/accessibility controls.
-- [ ] Permission and licensing safeguards; do not claim reliable bubble detection until tested.
+### P1 — Make writing and world memory dependable at series scale
 
-## Phase 11 — Complete `.kuro` package
-- [ ] Specify a versioned ZIP-compatible package format.
-- [ ] Include project metadata, universe/canon, plans, artwork, assets, 3D references, history and approvals.
-- [ ] Store binary assets as files, not giant JSON strings.
-- [ ] Manifest, hashes, integrity validation and schema migrations.
-- [ ] Stream large packages and load assets lazily.
-- [ ] Import preview, backup/restore, autosave and portability tests.
+- [ ] Build an integrated series → arc → chapter → scene → panel planning pipeline, with review gates, versioned drafts and user-approved canon.
+- [ ] Keep author-only full outlines and intentional out-of-order work available while applying reader-facing reveal gates only to sequential production.
+- [ ] Expand character/location/prop identity resolution; ask when multiple candidates are genuinely ambiguous.
+- [ ] Track world truth separately from character knowledge, belief, suspicion and what the character has been told.
+- [ ] Add linked provenance, contradiction handling, proposed/approved/superseded states and explicit retcon impact for downstream scenes, panels and assets.
+- [ ] Add searchable/inspectable/editable memory controls and retrieval tests with misleading near-matches, old injuries, aliases, timelines and large entity sets.
+- [ ] Keep transcript context bounded; improve durable summaries and retrieval instead of claiming infinite context or placing the entire world bible in every prompt.
+- [ ] Test reuse of stable character/location assets, injuries healing over time, persistent scars, costume/location/relationship changes, clues, cameos and planned payoffs across long chronology.
 
-## Phase 12 — Local-first platform architecture
-- [ ] Unify drawing, project, chapter, asset and memory storage behind a central project/data engine.
-- [ ] Connect drawings to projects (current foundations may store them separately).
-- [ ] Platform abstraction for storage, filesystem, networking and device features.
-- [ ] Offline core drawing; online AI remains optional.
-- [ ] Browser/desktop/Android/tablet responsive support and actual device testing.
-- [ ] Optional local models with realistic device/resource compatibility reporting.
-- [ ] Storage usage, cleanup, backup and recovery.
+### P1 — Preserve every project and its data safely
 
-## Phase 13 — Model intelligence
-- [ ] Capability-aware model selection for planning, story writing, tool use, coding, continuity, vision, embeddings and research.
-- [ ] Manual overrides, fallbacks, cancellation, unloading and switching.
-- [ ] Optional trusted-source model downloads with integrity checks and resource estimates.
-- [ ] Benchmarking and task-quality evaluations.
-- [ ] Keep private project content out of shared model memory unless explicitly authorized.
+- [ ] Run package import/export round trips with all supported assets, large projects, duplicate IDs, malformed JSON, unsupported schemas and interrupted transactions.
+- [ ] Decide and document how reference-image binaries, unlinked drawings, imported model blobs and other external assets travel; never silently drop linked assets.
+- [ ] Test project deletion and failed recovery across the main IndexedDB and research queue database, including an actively running task and multiple tabs.
+- [ ] Ensure project switching/deletion clears stale UI state, stops relevant work and cannot leak one project's memory into another.
+- [ ] Define backup/restore and migration recovery before changing IndexedDB schemas. Keep schema migrations backwards-aware and observable.
 
-## Phase 14 — UX and identity
-- [ ] Chat-first creative workspace, clear action timeline and honest progress/error states.
-- [ ] Keyboard, touch, stylus and accessibility improvements.
-- [ ] Consistent visual system and useful workspace customization.
-- [ ] Use the user's official Kuro Canvas icon when the original asset is available; do not replace it with a generated substitute.
-- [ ] Honest empty states and onboarding for project creation/model setup.
+### P1 — Make research useful beyond a single source index
 
-## Phase 15 — Security and quality
-- [ ] Treat model output, imported projects and assets as untrusted input.
-- [ ] Validate every action and limit permissions.
-- [ ] Keep secrets out of source, project exports and logs.
-- [ ] Test interruption, rollback, corruption recovery, package migrations and provider failures.
-- [ ] End-to-end tests for the full creative journey.
-- [ ] Verify supported target builds and maintain a known-issues list.
+- [ ] Add a pluggable research provider layer instead of assuming Wikipedia is sufficient for all questions.
+- [ ] Prefer authoritative primary sources, archives, museums, scholarly papers and official documentation when appropriate; preserve source URL, publication/author metadata when available, exact excerpt and collection date.
+- [ ] Label factual claims, uncertainty, conflicting sources, inference and fictional suggestions separately.
+- [ ] Verify citations and source relevance; do not treat snippets or a completed queue status as proof that every claim is settled.
+- [ ] Provide queue prioritization, visible progress/errors, retry/cancel controls, background execution limits and notification fallbacks on Android/WebView.
+- [ ] Require the author's approval before research findings become story canon.
 
-## First end-to-end milestone
-A user can create a series, approve canon, ask for a chapter outline, review panel plans, watch native stick-figure thumbnails and progressively refined artwork appear, interrupt/revise/undo actions, then close and reopen the project with canon, plans, artwork and progress intact.
+### P1 — Finish Android distribution and device quality
 
-## Change log
-- Keep updates small and linked to the PR/commit that implements them.
-- Mark an item Verified only with a CI result or reproducible test evidence.
+- [ ] Publish a real debug APK only after tests and Gradle assembly pass; label debug signing and reinstall implications clearly.
+- [ ] Test startup, chat without a provider, local drawing offline, IndexedDB migrations, resume/recovery, notifications, orientation, keyboard/safe areas and file import/export on-device.
+- [ ] Profile memory, GPU/3D resource disposal, canvas responsiveness and long sessions on a low-resource Android phone.
+- [ ] Audit external requests, provider credential handling, imported packages, service-worker caches and any stored creative/private data.
+- [ ] Add accessibility passes for focus order, keyboard operation, touch target size, contrast, screen readers and reduced motion.
 
+### P2 — Complete manga/manhua/Webtoon production
 
-## Recent implementation log
-- 2026-10-18 — README product vision and persistent handoff rules merged in [PR #29](https://github.com/gtxnrg-ship-it/my-app/pull/29). Future contributors must read the repository documents and update this roadmap with each implementation PR.
-- 2026-10-18 — Initial real provider-to-chat integration prepared in branch `feat/connect-real-model-to-chat`: provider settings, endpoint/model discovery, in-memory-only API key handling, and non-streaming chat generation. Await CI and endpoint verification before marking Verified.
-- 2026-10-18 — [PR #26](https://github.com/gtxnrg-ship-it/my-app/pull/26) merged; its GitHub Actions runs completed successfully for both Kuro Canvas checks and Project checks.
+- [ ] Shared series/chapter/scene/panel document model with editable panel order, reading direction, gutters and page/strip dimensions.
+- [ ] Native panel composition and lettering workflow: dialogue, speech bubbles/tails, narration, sound effects and typography controls.
+- [ ] Virtualized long vertical strips, chapter navigation and stable per-panel revisions.
+- [ ] Export verified image sequences, long-strip splits, PDF and CBZ with correct order/dimensions; preserve all relevant source artwork.
+- [ ] Make templates and reusable character/location/prop assets searchable, versioned, attributable and safe to revise.
 
+### P2 — Complete the visual reference studio
 
-## Documentation and handoff
-- [x] README defines Kuro's vision and instructs future agents to inspect source, PRs and CI.
-- [x] docs/PRODUCT-SPEC.md captures the full target product and acceptance contract.
-- [ ] Reconcile the product spec against any additional past-chat requirements that are not recoverable from repository artifacts.
-- [ ] Update this roadmap in every feature PR and distinguish Implemented from Verified.
+- [ ] Separate canonical character design from project art direction; save approved invariants and distinguish candidate variations.
+- [ ] Finish 3D pose/camera/light/reference scene saving and 2D capture. Label procedural blockouts as blockouts rather than finished models.
+- [ ] Provide low-resource rendering fallback and consistently dispose of GPU resources, loaded model data and object URLs.
 
-## Current state snapshot (2026-10-18)
-- **Implemented:** responsive React/TypeScript shell; native basic 2D canvas; brush/eraser; undo/redo; IndexedDB drawing autosave and multiple documents; layer controls/order/opacity/blending; local project/template foundation; JSON package import/export; model registry/provider contracts; memory/evolution primitives; local memory storage; typed tool registry; initial orchestrator; OpenAI-compatible provider settings and text chat connection.
-- **Not yet verified end-to-end:** provider connection against actual hosted/local services; security and CORS behavior across providers; complete project round-trip and high-resolution asset portability; device/stylus performance.
-- **Not implemented end-to-end:** model-produced structured plan execution, native AI drawing tools, live action timeline, full canon/series-bible UI and retrieval, chapter-to-panel generation, stick-figure drawing workflow, full comic lettering/layout, 3D studio, complete ZIP-based .kuro archive, research/licensing workflow, publishing integrations.
-- **Important:** current .kuro project support is JSON-oriented; do not describe it as the finished ZIP-compatible package.
+## Acceptance criteria for a handoff labelled “finished”
 
-## Next work sequence (do not skip dependencies)
-1. Stabilize main and add automated regression tests around the existing canvas/layers/persistence/export.
-2. Harden provider calls with AbortSignal cancellation, timeout/error handling, and streaming only where supported; add strict response schemas and tests.
-3. Implement a versioned native drawing command schema and deterministic executor wired to the actual canvas document.
-4. Add action queue/timeline with approvals, pause/cancel, checkpoints, provenance, and real undo/rollback.
-5. Connect model output to the orchestrator and executor using strict validation; keep untrusted model output from calling arbitrary code.
-6. Build the persistent series bible/canon UI and retrieval with temporal facts, provenance, status, character knowledge, and retcon impact.
-7. Implement outline -> scene -> panel plan -> native stick-figure thumbnails -> progressive panel refinement.
-8. Build comic/page/Webtoon layout, lettering, reusable vault, 3D references, research, full project package, and publishing/export hardening in the order defined in docs/PRODUCT-SPEC.md.
+Kuro is not release-ready until all of the following are evidenced:
 
+1. A clean, reproducible install, passing type/build checks and passing automated regressions on the final source commit.
+2. A real downloadable APK built from that commit, installed and smoke-tested on Android.
+3. End-to-end proof that native drawing changes editable state, persists, can be inspected, and can be recovered/undone accurately.
+4. Project isolation and import/export/deletion tests showing no silent loss, cross-project leakage or false success states.
+5. Story-continuity tests proving sequential reveal gating coexists with author-directed full-series planning.
+6. Clear documentation of current provider, model, research, storage, privacy and device limitations.
+7. No unresolved critical data-loss/security issues, and no release claims based on a workflow that did not actually execute.
 
-## 2026-10-18 progress update
-- [x] PR #30 merged: configured OpenAI-compatible model provider and non-streaming chat connection. PR-head GitHub Actions passed; real hosted/local endpoint testing remains pending.
-- [x] PR #31 merged: exhaustive product specification added at docs/PRODUCT-SPEC.md and linked from README; roadmap reconciled with actual PR status.
-- [x] Initial native drawing command schema added on the current feature branch: strict JSON-safe types and bounds validation for stroke and layer commands. This is not yet an executor and does not modify canvas artwork.
-- [ ] Add tests for command validation and rejection cases.
-- [ ] Wire validated commands to the actual drawing canvas using deterministic execution, checkpoints, undo, and visible statuses.
-
-
-## 2026-10-19 continuation
-- [x] PR #32 merged: versioned native drawing command schemas with strict validation; both GitHub Actions checks passed.
-- [x] Add a pure deterministic native drawing state reducer in `src/drawing/nativeExecutor.ts` for validated stroke add/remove and layer visibility/opacity/lock commands, with inverse operations for undo.
-- [x] Add automated unit tests for command validation, executor immutability/failure atomicity, queue transitions, and the local drawing bridge (PRs #37–#38).
-- [ ] Connect this reducer to DrawingCanvas and persist actual resulting state; add visible action queue, approval, cancellation, and checkpoints.
-- [ ] Verify provider against a real endpoint and implement cancellation/timeouts before claiming production readiness.
-
-
-## CI correction follow-up (2026-10-19)
-- [x] Investigated failed PR #33 build: the schema extension had literal escaped newline sequences inserted into TypeScript source.
-- [x] Corrected the schema line breaks on this branch; wait for fresh CI before merge.
-
-
-## 2026-10-19 continuation — executor and action queue
-- [x] PR #33 merged: deterministic native drawing executor is now on main; it remains a reducer primitive, not yet connected to the visible canvas.
-- [ ] Add automated tests for command validation, reducer inverses, atomic plan failure, and queue transitions.
-- [ ] Connect executor state to DrawingCanvas rendering and persistence without breaking pointer drawing, layer order, or autosave.
-- [ ] Add visible queue controls with explicit approval, real progress, cancellation that prevents later queued work, and rollback/checkpoints.
-- [ ] Connect validated model plans to this queue and executor; never mark actions complete unless execution succeeds.
-- [ ] Cross-platform performance strategy documents the current TypeScript/React approach, measured optimization plan, and conditional Rust/WASM evaluation; device performance remains unverified.
-
-
-## 2026-10-19 — automated drawing regression tests
-- [x] Vitest regression suite added for strict command validation, native reducer immutability/failure atomicity, approval queue transitions, and the local drawing bridge (PRs #37–#38; CI passed on their PR heads).\n- [x] Add `npm test` to the Kuro Canvas pull-request CI workflow so tests run alongside the production build (this PR; pending its own CI).
-- [x] Extend executor undo coverage to preserve removed stroke identity and original stack position with a dedicated restore command (this PR; CI pending).
-
-
-## 2026-10-19 — local drawing command bridge
-- [x] Add an adapter that validates untrusted command arrays against a local drawing's dimensions and layer state, applies them immutably through the native executor, and returns a new local-document snapshot plus inverse operations.
-- [ ] Wire this adapter into DrawingCanvas with real action queue UI, persistence-before-success, cancellation, and undo integration.
-- [ ] Run the new adapter regression tests in CI; adapter existence alone is not end-to-end AI drawing.
-
-
-## 2026-10-19 — reversible stroke removal
-- [x] Add `stroke.restore` as a bounded, validated inverse command that preserves the removed stroke's original ID, full point data, and stack position.
-- [x] Add regression tests for remove/restore round trips and duplicate-ID rejection.
-- [ ] Connect the executor and reversible history to the visible DrawingCanvas; reducer-level undo tests do not establish UI-level undo integration.
-
-
-## 2026-10-19 — first approved chat-to-canvas loop
-- [x] Add a model planning path for basic native stroke sketches, returning structured JSON rather than treating free-form prose as executable commands.
-- [x] Show the proposed drawing summary and command count; require explicit approval before switching to the canvas and applying.
-- [x] Validate the untrusted plan against current document bounds and layer/lock state, apply immutably, persist before reporting success, and report failures without claiming success.
-- [ ] Verify CI and manually test against a real configured model provider and real browser canvas. This first loop supports native strokes only; it is not full AI studio/tool coverage or visual-quality assurance.
-
-
-## 2026-10-19 — strict AI proposal parsing
-- [x] Move model JSON parsing into a pure, tested boundary that rejects malformed payloads, unsupported command types, out-of-bounds points, unknown layers, oversized plans, and excessive points per stroke before the user sees an approval card.
-- [ ] Continue expanding the native tool vocabulary and add integration tests for the visible approval-to-persistence flow.
-
-
-- 2026-10-19 — PRs [#40](https://github.com/gtxnrg-ship-it/my-app/pull/40), [#41](https://github.com/gtxnrg-ship-it/my-app/pull/41), and [#42](https://github.com/gtxnrg-ship-it/my-app/pull/42) merged. Stroke restoration preserves identity/order; the first approval-gated model-to-canvas stroke workflow is connected; strict AI stroke-plan parsing rejects malformed, oversized, unsupported, and out-of-bounds output. PR-head CI passed for #41 and #42. Real provider/browser verification remains outstanding.
-- 2026-10-19 — Corrected workspace status labels so the UI describes AI drawing as limited to approved native-stroke plans rather than saying no AI drawing tools are connected. This is a copy/status correction, not an expansion of drawing capability.
-
-
-- 2026-10-19 — Added a safe planner-target alias resolution for imported/custom-layer documents: `layer-default` resolves to the first visible, unlocked layer only when the literal default layer is absent; if no eligible layer exists, the plan fails with a clear error. Regression tests cover both outcomes. This avoids silently targeting hidden or locked layers.
-
-
-- 2026-10-19 — Reduced transient canvas allocations in the 2D renderer and PNG export by reusing a single full-document scratch surface across visible layers. This is an allocation/GC optimization; no performance benchmark or low-end-device verification is claimed yet.
-
-
-- 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.
-
-
-## 2026-10-21 — Export completeness preflight
-
-- [x] Detect Story Vault references to missing linked drawing documents before packaging.
-- [x] Stop export with an actionable message instead of silently skipping missing drawings.
-- [x] Add unit tests for valid links, missing links, duplicate references, and non-drawing references.
-- [ ] Extend the export manifest/preflight to cover missing 3D binaries, image assets, package size, and every project-owned drawing.
-- [ ] Replace the JSON-only `.kuro.json` package with a versioned archive that stores binary assets as files and verifies integrity.
-
-Scope: this change protects drawings already explicitly linked from Story Vault. It does not yet solve project ownership for every standalone canvas or convert `.kuro.json` into a ZIP archive.
+The target is the complete creator tool described in `docs/PRODUCT-SPEC.md`, not simply a compiling chat UI. Keep improving and verifying coherent slices; never convert an unimplemented item to “done” just to produce a 100% number.

@@ -1,7 +1,7 @@
 # Kuro Canvas
 
-> 📱 **[⬇️ Download the latest Kuro Canvas Android test APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)**  
-> This direct link is populated by the Android build workflow after its tests and APK build succeed. If the first build has not finished yet, [open Android APK build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) and download the **kuro-canvas-debug-apk** artifact from the newest successful run. This is a debug-signed test build, not a production release.
+> 📱 **Android test APK:** [Open the rolling release page](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) · [Direct APK download URL](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)  
+> The direct download is available only after the Android workflow successfully builds and publishes the APK. **No published APK could be verified during the 21 October 2026 audit.** Recent jobs ended before any runner step started, so they did not produce a test package. Check [Android APK build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) for the newest result; a successful run also uploads a **kuro-canvas-debug-apk** artifact. This is a debug-signed test build, not a production release.
 
 **Create · Draw · Tell · Together.**
 

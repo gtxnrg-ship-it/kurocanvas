@@ -87,6 +87,26 @@ export interface RestoreStrokeCommand {
   index: number;
 }
 
+export interface AddLayerCommand {
+  version: typeof DRAWING_COMMAND_VERSION; id: string; type: "layer.add";
+  layerId: string; name: string; index: number;
+}
+export interface RemoveLayerCommand {
+  version: typeof DRAWING_COMMAND_VERSION; id: string; type: "layer.remove"; layerId: string;
+}
+/** Internal reversible action for restoring an empty layer removed by a native plan. */
+export interface RestoreLayerCommand {
+  version: typeof DRAWING_COMMAND_VERSION; id: string; type: "layer.restore";
+  layer: { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: "normal" | "multiply" | "screen" | "overlay" };
+  index: number;
+}
+export interface RenameLayerCommand {
+  version: typeof DRAWING_COMMAND_VERSION; id: string; type: "layer.rename"; layerId: string; name: string;
+}
+export interface ReorderLayerCommand {
+  version: typeof DRAWING_COMMAND_VERSION; id: string; type: "layer.reorder"; layerId: string; index: number;
+}
+
 export interface SetLayerVisibilityCommand {
   version: typeof DRAWING_COMMAND_VERSION;
   id: string;
@@ -117,6 +137,11 @@ export type NativeDrawingCommand =
   | UpdateStrokeCommand
   | TransformStrokeCommand
   | RestoreStrokeCommand
+  | AddLayerCommand
+  | RemoveLayerCommand
+  | RestoreLayerCommand
+  | RenameLayerCommand
+  | ReorderLayerCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand
   | SetLayerLockCommand;
@@ -246,6 +271,36 @@ export function validateDrawingCommand(
       if (!Number.isInteger(value.index) || (value.index as number) < 0 || (value.index as number) > 10000000) errors.push("Restored stroke index is invalid.");
       break;
     }
+    case "layer.add":
+      if (!nonEmptyString(value.layerId) || bounds.layerIds.includes(String(value.layerId))) errors.push("New layer ID must be non-empty and unique.");
+      if (!nonEmptyString(value.name, 80)) errors.push("New layer name must contain 1–80 characters.");
+      if (!Number.isInteger(value.index) || Number(value.index) < 0 || Number(value.index) > bounds.layerIds.length) errors.push("New layer position is outside the layer stack.");
+      break;
+    case "layer.remove":
+      if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Removal command targets an unknown layer.");
+      if (bounds.layerIds.length <= 1) errors.push("The last remaining layer cannot be removed.");
+      if (!bounds.strokeLayerById) errors.push("Removing a layer requires the active document's stroke-to-layer map.");
+      else if (Object.values(bounds.strokeLayerById).includes(String(value.layerId))) errors.push("Only an empty layer can be removed; move or remove its strokes first.");
+      break;
+    case "layer.restore": {
+      if (!record(value.layer)) { errors.push("Restored layer must be an object."); break; }
+      const layer = value.layer;
+      if (!nonEmptyString(layer.id) || bounds.layerIds.includes(String(layer.id))) errors.push("Restored layer ID must be unique.");
+      if (!nonEmptyString(layer.name, 80)) errors.push("Restored layer name must contain 1–80 characters.");
+      if (typeof layer.visible !== "boolean" || typeof layer.locked !== "boolean") errors.push("Restored layer visibility and lock state must be booleans.");
+      if (!finite(layer.opacity) || layer.opacity < 0 || layer.opacity > 1) errors.push("Restored layer opacity must be between 0 and 1.");
+      if (!["normal","multiply","screen","overlay"].includes(String(layer.blendMode))) errors.push("Restored layer blend mode is invalid.");
+      if (!Number.isInteger(value.index) || Number(value.index) < 0 || Number(value.index) > bounds.layerIds.length) errors.push("Restored layer position is outside the layer stack.");
+      break;
+    }
+    case "layer.rename":
+      if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Rename command targets an unknown layer.");
+      if (!nonEmptyString(value.name, 80)) errors.push("Layer name must contain 1–80 characters.");
+      break;
+    case "layer.reorder":
+      if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Reorder command targets an unknown layer.");
+      if (!Number.isInteger(value.index) || Number(value.index) < 0 || Number(value.index) >= bounds.layerIds.length) errors.push("Layer position is outside the existing stack.");
+      break;
     case "layer.setVisibility":
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Visibility command targets an unknown layer.");
       if (typeof value.visible !== "boolean") errors.push("Visibility must be a boolean.");

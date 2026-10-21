@@ -32,6 +32,13 @@ describe("native drawing executor", () => {
     expect(() => applyNativeDrawingCommand(locked, add)).toThrow(/locked/);
     expect(locked.strokes).toHaveLength(0);
   });
+  it("rejects removing a stroke from a locked layer without mutating input", () => {
+    const drawn = applyNativeDrawingCommand(initial, add).state;
+    const locked = { ...drawn, layers: drawn.layers.map(layer => ({ ...layer, locked: true })) };
+    expect(() => applyNativeDrawingCommand(locked, { version: 1, id: "remove-1", type: "stroke.remove", strokeId: "stroke-1" })).toThrow(/locked/);
+    expect(locked.strokes).toHaveLength(1);
+    expect(drawn.strokes).toHaveLength(1);
+  });
   it("applies layer settings immutably and records the previous value", () => {
     const result = applyNativeDrawingCommand(initial, { version: 1, id: "opacity-1", type: "layer.setOpacity", layerId: "ink", opacity: 0.4 });
     expect(result.state.layers[0].opacity).toBe(0.4);

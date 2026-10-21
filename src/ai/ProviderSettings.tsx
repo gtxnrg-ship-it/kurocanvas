@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
@@ -36,17 +36,23 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
   const [voicePreview, setVoicePreview] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
   const [localModelPrepared, setLocalModelPrepared] = useState(false);
+  const [localModelPreparing, setLocalModelPreparing] = useState(false);
+  const localModelAbortController = useRef<AbortController | undefined>(undefined);
   const [localBenchmark, setLocalBenchmark] = useState<LocalModelBenchmark | undefined>(
     () => loadLocalModelBenchmark(KURO_TINY_MODEL_DESCRIPTOR_ID),
   );
 
   async function downloadAndConnectLocalModel() {
+    const controller = new AbortController();
+    localModelAbortController.current = controller;
+    setLocalModelPreparing(true);
     setBusy(true); setError(""); setStatus("Preparing Kuro Tiny model…"); setModelProgress(0);
     try {
       const found = await prepareLocalTinyModel(progress => {
         setModelProgress(progress.percent);
         setStatus(progress.status + (progress.percent > 0 ? " · " + progress.percent + "%" : ""));
-      });
+      }, controller.signal);
+      if (controller.signal.aborted) throw new Error("Local model preparation cancelled.");
       setModels(found);
       setBaseUrl(LOCAL_TINY_BASE_URL);
       setModelUri(LOCAL_TINY_MODEL_URI);
@@ -54,8 +60,24 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
       onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false });
       setStatus("Kuro Tiny is prepared and connected. You can now measure its warm generation speed on this device.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not download or initialize the local model.");
-    } finally { setBusy(false); }
+      if (controller.signal.aborted) {
+        setStatus("Local model download/preparation cancelled. The canvas remains available; prepare the model again when ready.");
+        setError("");
+      } else {
+        setError(e instanceof Error ? e.message : "Could not download or initialize the local model.");
+      }
+    } finally {
+      if (localModelAbortController.current === controller) localModelAbortController.current = undefined;
+      setLocalModelPreparing(false);
+      setBusy(false);
+    }
+  }
+
+  function cancelLocalModelPreparation() {
+    const controller = localModelAbortController.current;
+    if (!controller || controller.signal.aborted) return;
+    setStatus("Cancelling local model preparation…");
+    controller.abort();
   }
 
   async function benchmarkLocalModel() {
@@ -155,7 +177,8 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
     <div className="provider-recommended-model">
       <strong>Recommended local model: SmolLM2 135M Instruct</strong>
       <p>A compact, text-only instruction model for Kuro's first on-device harness. The browser-ready quantized ONNX weights are about 137 MB; runtime memory is higher and varies by device. The first download needs internet, then Transformers.js caches the files in this browser. Browser cache can be evicted, so this is not a guarantee of permanent offline storage. This model is small and general-purpose—not a vision model or a fine-tuned Kuro expert—so every drawing plan must still pass the app's validation and approval flow.</p>
-      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{busy ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~137 MB model & connect"}</button>
+      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~137 MB model & connect"}</button>
+      {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel download / preparation</button>}
       <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark warm generation on this device"}</button>
       <p className="provider-muted">The benchmark uses a short local text prompt after a warm-up. It sends no benchmark prompt to a hosted provider and does not measure drawing quality or guarantee smooth performance in every task.</p>
       <a href="https://huggingface.co/onnx-community/SmolLM2-135M-Instruct-ONNX-MHA" target="_blank" rel="noreferrer">Model files and license ↗</a>

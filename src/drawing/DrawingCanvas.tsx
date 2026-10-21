@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus } from 'lucide-react';
-import { drawingStorage, storyMemoryStorage } from '../core/storage';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History } from 'lucide-react';
+import { drawingRevisionStorage, drawingStorage, storyMemoryStorage } from '../core/storage';
 import { buildSvgDocument } from './svgExport';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
@@ -178,6 +178,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const moveSnapshotRef = useRef<Stroke[] | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
   const [documents, setDocuments] = useState<Array<{id:string;name?:string;updatedAt:string}>>([]);
+  const [revisions, setRevisions] = useState<Array<{id:string;title:string;createdAt:string}>>([]);
   const [drawingId, setDrawingId] = useState('default-canvas-v1');
   const [drawingName, setDrawingName] = useState('My first sketch');
   const [tool, setTool] = useState<Tool>('brush');
@@ -272,6 +273,59 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     render();
     return () => observer.disconnect();
   }, [render]);
+
+
+  const refreshRevisions = useCallback(async () => {
+    try { setRevisions(await drawingRevisionStorage.list(drawingId)); }
+    catch (error) { setNotice('Could not load drawing versions: ' + (error instanceof Error ? error.message : 'unknown error')); }
+  }, [drawingId]);
+  useEffect(() => { void refreshRevisions(); }, [refreshRevisions]);
+
+  const createVersionCheckpoint = async () => {
+    if (!loaded || loadError) { setNotice('Wait until this drawing is safely loaded before creating a version.'); return; }
+    const defaultTitle = 'Checkpoint · ' + new Date().toLocaleString();
+    const title = globalThis.prompt('Name this recoverable drawing version', defaultTitle);
+    if (!title?.trim()) return;
+    try {
+      const document: LocalDrawingDocument = {
+        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
+        background, strokes: JSON.parse(JSON.stringify(strokes)), layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
+      };
+      await drawingStorage.save(document);
+      await drawingRevisionStorage.create(drawingId, title.trim(), document);
+      await refreshRevisions();
+      setNotice('Saved version "' + title.trim() + '". Up to 20 named checkpoints are kept per drawing.');
+    } catch (error) {
+      setNotice('Could not save a drawing version: ' + (error instanceof Error ? error.message : 'unknown error'));
+    }
+  };
+
+  const restoreVersionCheckpoint = async (revisionId: string, title: string) => {
+    if (!globalThis.confirm('Restore "' + title + '"? Your current drawing will be saved as a new checkpoint first.')) return;
+    try {
+      const current: LocalDrawingDocument = {
+        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
+        background, strokes: JSON.parse(JSON.stringify(strokes)), layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
+      };
+      await drawingStorage.save(current);
+      await drawingRevisionStorage.create(drawingId, 'Before restore · ' + new Date().toLocaleString(), current);
+      const revision = await drawingRevisionStorage.load(revisionId, drawingId);
+      if (!revision) throw new Error('That version no longer exists for this drawing.');
+      await preloadDrawingImages(revision.document.strokes as Stroke[]);
+      const restored = { ...revision.document, id: drawingId, name: drawingName, updatedAt: new Date().toISOString() };
+      await drawingStorage.save(restored);
+      const restoredStrokes = restored.strokes as Stroke[];
+      const restoredLayers = (restored.layers?.length ? restored.layers : [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
+      docRef.current = { version: 1, width: restored.width, height: restored.height, background: restored.background, strokes: restoredStrokes };
+      setStrokes(restoredStrokes); setLayers(restoredLayers); setBackground(restored.background);
+      setActiveLayerId(restoredLayers.find(layer => !layer.locked)?.id || restoredLayers[0].id);
+      setSelectedStrokeId(null); setRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setHistoryOrder([]); setRedoOrder([]);
+      await refreshRevisions();
+      setNotice('Restored "' + title + '". A checkpoint of the previous state was saved first.');
+    } catch (error) {
+      setNotice('Could not restore that version: ' + (error instanceof Error ? error.message : 'unknown error'));
+    }
+  };
 
   const refreshDocuments = useCallback(async () => {
     try { setDocuments(await drawingStorage.list()); }
@@ -794,9 +848,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
-      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<label className="export-scale-control">Resolution <select aria-label="PNG export resolution" value={exportScale} onChange={e => setExportScale(Number(e.target.value) as 1 | 1.5 | 2)}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option></select></label><label className="transparent-export-control" title="Export without the paper background"><input type="checkbox" checked={transparentExport} onChange={e => setTransparentExport(e.target.checked)}/> Transparent export</label><button onClick={exportSvg} title="Export vector artwork as SVG"><Download size={15}/> Export SVG</button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
+      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<label className="export-scale-control">Resolution <select aria-label="PNG export resolution" value={exportScale} onChange={e => setExportScale(Number(e.target.value) as 1 | 1.5 | 2)}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option></select></label><label className="transparent-export-control" title="Export without the paper background"><input type="checkbox" checked={transparentExport} onChange={e => setTransparentExport(e.target.checked)}/> Transparent export</label><button onClick={createVersionCheckpoint} title="Create a named recoverable checkpoint"><History size={15}/> Save version</button><button onClick={exportSvg} title="Export vector artwork as SVG"><Download size={15}/> Export SVG</button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
-    <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
+    <div className="version-history-panel"><div className="version-history-head"><b><History size={14}/> Version history</b><span>{revisions.length}/20 checkpoints</span><button onClick={() => void refreshRevisions()}>Refresh</button></div>{revisions.length===0?<p>No named versions yet. Save a checkpoint before a major edit to make it easy to recover later.</p>:<div className="version-history-list">{revisions.map(revision=><div className="version-history-row" key={revision.id}><span><b>{revision.title}</b><small>{new Date(revision.createdAt).toLocaleString()}</small></span><button onClick={() => void restoreVersionCheckpoint(revision.id,revision.title)}>Restore</button></div>)}</div>}</div><div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>
       <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / 1600 * 100) + '%', top: (bounds.y / 1200 * 100) + '%', width: (bounds.width / 1600 * 100) + '%', height: (bounds.height / 1200 * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
     </div>

@@ -376,7 +376,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
         <button disabled={busy} title="Permanently delete this project and its owned local data" aria-label={'Delete project ' + project.name} onClick={() => void deleteProject(project.id, project.name)}><Trash2 size={15}/> Delete</button>
       </article>)}</div>}
-    <p className="project-manager-note">The <code>.kuro.json</code> package carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models and drawings explicitly linked from the Story Vault. Completed research travels with its sources; unfinished research is imported paused. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
+    <p className="project-manager-note">The <code>.kuro</code> archive carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models, linked drawings, revisions and universe transcripts. Legacy <code>.kuro.json</code> backups can still be imported. Completed research travels with its sources; unfinished research is imported paused. ZIP entries are checksummed but currently stored without compression under a 50 MB limit; unlinked canvases and binary reference images are not included.</p>
     <WorldStudio />
   </section>;
 }

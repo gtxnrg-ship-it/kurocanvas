@@ -108,6 +108,38 @@ export function validateReferenceSource(value: unknown, projectId?: string): str
   return [...new Set(errors)];
 }
 
+export type ApprovedReferenceImage = Pick<ReferenceSourceRecord, "title" | "imageUrl" | "sourceUrl" | "license" | "creator" | "notes">;
+
+/**
+ * Return a small set of relevant, explicitly approved Commons images for vision-capable
+ * drawing requests. Do not attach arbitrary HTTPS URLs imported into a project package.
+ */
+export function selectApprovedReferenceImages(
+  records: ReferenceSourceRecord[],
+  projectId: string,
+  userMessage: string,
+  maxImages = 2,
+): ApprovedReferenceImage[] {
+  const max = Math.max(0, Math.min(4, Math.floor(maxImages)));
+  if (!max) return [];
+  const terms = userMessage.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(term => term.length > 2);
+  return records.filter(record => {
+    if (record.status !== "approved" || validateReferenceSource(record, projectId).length) return false;
+    let image: URL;
+    try { image = new URL(record.imageUrl); } catch { return false; }
+    if (image.protocol !== "https:" || image.hostname.toLocaleLowerCase() !== "upload.wikimedia.org" || image.username || image.password) return false;
+    const haystack = (record.title + " " + record.description + " " + record.query + " " + record.notes + " " + record.tags.join(" ")).toLocaleLowerCase();
+    return !terms.length || terms.some(term => haystack.includes(term));
+  }).slice(0, max).map(record => ({
+    title: record.title,
+    imageUrl: record.imageUrl,
+    sourceUrl: record.sourceUrl,
+    license: record.license,
+    creator: record.creator,
+    notes: record.notes,
+  }));
+}
+
 export function buildReferenceContext(records: ReferenceSourceRecord[], projectId: string, userMessage: string, maxCharacters = 3000): string {
   const relevant = records.filter(record => {
     const errors = validateReferenceSource(record, projectId);

@@ -637,10 +637,22 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
       const modifier = event.ctrlKey || event.metaKey;
-      if (!modifier) return;
       const key = event.key.toLowerCase();
-      if (key === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
-      else if (key === 'y') { event.preventDefault(); redo(); }
+      if (modifier) {
+        if (key === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+        else if (key === 'y') { event.preventDefault(); redo(); }
+        return;
+      }
+      if (event.altKey) return;
+      if (key === '[') { event.preventDefault(); setSize(value => Math.max(1, value - (event.shiftKey ? 10 : 1))); return; }
+      if (key === ']') { event.preventDefault(); setSize(value => Math.min(200, value + (event.shiftKey ? 10 : 1))); return; }
+      const toolShortcuts: Record<string, Tool> = { b: 'brush', e: 'eraser', v: 'select', h: 'pan', l: 'line', r: 'rectangle', o: 'ellipse', t: 'text', i: 'eyedropper', p: 'panel', u: 'bubble' };
+      const nextTool = toolShortcuts[key];
+      if (nextTool) {
+        event.preventDefault();
+        setTool(nextTool);
+        setNotice(nextTool.charAt(0).toUpperCase() + nextTool.slice(1) + ' tool selected');
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

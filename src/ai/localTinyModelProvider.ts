@@ -6,10 +6,10 @@ type ProgressListener = (progress: { percent: number; file?: string; status: str
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
   | { id: number; type: "prepare" }
-  | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+  | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number; temperature?: number };
 type WorkerRequestPayload =
   | { type: "prepare" }
-  | { type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+  | { type: "generate"; messages: TextMessage[]; maxOutputTokens: number; temperature?: number };
 export type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
@@ -90,8 +90,11 @@ export class LocalTinyModelProvider implements ModelProvider {
     });
     const bounded = boundMessages(messages, 12_000);
     const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, 512));
+    const temperature = typeof request.temperature === "number" && Number.isFinite(request.temperature)
+      ? Math.max(0, Math.min(request.temperature, 1.2))
+      : 0.7;
     try {
-      const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens }, request.signal);
+      const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens, temperature }, request.signal);
       if (request.signal?.aborted) return this.cancelledResponse(model);
       if (response.type !== "result") throw new Error("The local model worker returned an unexpected response.");
       return { text: response.text, modelId: model.id, providerId: this.id, finishReason: response.finishReason, usage: { outputTokens: response.outputTokens } };

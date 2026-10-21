@@ -81,7 +81,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const modelName = item.id!;
       const isQwen38Vision = /qwen3\.8-27b/i.test(modelName);
       const roles = isQwen38Vision
-        ? ["reasoning", "planning", "coding", "story-writing", "continuity", "research", "fast-helper"] as const
+        ? ["reasoning", "planning", "vision", "coding", "story-writing", "continuity", "research", "fast-helper"] as const
         : ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
       const capabilities = isQwen38Vision
         ? ["chat", "vision", "structured-output"] as const

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReferenceContext, parseWikimediaSearchResponse, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
+import { buildReferenceContext, getApprovedReferenceImages, parseWikimediaSearchResponse, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
 
 const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSourceRecord => ({
   id: "ref-1", projectId: "project-1", title: "Rainy city street", description: "Night street with reflections",
@@ -40,6 +40,15 @@ describe("reference scout", () => {
     expect(context).not.toContain("Unreviewed portrait");
     expect(context).toContain("image pixels are not attached");
     expect(buildReferenceContext([approved], "project-1", "spaceship interior")).toBe("");
+  });
+
+  it("only returns approved images with explicit sharing consent for a relevant visual request", () => {
+    const consented = record({ sendImageToModel: true });
+    const notConsented = record({ id:"ref-no-consent", title:"Rainy city building", sendImageToModel:false });
+    const proposed = record({ id:"ref-proposed", title:"Rainy city portrait", status:"proposed", sendImageToModel:true });
+    const images = getApprovedReferenceImages([consented,notConsented,proposed],"project-1","draw rainy city street");
+    expect(images).toEqual([{ title:"Rainy city street", imageUrl:consented.imageUrl, sourceUrl:consented.sourceUrl, license:consented.license }]);
+    expect(getApprovedReferenceImages([consented],"project-1","spaceship battle")).toEqual([]);
   });
 
   it("rejects malformed query input before sending a network request", async () => {

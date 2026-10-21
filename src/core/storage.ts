@@ -659,22 +659,132 @@ export const storyMemoryStorage = {
   async save(record: StoryMemoryRecord): Promise<void> {
     const errors = validateStoryMemoryRecord(record, record.projectId);
     if (errors.length) throw new Error("Story memory validation failed: " + errors.join(" "));
-    await requestValue<IDBValidKey>(STORY_MEMORY, "readwrite", store => store.put({ ...record, updatedAt: new Date().toISOString() }));
+    const updated: StoryMemoryRecord = { ...record, updatedAt: new Date().toISOString() };
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([STORY_MEMORY, STORY_MEMORY_TOKENS], "readwrite");
+        const memoryStore = tx.objectStore(STORY_MEMORY);
+        const tokenStore = tx.objectStore(STORY_MEMORY_TOKENS);
+        const oldTokens = tokenStore.index("byRecordId").getAll(IDBKeyRange.only(record.id));
+        oldTokens.onsuccess = () => {
+          for (const row of oldTokens.result as StoryMemoryTokenIndexRecord[]) tokenStore.delete(row.id);
+          memoryStore.put(updated);
+          for (const token of memoryTokensForStorage(updated)) {
+            tokenStore.put({ id: record.id + "::" + token, projectId: record.projectId, token, recordId: record.id } satisfies StoryMemoryTokenIndexRecord);
+          }
+        };
+        oldTokens.onerror = () => reject(oldTokens.error ?? new Error("Could not update the story-memory search index."));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not save story memory and its search index."));
+        tx.onabort = () => reject(tx.error ?? new Error("Story-memory save was aborted."));
+      });
+    } finally { db.close(); }
   },
   async list(projectId: string): Promise<StoryMemoryRecord[]> {
     if (!projectId.trim()) throw new Error("Choose a project before loading story memory.");
-    const records = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll());
-    const scoped = records.filter(record => record.projectId === projectId);
-    for (const record of scoped) {
+    const records = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store =>
+      store.index("byProjectId").getAll(IDBKeyRange.only(projectId)));
+    for (const record of records) {
       const errors = validateStoryMemoryRecord(record, projectId);
       if (errors.length) throw new Error("Saved story memory is invalid: " + errors.join(" "));
     }
-    return scoped.sort((a, b) => (a.storyOrder ?? -1) - (b.storyOrder ?? -1) || a.updatedAt.localeCompare(b.updatedAt));
+    return records.sort((a, b) => (a.storyOrder ?? -1) - (b.storyOrder ?? -1) || a.updatedAt.localeCompare(b.updatedAt));
+  },
+  /**
+   * Indexed recall for large universes: retrieve exact chapter rows, a bounded
+   * chronological window, and token-matched records instead of loading every
+   * chapter from a project on each chat turn.
+   */
+  async searchCandidates(
+    projectId: string,
+    text: string,
+    options: { chapterNumber?: number; timelineId?: string; maxStoryOrder?: number; fullScope?: boolean } = {},
+  ): Promise<StoryMemoryRecord[]> {
+    if (!projectId.trim()) throw new Error("Choose a project before searching story memory.");
+    const ids = new Set<string>();
+    const fullScope = options.fullScope === true;
+    const addIds = (records: readonly StoryMemoryRecord[]) => {
+      for (const record of records) {
+        if (record.projectId === projectId) ids.add(record.id);
+        if (ids.size >= 2400) break;
+      }
+    };
+    for (const token of memoryQueryTokens(text)) {
+      const rows = await requestValue<StoryMemoryTokenIndexRecord[]>(STORY_MEMORY_TOKENS, "readonly", store =>
+        store.index("byProjectToken").getAll(IDBKeyRange.only([projectId, token]), 140));
+      for (const row of rows) {
+        ids.add(row.recordId);
+        if (ids.size >= 1800) break;
+      }
+      if (ids.size >= 1800) break;
+    }
+
+    if (!fullScope && options.chapterNumber !== undefined) {
+      const chapter = options.chapterNumber;
+      const exact = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store =>
+        store.index("byProjectAndChapter").getAll(IDBKeyRange.only([projectId, chapter]), 700));
+      addIds(exact);
+      if (chapter > 0) {
+        const prior = await readBoundedIndexValues<StoryMemoryRecord>(
+          STORY_MEMORY, "byProjectAndChapter",
+          IDBKeyRange.bound([projectId, 0], [projectId, chapter - 1]),
+          "prev", 36,
+        );
+        addIds(prior);
+      }
+    }
+
+    if (!fullScope && options.timelineId && options.maxStoryOrder !== undefined) {
+      const timelineRecords = await readBoundedIndexValues<StoryMemoryRecord>(
+        STORY_MEMORY, "byProjectTimelineOrder",
+        IDBKeyRange.bound([projectId, options.timelineId, 0], [projectId, options.timelineId, options.maxStoryOrder]),
+        "prev", 48,
+      );
+      addIds(timelineRecords);
+    }
+
+    // Include recent global/world notes as a small fallback, plus a broader recent
+    // slice for whole-series planning. Token matches can still find much older clues.
+    const recent = await readBoundedIndexValues<StoryMemoryRecord>(
+      STORY_MEMORY, "byProjectUpdated",
+      IDBKeyRange.bound([projectId, ""], [projectId, "\uffff"]),
+      "prev", fullScope ? 180 : 100,
+    );
+    if (fullScope) addIds(recent);
+    else {
+      const timeless = recent.filter(record => record.chapterNumber === undefined && record.sceneNumber === undefined
+        && record.storyOrder === undefined && record.timelineId === undefined);
+      addIds(timeless.slice(0, 60));
+    }
+
+    const records = await readStoryMemoryByIds([...ids].slice(0, 2400));
+    for (const record of records) {
+      const errors = validateStoryMemoryRecord(record, projectId);
+      if (errors.length) throw new Error("Saved story memory is invalid: " + errors.join(" "));
+    }
+    return records;
   },
   async remove(id: string, projectId: string): Promise<void> {
     const existing = await requestValue<StoryMemoryRecord | undefined>(STORY_MEMORY, "readonly", store => store.get(id));
     if (existing && existing.projectId !== projectId) throw new Error("Cannot delete story memory from another project.");
-    await requestValue<undefined>(STORY_MEMORY, "readwrite", store => store.delete(id));
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([STORY_MEMORY, STORY_MEMORY_TOKENS], "readwrite");
+        tx.objectStore(STORY_MEMORY).delete(id);
+        const tokenRows = tx.objectStore(STORY_MEMORY_TOKENS).index("byRecordId").openCursor(IDBKeyRange.only(id));
+        tokenRows.onsuccess = () => {
+          const cursor = tokenRows.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not delete story memory."));
+        tx.onabort = () => reject(tx.error ?? new Error("Story-memory deletion was aborted."));
+      });
+    } finally { db.close(); }
   },
   async removeProject(projectId: string): Promise<void> {
     const records = await this.list(projectId);
@@ -682,9 +792,16 @@ export const storyMemoryStorage = {
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORY_MEMORY, "readwrite");
+        const tx = db.transaction([STORY_MEMORY, STORY_MEMORY_TOKENS], "readwrite");
         const store = tx.objectStore(STORY_MEMORY);
         for (const record of records) store.delete(record.id);
+        const tokenRows = tx.objectStore(STORY_MEMORY_TOKENS).index("byProjectId").openCursor(IDBKeyRange.only(projectId));
+        tokenRows.onsuccess = () => {
+          const cursor = tokenRows.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project story memory."));
         tx.onabort = () => reject(tx.error ?? new Error("Project story memory removal was cancelled."));

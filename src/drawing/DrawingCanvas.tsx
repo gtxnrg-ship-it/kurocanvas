@@ -717,9 +717,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(target.tagName))) return;
       const key = event.key.toLowerCase();
       const modifier = event.ctrlKey || event.metaKey;
-      if (modifier && key === 'd' && selectedStroke) { event.preventDefault(); duplicateSelected(); return; }
+      if (modifier && key === 'd' && tool === 'select' && selectedStroke) { event.preventDefault(); duplicateSelected(); return; }
       if (modifier || event.altKey || !selectedStroke) return;
-      if (key === 'delete' || key === 'backspace') { event.preventDefault(); removeSelected(); return; }
+      if ((key === 'delete' || key === 'backspace') && tool === 'select') { event.preventDefault(); removeSelected(); return; }
       if (tool !== 'select') return;
       const step = event.shiftKey ? 10 : 1;
       const delta = key === 'arrowleft' ? [-step,0] : key === 'arrowright' ? [step,0] : key === 'arrowup' ? [0,-step] : key === 'arrowdown' ? [0,step] : null;

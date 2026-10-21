@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { BookOpen, Check, Clock3, History, Plus, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { storyMemoryStorage } from '../core/storage';
-import type { StoryMemoryRecord } from './storyMemory';
+import { validateStoryMemoryForApproval, type StoryMemoryRecord } from './storyMemory';
 
 type ProjectChoice = { id: string; name: string };
 type Props = { projectId: string; projects: ProjectChoice[]; onProjectChange: (id: string) => void; onOpenDrawing: (id: string) => void };
@@ -83,6 +83,16 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
   }
 
   async function approve(record: StoryMemoryRecord) {
+    const approvalErrors = validateStoryMemoryForApproval(record, projectId);
+    if (approvalErrors.length) {
+      if (approvalErrors.some(error => /timeline ID/i.test(error))) {
+        editProposal(record);
+        setNotice('Before approving this time-bound memory, assign its actual timeline ID (for example, main). This keeps alternate histories separate.');
+      } else {
+        setNotice('Cannot approve this memory yet: ' + approvalErrors.join(' '));
+      }
+      return;
+    }
     setBusy(true);
     try {
       // Keep old versions as superseded records so chapter-specific flashbacks can still retrieve them.

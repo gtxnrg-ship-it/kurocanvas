@@ -202,3 +202,67 @@ This section makes the intended experience explicit. It is an acceptance target,
 5. A project created on desktop can be opened on a supported phone or tablet with its canon, visual assets, plans, artwork, history, and approvals intact, subject to documented platform capability and successful round-trip tests.
 6. A user can interrupt a long drawing task or lose connectivity, reopen the project, inspect what actually completed, and safely resume or roll back without duplicate or phantom actions.
 7. A provider failure, unsupported device feature, or missing memory is reported honestly with a recoverable next step; Kuro never fabricates success or continuity.
+
+
+## 19. Capability harness: specialist agents, not a thin chat wrapper
+
+Kuro's defining advantage is the purpose-built harness around the selected model provider. Provider models may be small, rate-limited, or have modest context windows; the application must amplify their usefulness through scoped specialist workflows, durable external memory, typed tools, staged reasoning artifacts, validators, evaluators, and deterministic execution. Do not promise that harness design makes any model omniscient or removes its context/token limits. Measure capability at the task level and choose local or hosted models according to quality, latency, cost, privacy, and device constraints.
+
+### 19.1 Orchestrated specialist roles
+
+Design toward narrow, composable roles that can be scheduled by a central orchestrator rather than asking one chat completion to do every job at once. Candidate roles include:
+- Creative director: captures intent, asks clarifying questions, maintains the approved art/story brief and detects conflicting instructions.
+- Story architect: long arcs, stakes, pacing, setup/payoff, chapter structure, and continuity of cause and effect.
+- Dialogue and character-voice editor: natural conversational rhythm, subtext, interruptions, silence, distinct voices, and relationship-specific behavior.
+- Canon archivist: extracts candidate facts with citations/provenance, manages temporal validity, retrieves earlier events, and flags contradictions.
+- Visual continuity director: tracks character identity, proportions, face/hair, clothing, palette, materials, line language, lighting, and scene-specific state.
+- Composition and camera planner: shot size, camera height, lens/perspective intent, angle, blocking, eyelines, silhouettes, focus, depth, and panel-to-panel spatial continuity.
+- Panel/storyboard planner: translates scene beats into readable panel sequences, page turns or scroll beats, pacing, and thumbnail compositions.
+- Drawing executor: converts approved plans into bounded native canvas commands, checks results, and records provenance.
+- Lettering/layout specialist: speech balloons, thought/narration boxes, tails, reading order, typography, safe areas, balloon collisions, and text legibility.
+- Critic/QA specialist: checks story logic, dialogue, canon, visual identity, perspective, anatomy, text overflow, panel readability, and whether actual output meets the request.
+
+These roles are logical responsibilities, not a requirement to run a separate expensive model for each step. Use deterministic code, cached results, compact structured outputs, local models, or a shared model when appropriate. Only escalate to more capable/expensive inference when task difficulty justifies it.
+
+### 19.2 Agent harness contract
+
+Each delegated task receives a narrow goal, relevant memory packet, explicit constraints, allowed tools, expected schema, budget/timeout, and completion criteria. Results return as structured artifacts with provenance, confidence or unresolved questions, and validation status. The orchestrator decides whether to accept, repair, retry within bounded limits, ask the user, or stop safely. Untrusted model output is never executable code.
+
+- Separate planning from execution; separate proposals from approved canon.
+- Use checkpoints between costly stages and cache stable artifacts by input/version.
+- Run cheap deterministic validation before model-based critique where possible.
+- Use focused repair loops with bounded attempts, not infinite self-review.
+- Support cancellation and propagate it through providers, agents, queues, and native operations.
+- Keep user-visible progress tied to real state transitions and completed work.
+- Maintain provider/model capability profiles, latency/cost budgets, privacy boundaries, and graceful fallback behavior.
+- Never claim that a specialist ran, a memory was consulted, an image was rendered, or a test passed unless the system records that event.
+
+### 19.3 Visual identity and layered character construction
+
+- A character has a stable identity record plus versioned visual invariants and time-specific states: age, hairstyle/length, face shape, proportions, clothing, accessories, injuries, expression range, posture, and permitted variations.
+- Maintain approved character sheets, expression sheets, turnarounds, pose references, palette/material swatches, and panel exemplars as versioned source assets. Track which reference is authoritative for which attribute and story period.
+- Before generating a panel, retrieve the character's applicable reference bundle and compare the planned shot against identity constraints. Do not treat a prose description alone as sufficient for visual consistency.
+- Represent characters and scene elements as separable, named, editable layers/groups where the chosen medium supports it: rough construction, anatomy/massing, face/features, hair, clothing, props, linework, flats, shadows, highlights, effects, lettering, and background. The stack varies by style and asset; avoid rigidly imposing every layer on every image.
+- Camera-angle changes must preserve spatial relationships and identity, not merely reuse the same front-facing reference. Support reference turnarounds and perspective/camera plans; clearly disclose when a requested view lacks sufficient evidence and needs a new reference or user review.
+- A visual QA pass checks face/shape/hair/clothing/prop consistency, pose readability, perspective, silhouette, lighting direction, layer order, and accidental detail drift. The user can correct a canonical design once and preview affected dependent assets before propagation.
+- Preserve source/reference provenance and distinguish editable native construction from flattened imported raster material. Raster imports may be layered or masked where possible but must not be falsely represented as fully vector/editable source geometry.
+
+### 19.4 Lettering and conversational writing quality
+
+- Dialogue must sound like people responding to each other, not a series of isolated exposition speeches. Preserve each character's vocabulary, cadence, humor, defensiveness, emotional restraint, and relationship dynamics.
+- Story tools check intention, subtext, beat changes, causality, tension, pacing, and whether a scene changes the relationship or advances the plot. Avoid generic praise, repetitive emotional labels, and dialogue that explains facts every participant already knows.
+- Balloon types include speech, thought, narration, whisper, shout, electronic/remote voice, and style variants where supported. Tail direction must identify the correct speaker without crossing or obscuring important art.
+- Layout checks reading order, balloon sequence, panel boundaries, text overflow, minimum legibility at export size, safe margins, and collisions with faces/actions. Text remains editable as text objects and is reflowed when dialogue changes.
+- Support panel-by-panel dialogue editing, speaker attribution, localization-ready text separation, typography settings, and export validation. Lettering is not merely text baked into an image.
+
+### 19.5 Task-level capability and quality evaluation
+
+Evaluate Kuro as a complete system rather than assuming model size predicts outcome. Maintain repeatable test projects and score:
+- Story retrieval accuracy with source evidence and temporal correctness.
+- Character voice distinction, conversational naturalness, plot causality, pacing, and payoff tracking.
+- Visual identity consistency across expressions, outfits, angles, lighting, and chapter gaps.
+- Native-tool correctness, action reversibility, document persistence, and visible progress truthfulness.
+- Camera composition, panel readability, balloon order, typography legibility, and export integrity.
+- Phone/tablet/desktop usability, interruption recovery, offline behavior, and resource use.
+
+Track failures and regression fixtures over time. A beautiful demo is not proof of reliability; improvements should be demonstrated against fixed representative tasks and human review where subjective quality is involved.

@@ -36,6 +36,7 @@ let paused = false;
 let runnerStarted = false;
 let pumping = false;
 let activeTaskId: string | undefined;
+let activeResearchProjectId: string | undefined;
 let activeController: AbortController | undefined;
 
 function announce(): void {
@@ -240,17 +241,25 @@ export const researchTaskStorage = {
     } finally { db.close(); }
     announce();
   },
-  /** Remove every task owned by one project, including completed source excerpts. */
+  /** Remove every task owned by one project, including active work and completed source excerpts. */
   async removeProject(projectId: string): Promise<void> {
     if (!projectId.trim()) throw new Error("Choose a project before removing research tasks.");
-    const tasks = await this.list(projectId);
-    if (!tasks.length) return;
+    // Abort an in-flight fetch before deleting its record. The runner also checks for
+    // a missing record after awaits, so it cannot recreate a task after this transaction.
+    if (activeResearchProjectId === projectId) activeController?.abort();
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE, "readwrite");
-        const store = tx.objectStore(STORE);
-        for (const task of tasks) store.delete(task.id);
+        const index = tx.objectStore(STORE).index("projectId");
+        const request = index.openCursor(IDBKeyRange.only(projectId));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not find project research tasks to remove."));
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project research tasks."));
         tx.onabort = () => reject(tx.error ?? new Error("Research-task removal was aborted."));
@@ -520,19 +529,20 @@ async function pumpQueue(): Promise<void> {
       const controller = new AbortController();
       activeController = controller;
       activeTaskId = task.id;
+      activeResearchProjectId = task.projectId;
       try {
         await researchTaskStorage.update(task.id, task.projectId, {
           stage: "Searching Wikipedia", progress: 8, leaseUntil: Date.now() + 120_000,
         });
         const sources = await searchWikipediaResearch(task.query, task.depth, controller.signal);
         const current = await researchTaskStorage.get(task.id);
-        if (current?.status === "cancelled") continue;
+        if (!current || current.status === "cancelled") continue;
         if (paused || controller.signal.aborted) {
           await researchTaskStorage.update(task.id, task.projectId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined });
           continue;
         }
         const completed: ResearchTaskRecord = {
-          ...(current ?? task),
+          ...current,
           status: "completed", progress: 100,
           stage: sources.length ? "Research sources collected" : "Research completed — no matching pages",
           sources, completedAt: new Date().toISOString(), leaseUntil: undefined,
@@ -542,7 +552,7 @@ async function pumpQueue(): Promise<void> {
         notifyResearchCompletion(completed);
       } catch (error) {
         const current = await researchTaskStorage.get(task.id).catch(() => undefined);
-        if (current?.status === "cancelled") continue;
+        if (!current || current.status === "cancelled") continue;
         if (paused || controller.signal.aborted) {
           await researchTaskStorage.update(task.id, task.projectId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined });
           continue;
@@ -554,6 +564,7 @@ async function pumpQueue(): Promise<void> {
       } finally {
         activeController = undefined;
         activeTaskId = undefined;
+        activeResearchProjectId = undefined;
       }
     }
   } catch (error) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
+import { Download, FolderOpen, Plus, Trash2, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
 import { artDirectionStorage, canonStorage, characterModelStorage, chatMessageStorage, characterEvolutionStorage, conversationStorage, drawingRevisionStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, saveImportedProjectBundle, type DrawingRevision, type LocalDrawingDocument } from '../core/storage';
@@ -16,6 +16,7 @@ import type { ChatMessageRecord, ConversationRecord } from '../core/universe';
 import type { RelationshipRecord } from '../canon/relationshipMemory';
 import type { CharacterEvolutionState } from '../canon/characterEvolution';
 import { normalizeImportedResearchTasks, researchTaskStorage } from '../research/researchQueue';
+import { deleteProjectWithResearch } from '../core/projectLifecycle';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -43,6 +44,27 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       setMessage('Created “' + project.name + '”.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project creation failed.');
+    } finally { setBusy(false); }
+  }
+
+  async function deleteProject(projectId: string, projectName: string) {
+    const confirmed = globalThis.confirm(
+      'Permanently delete “' + projectName + '” and its local drawings, revisions, World/Vault records, character data, conversations, and saved research? Export a backup first if you may need it. This cannot be undone.'
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await deleteProjectWithResearch(projectId, {
+        loadProject: id => projectStorage.load(id),
+        listResearchTasks: id => researchTaskStorage.list(id),
+        removeResearchTasks: id => researchTaskStorage.removeProject(id),
+        removeProjectData: id => projectStorage.remove(id),
+        restoreResearchTasks: (tasks, id) => researchTaskStorage.saveMany(tasks, id),
+      });
+      await refresh();
+      setMessage('Deleted “' + projectName + '” and its associated local creative and research data.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Project deletion failed.');
     } finally { setBusy(false); }
   }
 
@@ -340,6 +362,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <span className="project-manager-icon"><FolderOpen size={18}/></span>
         <span className="project-manager-name"><b>{project.name}</b><small>Updated {new Date(project.updatedAt).toLocaleString()}</small></span>
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
+        <button disabled={busy} title="Permanently delete this project and its owned local data" aria-label={'Delete project ' + project.name} onClick={() => void deleteProject(project.id, project.name)}><Trash2 size={15}/> Delete</button>
       </article>)}</div>}
     <p className="project-manager-note">The <code>.kuro.json</code> package carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models and drawings explicitly linked from the Story Vault. Completed research travels with its sources; unfinished research is imported paused. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
     <WorldStudio />

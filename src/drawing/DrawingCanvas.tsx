@@ -196,6 +196,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [saveState, setSaveState] = useState<'loading'|'saved'|'saving'|'error'>('loading');
   const [planAction, setPlanAction] = useState<DrawingActionRecord | null>(null);
   const [planRunNonce, setPlanRunNonce] = useState(0);
@@ -269,7 +270,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     let cancelled = false;
     // History belongs to one document only; never replay another drawing's snapshots here.
     setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
-    setLoaded(false); setSaveState('loading');
+    setLoaded(false); setLoadError(false); setSaveState('loading');
     drawingStorage.load(drawingId).then(async saved => {
       if (saved) await preloadDrawingImages(saved.strokes as Stroke[]);
       if (cancelled) return;
@@ -290,7 +291,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setLoaded(true); setSaveState('saved');
     }).catch(error => {
       if (cancelled) return;
-      setLoaded(true); setSaveState('error');
+      setLoaded(true); setLoadError(true); setSaveState('error');
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
@@ -299,7 +300,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
     render(strokes, background);
-    if (!loaded) return;
+    if (!loaded || loadError) return;
     setSaveState('saving');
     const timer = globalThis.setTimeout(() => {
       drawingStorage.save({
@@ -314,7 +315,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       });
     }, 450);
     return () => globalThis.clearTimeout(timer);
-  }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
+  }, [strokes, background, layers, loaded, loadError, render, drawingId, drawingName, refreshDocuments]);
 
   useEffect(() => {
     const runKey = pendingPlan ? pendingPlan.id + ':' + planRunNonce : '';

@@ -126,6 +126,9 @@ The target workflow is:
 - **Continuity with evidence:** approved canon is separate from suggestions and inference.
 - **Universe isolation:** a new chat starts a new universe by default; joining an existing universe is an explicit action.
 - **Safe execution:** validate model-proposed commands, checkpoint changes and preserve undo/recovery.
+- **Creative dignity and freedom:** do not shame users for unusual, intimate, embarrassing, dark, or experimental fictional ideas. The user directs the work; Kuro critiques craft, not the creator.
+- **Mature fiction is user-directed:** support the intended tone—including adult themes, profanity, stylized gore, brutal combat, and lasting injury continuity—without unnecessary app-side sanitization. Never imply every connected model can generate every request; provider limits and capabilities must be described honestly.
+- **Honest privacy expectations:** distinguish local storage from hosted inference. Explain when prompts go to the configured provider, and never imply that a story is private or permanently offline unless the actual storage and model path supports that claim.
 - **Honest status:** no fake research, fake tool activity, invented completion, or claims that unverified behavior works.
 
 ## Model and provider status

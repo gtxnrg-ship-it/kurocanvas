@@ -12,22 +12,26 @@ export interface ActiveProviderConfig {
   modelUri: string;
   apiKey?: string;
   allowInsecureLocalhost: boolean;
+  /** User-confirmed capability; model-list endpoints rarely disclose vision support. */
+  supportsVision?: boolean;
 }
 
 interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
+  initialSupportsVision?: boolean;
   voiceIntensity: KuroVoiceIntensity;
   onVoiceIntensityChange: (intensity: KuroVoiceIntensity) => void;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
 
-export default function ProviderSettings({ initialBaseUrl, initialModelUri, voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({ initialBaseUrl, initialModelUri, initialSupportsVision = false, voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
   const [baseUrl, setBaseUrl] = useState(initialBaseUrl || LOCAL_TINY_BASE_URL);
   const [apiKey, setApiKey] = useState("");
   const [modelUri, setModelUri] = useState(initialModelUri || LOCAL_TINY_MODEL_URI);
   const [allowInsecureLocalhost, setAllowInsecureLocalhost] = useState(baseUrl.startsWith("http://localhost") || baseUrl.startsWith("http://127.0.0.1"));
+  const [supportsVision, setSupportsVision] = useState(initialSupportsVision && baseUrl !== LOCAL_TINY_BASE_URL);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -57,7 +61,8 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
       setBaseUrl(LOCAL_TINY_BASE_URL);
       setModelUri(LOCAL_TINY_MODEL_URI);
       setLocalModelPrepared(true);
-      onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false });
+      setSupportsVision(false);
+      onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false, supportsVision: false });
       setStatus("Kuro Tiny is prepared and connected. You can now measure its warm generation speed on this device.");
     } catch (e) {
       if (controller.signal.aborted) {
@@ -165,7 +170,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
       // Validate remote URLs; local model selection does not require a server URL.
       if (baseUrl !== LOCAL_TINY_BASE_URL) new URL(baseUrl.trim());
       if (baseUrl !== LOCAL_TINY_BASE_URL) createConfiguredProvider({ baseUrl, modelUri, apiKey: apiKey.trim() || undefined, allowInsecureLocalhost });
-      onSave({ baseUrl: baseUrl.trim(), modelUri: modelUri.trim(), apiKey: apiKey.trim() || undefined, allowInsecureLocalhost });
+      onSave({ baseUrl: baseUrl.trim(), modelUri: modelUri.trim(), apiKey: apiKey.trim() || undefined, allowInsecureLocalhost, supportsVision: supportsVision && baseUrl.trim() !== LOCAL_TINY_BASE_URL });
       onClose();
     } catch (e) { setError(e instanceof Error ? e.message : "Invalid provider configuration."); }
   }
@@ -187,6 +192,8 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
     <label>API base URL<input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" autoComplete="url" /></label>
     <label>API key <span className="provider-muted">(kept in memory only; re-enter after refresh)</span><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="new-password" placeholder="Optional for local endpoints" /></label>
     <label className="provider-check"><input type="checkbox" checked={allowInsecureLocalhost} onChange={e=>setAllowInsecureLocalhost(e.target.checked)} /> Allow HTTP only for a localhost model endpoint</label>
+    <label className="provider-check"><input type="checkbox" checked={supportsVision && baseUrl !== LOCAL_TINY_BASE_URL} disabled={baseUrl === LOCAL_TINY_BASE_URL} onChange={e=>setSupportsVision(e.target.checked)} /> My selected model supports image input (vision)</label>
+    <p className="provider-muted">This capability cannot be verified from most compatible model lists. Enable it only when the selected model and server support image_url inputs. When enabled, Kuro may send the current canvas preview with drawing requests. Kuro Tiny is text-only, so this option is disabled for it.</p>
     <div className="provider-actions"><button onClick={discoverModels} disabled={busy}>{busy ? "Checking…" : "Test connection and list models"}</button></div>
     {models.length > 0 && <label>Model<select value={modelUri} onChange={e=>setModelUri(e.target.value)}>{models.map(m=><option key={m.id} value={m.modelUri || m.name}>{m.name}</option>)}</select></label>}
     {!models.length && <label>Model ID<input value={modelUri} onChange={e=>setModelUri(e.target.value)} placeholder="e.g. gpt-4.1-mini or local model ID" /></label>}

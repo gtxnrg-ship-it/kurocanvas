@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, Plus, RefreshCw, ShieldAlert } from "lucide-react";
-import { canonStorage, relationshipStorage } from "../core/storage";
+import { canonStorage, chatMessageStorage, relationshipStorage } from "../core/storage";
 import { proposeRelationshipTransition, type RelationshipRecord, type RelationshipSnapshot, type RelationshipState } from "./relationshipMemory";
 import type { CanonEntity } from "./universe";
+import type { ChatMessageRecord } from "../core/universe";
 
 const states: RelationshipState[] = ["strangers","acquaintances","allies","friends","close-friends","rivals","enemies","estranged","romantic","family","custom"];
 const initialSnapshot = (): RelationshipSnapshot => ({state:"strangers",trust:10,warmth:10,tension:10,emotionalNotes:[],interactionPattern:[],boundaries:[],unresolvedWounds:[]});
 const lines = (value:string) => value.split("\n").map(item=>item.trim()).filter(Boolean);
 
-export default function RelationshipMemoryStudio({universeId,projectId}:{universeId:string;projectId:string}){
- const [records,setRecords]=useState<RelationshipRecord[]>([]);
+export default function RelationshipMemoryStudio({universeId,projectId,conversationId}:{universeId:string;projectId:string;conversationId:string}){
+ const [records,setRecords]=useState<RelationshipRecord[]>([]);\n const [sourceMessages,setSourceMessages]=useState<ChatMessageRecord[]>([]);\n const [selectedSourceIds,setSelectedSourceIds]=useState<string[]>([]);
  const [characters,setCharacters]=useState<CanonEntity[]>([]);
  const [characterAId,setCharacterAId]=useState("");
  const [characterBId,setCharacterBId]=useState("");
@@ -19,8 +20,8 @@ export default function RelationshipMemoryStudio({universeId,projectId}:{univers
  const [selectedId,setSelectedId]=useState("");const [nextState,setNextState]=useState<RelationshipState>("friends");
  const [storyOrder,setStoryOrder]=useState("1");const [eventTitle,setEventTitle]=useState("");const [eventSummary,setEventSummary]=useState("");const [eventCause,setEventCause]=useState("");const [sourceIds,setSourceIds]=useState("");
  const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
- async function reload(){if(!universeId||!projectId)return;const [saved,canon]=await Promise.all([relationshipStorage.list(universeId),canonStorage.load(projectId)]);setRecords(saved);setCharacters((canon?.entities??[]).filter(entity=>entity.kind.toLocaleLowerCase().includes("character")&&entity.status==="approved"));setSelectedId(current=>saved.some(item=>item.id===current)?current:(saved[0]?.id??""));}
- useEffect(()=>{let alive=true;void (async()=>{try{await reload();}catch(error){if(alive)setNotice(error instanceof Error?error.message:"Could not load relationship memory.");}})();return()=>{alive=false;};},[universeId,projectId]);
+ async function reload(){if(!universeId||!projectId)return;const [saved,canon,messages]=await Promise.all([relationshipStorage.list(universeId),canonStorage.load(projectId),conversationId?chatMessageStorage.list(universeId,conversationId):Promise.resolve([])]);setRecords(saved);setCharacters((canon?.entities??[]).filter(entity=>entity.kind.toLocaleLowerCase().includes("character")&&entity.status==="approved"));setSourceMessages(messages.slice(-40).reverse());setSelectedId(current=>saved.some(item=>item.id===current)?current:(saved[0]?.id??""));}
+ useEffect(()=>{let alive=true;void (async()=>{try{await reload();}catch(error){if(alive)setNotice(error instanceof Error?error.message:"Could not load relationship memory.");}})();return()=>{alive=false;};},[universeId,projectId,conversationId]);
  const selected=records.find(item=>item.id===selectedId);
  function name(id:string){return characters.find(item=>item.id===id)?.name??id;}
  async function createRelationship(){
@@ -35,7 +36,7 @@ export default function RelationshipMemoryStudio({universeId,projectId}:{univers
  }
  async function propose(){
   if(!selected){setNotice("Choose a relationship first.");return;}
-  const sources=sourceIds.split(",").map(value=>value.trim()).filter(Boolean);
+  const sources=selectedSourceIds;
   const order=Number(storyOrder);
   if(!Number.isFinite(order)||order<=Math.max(-1,...selected.history.map(item=>item.storyOrder))){setNotice("Story order must be later than the existing relationship history.");return;}
   if(!eventTitle.trim()||!eventSummary.trim()||!eventCause.trim()||!sources.length){setNotice("A transition needs a title, summary, cause, and one or more source message IDs.");return;}
@@ -43,7 +44,7 @@ export default function RelationshipMemoryStudio({universeId,projectId}:{univers
   try{
    const event=proposeRelationshipTransition(selected,{title:eventTitle,summary:eventSummary,cause:eventCause,sourceMessageIds:sources,storyOrder:order,after},()=>crypto.randomUUID());
    await relationshipStorage.save({...selected,history:[...selected.history,event],updatedAt:new Date().toISOString()});
-   setNotice("Transition saved as PROPOSED. It does not affect Kuro's canon until you approve it.");setEventTitle("");setEventSummary("");setEventCause("");setSourceIds("");await reload();
+   setNotice("Transition saved as PROPOSED. It does not affect Kuro's canon until you approve it.");setEventTitle("");setEventSummary("");setEventCause("");setSelectedSourceIds([]);await reload();
   }catch(error){setNotice(error instanceof Error?error.message:"Could not create relationship proposal.");}
  }
  async function approve(eventId:string){
@@ -81,7 +82,7 @@ export default function RelationshipMemoryStudio({universeId,projectId}:{univers
        <label>Event title<input value={eventTitle} onChange={e=>setEventTitle(e.target.value)} placeholder="The night they reconcile"/></label>
        <label>What happened?<textarea rows={2} value={eventSummary} onChange={e=>setEventSummary(e.target.value)} placeholder="Only record details supported by the source…"/></label>
        <label>Cause and emotional consequence<textarea rows={2} value={eventCause} onChange={e=>setEventCause(e.target.value)} placeholder="Why the relationship changes"/></label>
-       <label>Source message IDs<input value={sourceIds} onChange={e=>setSourceIds(e.target.value)} placeholder="message-id-1, message-id-2"/></label>
+       <div className="relationship-evidence"><b>Source evidence from this conversation</b><small>Select the actual messages supporting this change. Kuro will not treat unselected conversation text as proof.</small>{sourceMessages.length===0?<p>No saved messages are available in this conversation yet.</p>:sourceMessages.map(message=><label key={message.id} className="relationship-evidence-item"><input type="checkbox" checked={selectedSourceIds.includes(message.id)} onChange={e=>setSelectedSourceIds(current=>e.target.checked?[...current,message.id]:current.filter(id=>id!==message.id))}/><span><b>{message.role==="user"?"You":"Kuro"} · {new Date(message.createdAt).toLocaleDateString()}</b><small>{message.content.slice(0,190)}{message.content.length>190?"…":""}</small></span></label>)}</div>
        <button className="relationship-primary" onClick={()=>void propose()}>Save as proposal <ArrowRight size={14}/></button>
       </div>
       <div className="relationship-history"><h4>Relationship history</h4>{[...selected.history].sort((a,b)=>a.storyOrder-b.storyOrder).map(event=><div className="relationship-event" key={event.id}><div><b>#{event.storyOrder} · {event.title}</b><small>{event.canonStatus.toUpperCase()}</small></div><p>{event.summary}</p>{event.canonStatus==="proposed"&&<button onClick={()=>void approve(event.id)}><Check size={13}/> Approve transition</button>}</div>)}</div>

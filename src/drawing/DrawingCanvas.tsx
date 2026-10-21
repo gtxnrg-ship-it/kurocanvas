@@ -175,7 +175,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 }
 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
-export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error' | 'cancelled', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
@@ -232,6 +232,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [planAction, setPlanAction] = useState<DrawingActionRecord | null>(null);
   const [planRunNonce, setPlanRunNonce] = useState(0);
   const handledPlanRef = useRef<string | null>(null);
+  const [planProgress, setPlanProgress] = useState<{ completed: number; total: number; command: string } | null>(null);
+  const cancelPlanExecutionRef = useRef<(() => void) | null>(null);
 
   const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
     const canvas = canvasRef.current;
@@ -414,49 +416,139 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const queued = createDrawingAction({ id: runKey, title: 'Apply approved drawing plan', description: pendingPlan.commands.length + ' native drawing command(s)', commandId: pendingPlan.id, requiresApproval: false });
     const running = transitionDrawingAction(queued, { type: 'execution.start', actionId: runKey });
     setPlanAction(running);
+    setPlanProgress({ completed: 0, total: pendingPlan.commands.length, command: 'Preparing native tools' });
     let cancelled = false;
+    let userCancelled = false;
+    let workingDocument: LocalDrawingDocument | undefined;
+    let originalDocument: LocalDrawingDocument | undefined;
+    const cancel = () => { cancelled = true; userCancelled = true; };
+    cancelPlanExecutionRef.current = cancel;
+
+    const restoreOriginal = async () => {
+      if (!workingDocument || !originalDocument) return;
+      await saveDrawingWithReadback(drawingStorage, workingDocument, originalDocument);
+      workingDocument = originalDocument;
+      const restoredStrokes = originalDocument.strokes as Stroke[];
+      const restoredLayers = (originalDocument.layers?.length ? originalDocument.layers : [DEFAULT_LAYER]).map(layer => ({
+        ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode,
+      }));
+      docRef.current = { version: 1, width: originalDocument.width, height: originalDocument.height, background: originalDocument.background, strokes: restoredStrokes };
+      setStrokes(restoredStrokes);
+      setLayers(restoredLayers);
+      setBackground(originalDocument.background);
+    };
+
     (async () => {
       try {
-        const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background, activeLayerId };
+        const beforePlan: PlanSnapshot = {
+          planId: pendingPlan.id,
+          strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })),
+          layers: layers.map(layer => ({ ...layer })),
+          background: docRef.current.background,
+          activeLayerId,
+        };
         const current: LocalDrawingDocument = {
           id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width,
           height: docRef.current.height, background: docRef.current.background,
-          strokes: docRef.current.strokes, layers: layers.map(layer => ({ ...layer })),
-          updatedAt: new Date().toISOString(),
+          strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })),
+          layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
         };
+        originalDocument = current;
+        workingDocument = current;
         await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
-        if (cancelled) return;
-        const applied = applyCommandsToLocalDrawing(current, pendingPlan.commands);
-        if (!applied.changed) throw new Error('The plan contained no applicable changes.');
-        if (cancelled) return;
-        await saveDrawingWithReadback(drawingStorage, current, applied.document);
+        if (cancelled) { await restoreOriginal(); return; }
+
+        let anyChanged = false;
+        for (let index = 0; index < pendingPlan.commands.length; index++) {
+          if (cancelled) break;
+          const command = pendingPlan.commands[index];
+          const previousStep = workingDocument!;
+          const step = applyCommandsToLocalDrawing(previousStep, [command]);
+          if (step.changed) {
+            // Persist and read back each native action before moving to the next one.
+            // The canvas therefore visibly progresses, and a failed step can roll the
+            // entire plan back to the checkpoint rather than leave half-finished art.
+            await saveDrawingWithReadback(drawingStorage, previousStep, step.document);
+            workingDocument = step.document;
+            anyChanged = true;
+            const nextStrokes = step.document.strokes as Stroke[];
+            const nextLayers = (step.document.layers?.length ? step.document.layers : [DEFAULT_LAYER]).map(layer => ({
+              ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode,
+            }));
+            docRef.current = { ...docRef.current, background: step.document.background, strokes: nextStrokes };
+            setStrokes(nextStrokes);
+            setLayers(nextLayers);
+            setBackground(step.document.background);
+            setRedoStack([]);
+          }
+          setPlanProgress({ completed: index + 1, total: pendingPlan.commands.length, command: command.type.replace(/\\./g, ' ') });
+          setNotice('Kuro drawing in real time · native action ' + (index + 1) + ' of ' + pendingPlan.commands.length + ' · ' + command.type);
+          // Yield to the renderer between native actions so the creator sees live
+          // progress instead of a single frame appearing only after the whole plan.
+          await new Promise<void>(resolve => globalThis.setTimeout(resolve, 24));
+          if (cancelled) break;
+        }
+
         if (cancelled) {
           try {
-            await saveDrawingWithReadback(drawingStorage, current, current);
+            await restoreOriginal();
+            setPlanProgress(null);
+            setSaveState('saved');
+            setNotice('Drawing stopped; the original canvas was restored and verified.');
+            if (userCancelled) {
+              setPlanAction(transitionDrawingAction(running, { type: 'execution.cancel', actionId: runKey }));
+              onPlanResult(pendingPlan.id, 'cancelled', 'Cancelled by the creator; original drawing restored and verified.');
+            }
           } catch (restoreError) {
-            const message = restoreError instanceof Error ? restoreError.message : 'Unknown recovery error';
+            const reason = restoreError instanceof Error ? restoreError.message : 'Unknown recovery error';
             setSaveState('error');
-            setNotice('The plan was cancelled, but canvas recovery could not be verified: ' + message);
+            setNotice('Drawing stopped, but restoring the original canvas could not be verified: ' + reason + '. The pre-plan version checkpoint remains available.');
+            if (userCancelled) onPlanResult(pendingPlan.id, 'error', 'Cancellation recovery failed: ' + reason);
           }
           return;
         }
-        const nextStrokes = applied.document.strokes as Stroke[];
-        const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
-        docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
-        setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
-        setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]); setEditRedoStack([]);
-        setSaveState('saved'); setNotice('Approved AI drawing applied, read back, and verified in local storage');
+        if (!anyChanged) throw new Error('The plan contained no applicable changes.');
+        const finalReadback = await drawingStorage.load(drawingId, projectId);
+        const expected = workingDocument!;
+        if (!finalReadback || finalReadback.id !== expected.id || finalReadback.projectId !== expected.projectId
+          || finalReadback.width !== expected.width || finalReadback.height !== expected.height
+          || JSON.stringify(finalReadback.strokes) !== JSON.stringify(expected.strokes)
+          || JSON.stringify(finalReadback.layers) !== JSON.stringify(expected.layers)) {
+          throw new Error('The completed native drawing did not match its final saved readback.');
+        }
+        setPlanProgress(null);
+        setPlanUndoStack(old => [...old, beforePlan]);
+        setPlanRedoStack([]);
+        setHistoryOrder(old => [...old, 'plan']);
+        setRedoOrder([]);
+        setEditRedoStack([]);
+        setSaveState('saved');
+        setNotice('Kuro finished drawing · ' + pendingPlan.commands.length + ' native actions applied and saved');
         setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
-        onPlanResult(pendingPlan.id, 'success', 'Applied, read back, and verified in local storage');
+        onPlanResult(pendingPlan.id, 'success', 'Applied progressively; every changed step and the final editable document were read back and verified in local storage.');
       } catch (error) {
-        if (cancelled) return;
         const message = error instanceof Error ? error.message : 'Unknown drawing error';
-        setNotice('AI drawing failed: ' + message);
-        setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: message }));
-        onPlanResult(pendingPlan.id, 'error', message);
+        let recoveryMessage = '';
+        try {
+          if (workingDocument && originalDocument) {
+            await restoreOriginal();
+            recoveryMessage = ' The original canvas was restored and verified.';
+          }
+        } catch (restoreError) {
+          recoveryMessage = ' Automatic rollback could not be verified: ' + (restoreError instanceof Error ? restoreError.message : 'unknown recovery error') + '. Use the pre-plan version checkpoint.';
+        }
+        if (!cancelled) {
+          setPlanProgress(null);
+          setNotice('AI drawing failed: ' + message + recoveryMessage);
+          setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: message + recoveryMessage }));
+          onPlanResult(pendingPlan.id, 'error', message + recoveryMessage);
+        }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (cancelPlanExecutionRef.current === cancel) cancelPlanExecutionRef.current = null;
+    };
   }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, layers, planRunNonce]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
@@ -1068,7 +1160,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }}>
       <div className="drawing-paper" ref={paperRef} style={{ aspectRatio: docRef.current.width + ' / ' + docRef.current.height, transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / docRef.current.width * 100) + '%', top: (bounds.y / docRef.current.height * 100) + '%', width: (bounds.width / docRef.current.width * 100) + '%', height: (bounds.height / docRef.current.height * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
     </div>
-    {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>AI action · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}
+    {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>Native tool agent · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}{planProgress && <div className="draw-status ai-action-status running" role="status" aria-live="polite"><span><b>Live drawing progress</b> — {planProgress.completed} / {planProgress.total} native actions · {planProgress.command}</span><progress value={planProgress.completed} max={Math.max(1, planProgress.total)} aria-label="Native drawing action progress" /> <button type="button" onClick={() => cancelPlanExecutionRef.current?.()}>Cancel drawing</button></div>}
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · {docRef.current.width} × {docRef.current.height}</span></div>
   </section>;
 }

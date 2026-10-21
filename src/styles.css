@@ -124,3 +124,9 @@
 .story-record-actions button.story-delete{margin-left:auto;color:#dba3af}
 .story-vault-notice{margin:12px 0 0;padding:9px 10px;border-left:2px solid #8d72b9;background:#181421;color:#a99fbb;font-size:10px;line-height:1.6}
 @media(max-width:780px){.story-vault{padding:12px;margin-top:16px}.story-vault-head{flex-direction:column}.story-vault-head>button{width:100%;justify-content:center}.story-project-select{align-items:stretch;flex-direction:column;gap:7px}.story-project-select select{max-width:none}.story-memory-records{grid-template-columns:1fr}.story-memory-filters{width:100%}.story-memory-filters label{flex:1}.story-memory-filters input{width:100%}.story-editor-foot{align-items:stretch;flex-direction:column}.story-editor-foot button{width:100%}.story-memory-list-head{align-items:stretch;flex-direction:column}.story-form-grid{gap:8px}}
+
+/* Manual lettering controls */
+.text-draft-control{display:flex;align-items:center;gap:7px;color:#c9bddf;font-size:10px;min-width:220px;flex:1}
+.text-draft-control input{min-width:0;flex:1;padding:8px 9px;border:1px solid #514063;border-radius:8px;background:#100e17;color:#f0e8ff;font:inherit;font-size:11px}
+.text-draft-control input:focus{outline:1px solid #a78bfa;border-color:#a78bfa}
+@media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input{width:100%}}

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type } from 'lucide-react';
 import { drawingStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse'; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text'; text?: string; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 
@@ -25,7 +25,13 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.fillStyle = stroke.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (stroke.shape && stroke.points.length) {
+  if (stroke.shape === 'text' && stroke.points.length) {
+    const start = stroke.points[0];
+    ctx.fillStyle = stroke.color;
+    ctx.font = '600 ' + Math.max(8, stroke.size) + 'px Inter, Trebuchet MS, sans-serif';
+    ctx.textBaseline = 'top';
+    (stroke.text ?? '').split('\\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
+  } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
     ctx.lineWidth = stroke.size;
@@ -81,6 +87,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
+  const [textDraft, setTextDraft] = useState('');
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
   const [activeLayerId, setActiveLayerId] = useState(DEFAULT_LAYER.id);
@@ -265,6 +272,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       return;
     }
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
+    if (tool === 'text') {
+      if (!textDraft.trim()) { setNotice('Type your lettering in the toolbar, then tap the canvas to place it.'); return; }
+      const at = pointFromEvent(e);
+      const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, color, size: Math.max(12, size * 2), points: [at] };
+      setStrokes(old => [...old, lettering]); setRedoStack([]); setNotice('Text object placed · undo is available'); return;
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
     activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' ? tool : undefined, color, size, points: [start] };
@@ -426,11 +439,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
         <button className={tool==='line'?'chosen':''} onClick={() => setTool('line')} title="Line"><Minus size={16}/><span>Line</span></button>
         <button className={tool==='rectangle'?'chosen':''} onClick={() => setTool('rectangle')} title="Rectangle"><Square size={16}/><span>Rectangle</span></button>
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
+        <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
       <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}<label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
-      <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{size}px</b></label>
+      {tool==='text' && <label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label>}
+      <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
     <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>

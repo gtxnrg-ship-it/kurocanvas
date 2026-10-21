@@ -98,6 +98,13 @@ export function applyCommandsToLocalDrawing(
       strokes: result.state.strokes.map(stroke => ({
         id: stroke.id, layerId: stroke.layerId, tool: stroke.tool, color: stroke.color,
         size: stroke.size, points: stroke.points.map(point => ({ ...point })),
+        ...(stroke.shape ? { shape: stroke.shape } : {}),
+        ...(stroke.text !== undefined ? { text: stroke.text } : {}),
+        ...(stroke.fontFamily ? { fontFamily: stroke.fontFamily } : {}),
+        ...(stroke.filled !== undefined ? { filled: stroke.filled } : {}),
+        ...(stroke.fillColor ? { fillColor: stroke.fillColor } : {}),
+        ...(stroke.rotation !== undefined ? { rotation: stroke.rotation } : {}),
+        ...(stroke.brushPreset ? { brushPreset: stroke.brushPreset } : {}),
       })),
       updatedAt: new Date().toISOString(),
     },

@@ -73,6 +73,21 @@ npm run preview
 
 `npm run preview` serves the already-built production bundle; run `npm run build` first.
 
+### Quick manual smoke test
+
+After the app opens, use this checklist to test the most important paths rather than judging only the home screen:
+
+- [ ] Create a new universe and confirm its first conversation opens.
+- [ ] Send a message. If a model is not connected, confirm the app reports that state instead of pretending a response was generated.
+- [ ] Open the canvas, draw a few strokes, change tools/layers, and wait for the save indicator.
+- [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.
+- [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.
+- [ ] Create a second universe and confirm its conversation and saved drawings are separate.
+- [ ] In the first universe, ask Kuro for a drawing plan if a provider is connected. Inspect the proposed actions and approve only if the preview looks right.
+- [ ] Export a project if available, then test the exported file before relying on it as a backup.
+
+This is a practical smoke test, not a substitute for the full release test suite. Report failures with the browser/device, exact steps, and any visible error message.
+
 ## Android APK download
 
 <details>

@@ -13,6 +13,13 @@ describe("3D character model records", () => {
     expect(validateCharacterModel(base(), "other-project").join(" ")).toContain("different project");
   });
 
+  it("validates and persists native procedural appearance traits", () => {
+    const traits = { hair: "short black hair", age: "17", outfit: "dark school uniform", skinTone: "tan", eyeColor: "amber", bodyType: "athletic" as const };
+    expect(validateCharacterModel(base({ proceduralTraits: traits }), "project-1")).toEqual([]);
+    expect(validateCharacterModel(base({ proceduralTraits: { ...traits, bodyType: "impossible" as never } })).join(" ")).toMatch(/body type|procedural traits/i);
+    expect(validateCharacterModel(base({ proceduralTraits: { ...traits, hair: "x".repeat(161) } })).join(" ")).toMatch(/hair/i);
+  });
+
   it("requires a real bounded GLB blob for uploaded models", () => {
     const missing = base({ sourceType: "uploaded-glb", fileName: "ren.glb" });
     expect(validateCharacterModel(missing).join(" ")).toContain("GLB blobs");

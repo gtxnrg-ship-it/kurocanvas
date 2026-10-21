@@ -1,3 +1,4 @@
+import { buildProjectDeletionManifest } from "./projectDeletion";
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
@@ -126,7 +127,6 @@ export const projectStorage = {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
   async remove(id: string): Promise<void> {
-    if (!id.trim()) throw new Error("Choose a project before removing it.");
     const [memoryRecords, referenceRecords, characterModels, drawings, revisions, universes, conversations, messages, relationships, characterStates] = await Promise.all([
       requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll()),
       requestValue<ReferenceSourceRecord[]>(REFERENCE_SOURCES, "readonly", store => store.getAll()),
@@ -139,13 +139,21 @@ export const projectStorage = {
       requestValue<RelationshipRecord[]>(RELATIONSHIPS, "readonly", store => store.getAll()),
       requestValue<CharacterEvolutionState[]>(CHARACTER_EVOLUTION, "readonly", store => store.getAll()),
     ]);
+    const manifest = buildProjectDeletionManifest(id, {
+      storyMemories: memoryRecords, referenceSources: referenceRecords, characterModels,
+      drawings, drawingRevisions: revisions, universes, conversations, messages,
+      relationships, characterStates,
+    });
+    const ids = {
+      memories: new Set(manifest.storyMemoryIds), references: new Set(manifest.referenceSourceIds),
+      models: new Set(manifest.characterModelIds), drawings: new Set(manifest.drawingIds),
+      revisions: new Set(manifest.drawingRevisionIds), universes: new Set(manifest.universeIds),
+      conversations: new Set(manifest.conversationIds), messages: new Set(manifest.messageIds),
+      relationships: new Set(manifest.relationshipIds), characterStates: new Set(manifest.characterStateIds),
+    };
 
-    // A project's universe is its owner boundary. Deleting a project must also delete
-    // its canvas revisions and every chat/relationship/timeline record in those universes,
-    // while leaving unrelated universes and legacy unassigned drawings untouched.
-    const universeIds = new Set(universes.filter(universe => universe.projectId === id).map(universe => universe.id));
-    const conversationIds = new Set(conversations.filter(conversation => universeIds.has(conversation.universeId)).map(conversation => conversation.id));
-    const drawingIds = new Set(drawings.filter(drawing => drawing.projectId === id).map(drawing => drawing.id));
+    // Delete related records in one write transaction, while leaving unrelated universes
+    // and unassigned legacy drawings untouched.
     const stores = [PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE,
       REFERENCE_SOURCES, CHARACTER_MODELS, DRAWINGS, DRAWING_REVISIONS, UNIVERSES,
       CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION];
@@ -158,16 +166,16 @@ export const projectStorage = {
         tx.objectStore(CANON).delete(id);
         tx.objectStore(ART_DIRECTION).delete(id);
         tx.objectStore(STYLE_BIBLE).delete(id);
-        for (const record of referenceRecords) if (record.projectId === id) tx.objectStore(REFERENCE_SOURCES).delete(record.id);
-        for (const record of characterModels) if (record.projectId === id) tx.objectStore(CHARACTER_MODELS).delete(record.id);
-        for (const record of memoryRecords) if (record.projectId === id) tx.objectStore(STORY_MEMORY).delete(record.id);
-        for (const drawing of drawings) if (drawing.projectId === id) tx.objectStore(DRAWINGS).delete(drawing.id);
-        for (const revision of revisions) if (drawingIds.has(revision.drawingId)) tx.objectStore(DRAWING_REVISIONS).delete(revision.id);
-        for (const universe of universes) if (universeIds.has(universe.id)) tx.objectStore(UNIVERSES).delete(universe.id);
-        for (const conversation of conversations) if (universeIds.has(conversation.universeId)) tx.objectStore(CONVERSATIONS).delete(conversation.id);
-        for (const message of messages) if (universeIds.has(message.universeId) || conversationIds.has(message.conversationId)) tx.objectStore(CHAT_MESSAGES).delete(message.id);
-        for (const relationship of relationships) if (universeIds.has(relationship.universeId)) tx.objectStore(RELATIONSHIPS).delete(relationship.id);
-        for (const state of characterStates) if (universeIds.has(state.universeId)) tx.objectStore(CHARACTER_EVOLUTION).delete(state.id);
+        for (const record of referenceRecords) if (ids.references.has(record.id)) tx.objectStore(REFERENCE_SOURCES).delete(record.id);
+        for (const record of characterModels) if (ids.models.has(record.id)) tx.objectStore(CHARACTER_MODELS).delete(record.id);
+        for (const record of memoryRecords) if (ids.memories.has(record.id)) tx.objectStore(STORY_MEMORY).delete(record.id);
+        for (const drawing of drawings) if (ids.drawings.has(drawing.id)) tx.objectStore(DRAWINGS).delete(drawing.id);
+        for (const revision of revisions) if (ids.revisions.has(revision.id)) tx.objectStore(DRAWING_REVISIONS).delete(revision.id);
+        for (const universe of universes) if (ids.universes.has(universe.id)) tx.objectStore(UNIVERSES).delete(universe.id);
+        for (const conversation of conversations) if (ids.conversations.has(conversation.id)) tx.objectStore(CONVERSATIONS).delete(conversation.id);
+        for (const message of messages) if (ids.messages.has(message.id)) tx.objectStore(CHAT_MESSAGES).delete(message.id);
+        for (const relationship of relationships) if (ids.relationships.has(relationship.id)) tx.objectStore(RELATIONSHIPS).delete(relationship.id);
+        for (const state of characterStates) if (ids.characterStates.has(state.id)) tx.objectStore(CHARACTER_EVOLUTION).delete(state.id);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project and its owned creative data."));
         tx.onabort = () => reject(tx.error ?? new Error("Project removal was cancelled."));

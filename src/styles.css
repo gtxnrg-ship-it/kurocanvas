@@ -353,3 +353,10 @@
 .app-crash-recovery button{margin-top:5px;padding:11px 16px;border:1px solid #8465a6;border-radius:9px;background:#30213f;color:#f1e3ff;font-size:12px;font-weight:700;cursor:pointer}
 .app-crash-recovery button:hover{background:#3c2a50}
 .app-crash-recovery small{max-width:500px;margin-top:8px;color:#81748e;font-size:10px;line-height:1.7}
+
+
+/* Keep the visible canvas safe while Kuro commits and reads back an approved plan. */
+.drawing-alt{position:relative}
+.drawing-plan-blocker{position:absolute;inset:0;z-index:1000;display:flex;align-items:flex-start;justify-content:center;flex-direction:column;gap:10px;padding:clamp(22px,5vw,64px);background:rgba(13,10,19,.76);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);color:#f0e6ff;cursor:progress}
+.drawing-plan-blocker strong{max-width:560px;font-size:clamp(17px,2.4vw,25px);line-height:1.35;letter-spacing:-.025em}
+.drawing-plan-blocker span{max-width:520px;color:#c6b5d7;font-size:12px;line-height:1.75}

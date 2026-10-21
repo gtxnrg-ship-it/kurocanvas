@@ -36,7 +36,7 @@ const MODEL: ModelDescriptor = {
   roles: ["fast-helper"],
   capabilities: ["chat"],
   downloadBytes: KURO_TINY_MODEL_DOWNLOAD_BYTES,
-  memoryBytes: 350 * 1024 * 1024,
+  memoryBytes: 900 * 1024 * 1024,
   license: "Apache-2.0",
   modelUri: KURO_TINY_MODEL_URI,
   installed: true,

@@ -470,7 +470,10 @@ export function parseCrossrefWorksPayload(payload: unknown, maxSources = 8): Res
     const publisher = typeof work.publisher === "string" ? cleanExtract(work.publisher) : "";
     const containers = Array.isArray(work["container-title"]) ? work["container-title"] : [];
     const venue = typeof containers[0] === "string" ? cleanExtract(containers[0]) : "";
-    const abstract = cleanExtract(work.abstract).slice(0, 2300);
+    const rawAbstract = cleanExtract(work.abstract);
+    // Keep a modest excerpt rather than copying long abstracts into a local research vault.
+    const abstract = rawAbstract.slice(0, 800);
+    const abstractTruncated = rawAbstract.length > abstract.length;
     const details = [
       authors.length ? "Authors: " + authors.join(", ") + (rawAuthors.length > authors.length ? ", et al." : "") : "",
       year ? "Published: " + year : "",
@@ -495,16 +498,26 @@ export async function searchCrossrefResearch(query: string, depth: ResearchDepth
     rows: String(SEARCH_LIMIT[depth]),
     select: "DOI,title,author,publisher,published-print,published-online,published,abstract,container-title",
   });
-  const response = await fetch("https://api.crossref.org/v1/works?" + params.toString(), {
-    method: "GET", headers: { Accept: "application/json" }, signal,
-  });
-  if (response.status === 429) throw new Error("Crossref is rate-limiting scholarly searches. Wait briefly, then retry the task.");
-  if (response.status === 403) throw new Error("Crossref declined this request. Try again later or use Wikipedia research while this source is unavailable.");
-  if (!response.ok) throw new Error("Crossref scholarly metadata search failed (HTTP " + response.status + ").");
-  let payload: unknown;
-  try { payload = await response.json(); }
-  catch { throw new Error("Crossref returned an unreadable scholarly metadata response."); }
-  return parseCrossrefWorksPayload(payload, SEARCH_LIMIT[depth]);
+  const requestStartedAt = Date.now();
+  try {
+    const response = await fetch("https://api.crossref.org/v1/works?" + params.toString(), {
+      method: "GET", headers: { Accept: "application/json" }, signal,
+    });
+    if (response.status === 429) throw new Error("Crossref is rate-limiting scholarly searches. Wait briefly, then retry the task.");
+    if (response.status === 403) throw new Error("Crossref declined this request. Try again later or use Wikipedia research while this source is unavailable.");
+    if (!response.ok) throw new Error("Crossref scholarly metadata search failed (HTTP " + response.status + ").");
+    let payload: unknown;
+    try { payload = await response.json(); }
+    catch { throw new Error("Crossref returned an unreadable scholarly metadata response."); }
+    return parseCrossrefWorksPayload(payload, SEARCH_LIMIT[depth]);
+  } finally {
+    // Crossref's current public list-query pool is deliberately rate-limited. Keep
+    // the shared queue lease until one second has elapsed so another tab cannot burst.
+    const remaining = 1100 - (Date.now() - requestStartedAt);
+    if (remaining > 0 && !signal?.aborted) {
+      await new Promise<void>(resolve => setTimeout(resolve, remaining));
+    }
+  }
 }
 
 export async function searchResearchSources(query: string, depth: ResearchDepth, sourceProvider: ResearchSourceProvider = "wikipedia", signal?: AbortSignal): Promise<ResearchSource[]> {
@@ -603,7 +616,7 @@ export function resumeResearchQueue(): void {
   }).catch(() => { announce(); void pumpQueue(); });
 }
 
-export async function enqueueResearchTask(input: { projectId: string; query: string; depth: ResearchDepth }): Promise<ResearchTaskRecord> {
+export async function enqueueResearchTask(input: { projectId: string; query: string; depth: ResearchDepth; sourceProvider?: ResearchSourceProvider }): Promise<ResearchTaskRecord> {
   const task = createResearchTask(input);
   await researchTaskStorage.save(task);
   try {

@@ -247,18 +247,61 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     const floor = new THREE.Mesh(new THREE.CircleGeometry(2.8,64),new THREE.MeshStandardMaterial({color:"#1a2230",roughness:1}));
     floor.rotation.x=-Math.PI/2; floor.position.y=-.025; floor.receiveShadow=true; scene.add(floor);
     const root = new THREE.Group(); scene.add(root);
-    const scarRoot = new THREE.Group(); scene.add(scarRoot);
+    const modelContent = new THREE.Group(); root.add(modelContent);
+    const scarRoot = new THREE.Group(); root.add(scarRoot);
     const controls = new OrbitControls(camera,renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor=.08; controls.minDistance=2.1; controls.maxDistance=11;
     controls.target.set(0,1.25,0); controls.update();
-    sceneRef.current=scene; rootRef.current=root; scarRootRef.current=scarRoot; rendererRef.current=renderer; cameraRef.current=camera; controlsRef.current=controls;
+    sceneRef.current=scene; rootRef.current=root; modelContentRef.current=modelContent; scarRootRef.current=scarRoot; rendererRef.current=renderer; cameraRef.current=camera; controlsRef.current=controls;
     let frame=0;
-    const animate=()=>{frame=window.requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
+    const clock = new THREE.Clock();
+    const animate=()=>{
+      frame=window.requestAnimationFrame(animate);
+      const delta=Math.min(clock.getDelta(),0.05);
+      const elapsed=clock.elapsedTime;
+      animationMixerRef.current?.update(delta);
+      // Gentle preview motion is native Three.js animation, never a generated video.
+      root.position.y=Math.sin(elapsed*2.1)*0.009;
+      if(!animationMixerRef.current){
+        const rigObject=modelContent.children.find(child=>child.userData.proceduralRig);
+        const rig=rigObject?.userData.proceduralRig as {
+          head:THREE.Mesh;leftArmPivot:THREE.Group;rightArmPivot:THREE.Group;
+          leftLegPivot:THREE.Group;rightLegPivot:THREE.Group;
+          baseLeftArmZ:number;baseRightArmZ:number;baseLeftLegZ:number;baseRightLegZ:number;
+        }|undefined;
+        if(rig){
+          const preset=motionPresetRef.current;
+          const breathing=Math.sin(elapsed*1.65)*0.018;
+          if(preset==="flex"){
+            rig.leftArmPivot.rotation.z=-1.02+breathing;
+            rig.rightArmPivot.rotation.z=1.02-breathing;
+            rig.leftArmPivot.rotation.x=-0.28;rig.rightArmPivot.rotation.x=-0.28;
+            rig.leftLegPivot.rotation.z=rig.baseLeftLegZ;rig.rightLegPivot.rotation.z=rig.baseRightLegZ;
+          }else if(preset==="combat-ready"){
+            rig.leftArmPivot.rotation.z=-0.48+breathing;
+            rig.rightArmPivot.rotation.z=0.48-breathing;
+            rig.leftArmPivot.rotation.x=-0.72;rig.rightArmPivot.rotation.x=-0.72;
+            rig.leftLegPivot.rotation.z=rig.baseLeftLegZ-0.1;
+            rig.rightLegPivot.rotation.z=rig.baseRightLegZ+0.1;
+          }else{
+            const movement=preset==="relaxed"?0:Math.sin(elapsed*1.25)*0.024;
+            rig.leftArmPivot.rotation.z=rig.baseLeftArmZ+movement+breathing;
+            rig.rightArmPivot.rotation.z=rig.baseRightArmZ-movement-breathing;
+            rig.leftArmPivot.rotation.x=Math.sin(elapsed*0.8)*0.012;
+            rig.rightArmPivot.rotation.x=-Math.sin(elapsed*0.8)*0.012;
+            rig.leftLegPivot.rotation.z=rig.baseLeftLegZ+Math.sin(elapsed*0.9)*0.012;
+            rig.rightLegPivot.rotation.z=rig.baseRightLegZ-Math.sin(elapsed*0.9)*0.012;
+          }
+          rig.head.rotation.y=preset==="idle"?Math.sin(elapsed*0.45)*0.035:0;
+        }
+      }
+      controls.update();renderer.render(scene,camera);
+    };
     animate();
     const resize=()=>{if(!hostRef.current)return;const width=Math.max(1,host.clientWidth),height=Math.max(1,host.clientHeight);camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);};
     const observer=typeof ResizeObserver!=="undefined"?new ResizeObserver(resize):null;
     observer?.observe(host);window.addEventListener("resize",resize);
-    return ()=>{window.cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener("resize",resize);controls.dispose();clearGroup(root);clearGroup(scarRoot);renderer.dispose();if(renderer.domElement.parentNode===host)host.removeChild(renderer.domElement);sceneRef.current=null;rootRef.current=null;scarRootRef.current=null;rendererRef.current=null;cameraRef.current=null;controlsRef.current=null;};
+    return ()=>{window.cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener("resize",resize);controls.dispose();animationMixerRef.current?.stopAllAction();animationMixerRef.current=null;clearGroup(root);clearGroup(scarRoot);renderer.dispose();if(renderer.domElement.parentNode===host)host.removeChild(renderer.domElement);sceneRef.current=null;rootRef.current=null;modelContentRef.current=null;scarRootRef.current=null;rendererRef.current=null;cameraRef.current=null;controlsRef.current=null;};
   }, []);
 
   useEffect(() => {

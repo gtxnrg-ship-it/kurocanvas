@@ -111,6 +111,39 @@ describe("durable story memory", () => {
     expect(result.warnings.join(" ")).toMatch(/historical only/i);
     expect(retrieveStoryMemory([oldState], { projectId: "series-a", text: "Mira current appearance" }).records).toHaveLength(0);
   });
+  it("stores narrative-thread intent separately from reader-facing canon", () => {
+    const thread = record({
+      id: "hallway-easter-egg", chapterNumber: 1, storyOrder: 10, timelineId: "main",
+      tags: ["narrative-thread", "easter-egg"],
+      storyThread: {
+        type: "easter-egg", audienceTreatment: "background-only",
+        clueDescription: "A stranger lightly bumps into Mira in the academy hallway.",
+        plannedPayoff: "The stranger is revealed as the future captain in Chapter 20.",
+        payoffChapterNumber: 20, payoffTimelineId: "main", linkedEntityIds: ["future-captain"],
+      },
+    });
+    expect(validateStoryMemoryRecord(thread, "series-a")).toEqual([]);
+    expect(validateStoryMemoryForApproval(thread, "series-a")).toEqual([]);
+    const context = buildStoryMemoryContext({ records: [thread], assetRefs: [], warnings: [] });
+    expect(context).toContain("AUTHOR-ONLY STORY THREAD");
+    expect(context).toContain("background-only");
+    expect(context).toContain("Planned payoff (not for early on-page disclosure)");
+    expect(context).toContain("future captain in Chapter 20");
+    expect(retrieveStoryMemory([thread], { projectId: "series-a", text: "future captain Easter egg" }).records).toHaveLength(1);
+  });
+
+  it("requires timeline scope before approving a time-bound narrative thread", () => {
+    const thread = record({
+      id: "unscoped-thread", timelineId: undefined,
+      storyThread: {
+        type: "cameo", audienceTreatment: "subtle-hint", clueDescription: "A passing stranger.",
+        plannedPayoff: "Unknown", linkedEntityIds: [],
+      },
+    });
+    expect(validateStoryMemoryRecord(thread, "series-a")).toEqual([]);
+    expect(validateStoryMemoryForApproval(thread, "series-a")).toContain("Time-bound memories need a timeline ID before approval.");
+  });
+
   it("marks superseded records as historical in the model context", () => {
     const context = buildStoryMemoryContext({ records: [record({ status: "superseded" })], assetRefs: [], warnings: [] });
     expect(context).toMatch(/SUPERSEDED records are old revisions, not active canon/i);

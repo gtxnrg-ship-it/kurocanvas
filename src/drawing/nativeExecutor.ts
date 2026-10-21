@@ -8,7 +8,9 @@ export interface NativeStroke {
   color: string;
   size: number;
   points: Array<{ x: number; y: number; pressure: number }>;
-  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble";
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+  imageDataUrl?: string;
+  imageName?: string;
   text?: string;
   fontFamily?: "comic" | "sans" | "serif";
   filled?: boolean;
@@ -86,6 +88,8 @@ export function applyNativeDrawingCommand(
           size: removed.size,
           points: removed.points,
           ...(removed.shape ? { shape: removed.shape } : {}),
+          ...(removed.imageDataUrl ? { imageDataUrl: removed.imageDataUrl } : {}),
+          ...(removed.imageName ? { imageName: removed.imageName } : {}),
           ...(removed.text !== undefined ? { text: removed.text } : {}),
           ...(removed.fontFamily ? { fontFamily: removed.fontFamily } : {}),
           ...(removed.filled !== undefined ? { filled: removed.filled } : {}),

@@ -274,3 +274,16 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [ ] Replace the JSON-only `.kuro.json` package with a versioned archive that stores binary assets as files and verifies integrity.
 
 Scope: this change protects drawings already explicitly linked from Story Vault. It does not yet solve project ownership for every standalone canvas or convert `.kuro.json` into a ZIP archive.
+
+
+## 2026-10-21 — Native .kuro ZIP archive foundation
+
+- [x] Add a dependency-free ZIP STORE encoder/reader with UTF-8 paths, CRC-32 integrity checks, bounds checks, entry-count/size limits, and path-traversal/duplicate-name rejection.
+- [x] Define a manifest-indexed native .kuro archive with separately checksummed asset files.
+- [x] Switch project export to .kuro ZIP archives and support importing both .kuro archives and legacy .kuro.json files.
+- [x] Add archive round-trip and corruption regression tests.
+- [ ] Verify browser download/import on desktop and mobile, including large GLB/data-URL assets and interrupted downloads.
+- [ ] Evolve asset entries from UTF-8 payloads to true binary entries so GLB/images are not base64-encoded inside JSON strings.
+- [ ] Add archive migration/version policy, reproducible output metadata, and full manifest coverage for every project-owned asset.
+
+Scope: this is an initial standards-compliant ZIP archive using uncompressed STORE entries, not a finished high-performance binary package. ZIP imports using compression methods other than STORE are rejected clearly for now. CI and browser verification are required before this can be considered release-ready.

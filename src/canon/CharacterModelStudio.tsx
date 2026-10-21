@@ -620,9 +620,27 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
 
   async function applyMotionPreset(preset: CharacterMotionPreset) {
     await waitForNativeModel();
+    const hasProceduralRig = !!modelContentRef.current?.children.some(child => child.userData.proceduralRig);
+    if (!hasProceduralRig && selectedModel?.sourceType === "uploaded-glb") {
+      const clipPattern: Record<CharacterMotionPreset, RegExp> = {
+        idle: /idle|rest|breath|stand/i,
+        relaxed: /idle|rest|breath|relax|stand/i,
+        flex: /flex|muscle|bicep|pose/i,
+        "combat-ready": /combat|fight|guard|battle|ready|punch/i,
+      };
+      const clipIndex = animationClips.findIndex(clip => clipPattern[preset].test(clip.name));
+      if (clipIndex < 0) {
+        throw new Error("The selected GLB does not contain an embedded " + preset.replace(/-/g, " ") + " animation. I will not pretend the pose changed; use a procedural blockout or import a GLB with that animation.");
+      }
+      motionPresetRef.current = preset;
+      setMotionPreset(preset);
+      playEmbeddedAnimation(String(clipIndex));
+      return;
+    }
+    if (!hasProceduralRig) throw new Error("The selected native model does not expose editable procedural pose joints.");
     motionPresetRef.current = preset;
     setMotionPreset(preset);
-    setMessage("Kuro set the live native character motion to " + preset.replace(/-/g, " ") + ". This changes only the editable 3D preview pose; it does not flatten or generate an image.");
+    setMessage("Kuro set the live native character motion to " + preset.replace(/-/g, " ") + ". This changes the editable 3D preview rig, not a generated image.");
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }
 
@@ -734,7 +752,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       <div className="character-model-controls">
         <label><span>Character model</span><select value={modelId} onChange={event=>{setModelId(event.target.value);const model=models.find(item=>item.id===event.target.value);if(model){setCharacterName(model.characterName);setFrontFace(model.frontFace);}}}><option value="">Choose a model…</option>{models.map(model=><option key={model.id} value={model.id}>{model.characterName}{model.characterStateId ? " · " + (styleBible?.characterStates.find(state=>state.id===model.characterStateId)?.chapterLabel ?? "chapter variant") : " · base"}{model.sourceType==="procedural"?" · blockout":" · GLB"}</option>)}</select></label>
         <label><span>Approved chapter state</span><select value={selectedState?.id ?? ""} onChange={event=>setStateId(event.target.value)} disabled={!stateOptions.length}><option value="">No approved state</option>{stateOptions.map(state=><option key={state.id} value={state.id}>{state.chapterLabel} · order {state.storyOrder}</option>)}</select></label>
-        <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label><label><span>Motion preview</span><select value={motionPreset} onChange={event=>{const value=event.target.value as CharacterMotionPreset;motionPresetRef.current=value;setMotionPreset(value);}}><option value="idle">Natural idle</option><option value="relaxed">Still / relaxed</option><option value="flex">Flex pose</option><option value="combat-ready">Combat-ready</option></select></label>
+        <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label><label><span>Motion preview</span><select value={motionPreset} onChange={event=>{const value=event.target.value as CharacterMotionPreset;void applyMotionPreset(value).catch(error=>setMessage(error instanceof Error?error.message:"Could not change the character motion."));}}><option value="idle">Natural idle</option><option value="relaxed">Still / relaxed</option><option value="flex">Flex pose</option><option value="combat-ready">Combat-ready</option></select></label>
         <label><span>Embedded GLB animation</span><select value={activeAnimationIndex} disabled={!animationClips.length} onChange={event=>playEmbeddedAnimation(event.target.value)}><option value="">Native preview motion</option>{animationClips.map((clip,index)=><option key={index} value={String(index)}>{clip.name || "Animation "+(index+1)} · {clip.duration.toFixed(1)}s</option>)}</select></label>
         <button disabled={!selectedModel} onClick={()=>void resetView()}><RotateCcw size={14}/> Reset view</button><button type="button" onClick={()=>void applyCameraPreset("front")}>Front</button><button type="button" onClick={()=>void applyCameraPreset("three-quarter-right")}>3/4 view</button><button type="button" onClick={()=>void applyCameraPreset("profile-left")}>Profile</button><button type="button" onClick={()=>void applyCameraPreset("back")}>Back</button><button type="button" onClick={()=>void applyCameraPreset("full-body")}>Full body</button>
       </div>

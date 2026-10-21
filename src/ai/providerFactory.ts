@@ -31,3 +31,9 @@ export function createConfiguredProvider(
     allowInsecureLocalhost: config.allowInsecureLocalhost,
   });
 }
+
+export async function prepareLocalTinyModel(onProgress?: (progress: { percent: number; file?: string; status: string }) => void) {
+  localTinyProvider.setProgressListener(onProgress);
+  await localTinyProvider.prepare();
+  return localTinyProvider.listModels();
+}

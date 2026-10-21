@@ -39,6 +39,7 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
       throw new Error("This workflow only accepts approved native stroke and layer-property actions.");
     }
     const item = command as { type: string; points?: unknown };
+    if ((item.type === "stroke.remove" || item.type === "stroke.update") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");
     if (item.type === "stroke.add" && (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 20)) {
       throw new Error("Each proposed stroke must contain between 1 and 20 points.");
     }

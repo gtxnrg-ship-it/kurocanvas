@@ -7,10 +7,11 @@ import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel';
+type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel'; filled?: boolean; text?: string; rotation?: number; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel'; filled?: boolean; text?: string; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
@@ -27,6 +28,11 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     ctx.translate(cx, cy); ctx.rotate(stroke.rotation); ctx.translate(-cx, -cy);
   }
   ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+  const preset = stroke.brushPreset ?? 'ink';
+  const opacity = preset === 'pencil' ? 0.68 : preset === 'marker' ? 0.46 : preset === 'airbrush' ? 0.2 : 1;
+  const widthMultiplier = preset === 'pencil' ? 0.82 : preset === 'marker' ? 1.45 : preset === 'airbrush' ? 1.8 : 1;
+  ctx.globalAlpha *= opacity;
+  if (preset === 'airbrush') { ctx.shadowColor = stroke.color; ctx.shadowBlur = Math.max(3, stroke.size * 0.9); }
   ctx.strokeStyle = stroke.color;
   ctx.fillStyle = stroke.color;
   ctx.lineCap = 'round';
@@ -40,7 +46,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
-    ctx.lineWidth = stroke.shape === 'panel' ? Math.max(4, stroke.size) : stroke.size;
+    ctx.lineWidth = (stroke.shape === 'panel' ? Math.max(4, stroke.size) : stroke.size) * widthMultiplier;
     ctx.beginPath();
     if (stroke.shape === 'line') {
       ctx.moveTo(start.x, start.y);
@@ -57,7 +63,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   } else if (stroke.points.length === 1) {
     const p = stroke.points[0];
     ctx.beginPath();
-    ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5) * widthMultiplier, 0, Math.PI * 2);
     ctx.fill();
   } else {
     const points = stroke.points;
@@ -68,7 +74,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
       const end = next ? { x: (b.x + next.x) / 2, y: (b.y + next.y) / 2 } : b;
       const pressure = Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
       ctx.beginPath();
-      ctx.lineWidth = stroke.size * pressure;
+      ctx.lineWidth = stroke.size * pressure * widthMultiplier;
       ctx.moveTo(start.x, start.y);
       ctx.quadraticCurveTo(b.x, b.y, end.x, end.y);
       ctx.stroke();
@@ -115,6 +121,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
   const [textDraft, setTextDraft] = useState('');
+  const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
@@ -357,7 +364,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), color, size, points: [start] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), brushPreset: tool === 'eraser' ? undefined : brushPreset, color, size, points: [start] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -647,6 +654,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
       <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}<label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
+      <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option></select></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>

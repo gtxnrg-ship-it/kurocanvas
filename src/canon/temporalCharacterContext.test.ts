@@ -35,6 +35,77 @@ describe("temporal character prompt context", () => {
     expect(() => buildTemporalCharacterContext([], { universeId: "u1", timelineId: "", storyOrder: 1, characterIds: ["c1"] })).toThrow();
     expect(buildTemporalCharacterContext([], { universeId: "u1", timelineId: "main", storyOrder: 1, characterIds: [], maxOutputCharacters: 1 })).toContain("No character IDs");
   });
+
+  it("does not reveal preloaded future cast names or designs before its reveal gate", () => {
+    const hidden = state({
+      id: "secret-antagonist", characterId: "secret-antagonist", storyOrder: 5, revealAtStoryOrder: 40,
+      appearance: {
+        ageYears: 38, hairColor: "silver", visualNotes: ["THE SECRET EMPEROR; never show before the cliffhanger"],
+        bodyIdentity: { bodyInstanceId: "imperial-body", incarnationKind: "original", identityContinuity: "same-person" },
+      },
+    });
+    const beforeReveal = buildTemporalCharacterContext([hidden], {
+      universeId: "u1", timelineId: "main", storyOrder: 39, characterIds: ["secret-antagonist"],
+    });
+    expect(beforeReveal).toContain("VAULT REVEAL GATE");
+    expect(beforeReveal).toContain("No reveal-eligible character details");
+    expect(beforeReveal).not.toContain("secret-antagonist");
+    expect(beforeReveal).not.toContain("THE SECRET EMPEROR");
+    expect(beforeReveal).not.toContain("silver");
+    expect(beforeReveal).not.toContain("imperial-body");
+
+    const afterReveal = buildTemporalCharacterContext([hidden], {
+      universeId: "u1", timelineId: "main", storyOrder: 40, characterIds: ["secret-antagonist"],
+    });
+    expect(afterReveal).toContain("THE SECRET EMPEROR");
+    expect(afterReveal).toContain("silver");
+    expect(afterReveal).toContain("imperial-body");
+  });
+
+  it("carries forward body and injury lifecycle details while omitting future body changes", () => {
+    const oldBody = state({
+      storyOrder: 10,
+      appearance: {
+        ageYears: 34, hairColor: "brown", height: "183 cm",
+        bodyIdentity: { bodyInstanceId: "old-body", incarnationKind: "original", identityContinuity: "same-person" },
+        physicalConditions: [{
+          id: "broken-arm", kind: "fracture", label: "Broken left arm", bodyRegion: "left forearm", stage: "active",
+          severity: 4, firstSeenStoryOrder: 10, healingProgressPercent: 10, painLevel: 8,
+          visibleDescription: "swollen and held against the chest", functionalImpact: "cannot grip", permanentMark: false,
+        }],
+      },
+    });
+    const reborn = state({
+      id: "reborn", storyOrder: 30,
+      appearance: {
+        ageYears: 15,
+        bodyIdentity: {
+          bodyInstanceId: "new-body", incarnationKind: "reincarnation", identityContinuity: "same-person",
+          memoryContinuity: "full", previousBodyInstanceId: "old-body", ageAtIncarnation: 15,
+        },
+        physicalConditions: [{
+          id: "broken-arm", kind: "fracture", label: "Broken left arm", bodyRegion: "left forearm", stage: "healing",
+          severity: 4, firstSeenStoryOrder: 10, healingProgressPercent: 45, painLevel: 4,
+          visibleDescription: "splinted, bruising fading from purple to yellow", functionalImpact: "cannot grip firmly",
+          permanentMark: false,
+        }],
+      },
+    });
+    const output = buildTemporalCharacterContext([oldBody, reborn], {
+      universeId: "u1", timelineId: "main", storyOrder: 20, characterIds: ["c1"],
+    });
+    expect(output).toContain("Body instance: old-body");
+    expect(output).toContain("height: 183 cm");
+    expect(output).toContain("stage: active");
+    expect(output).not.toContain("new-body");
+    expect(output).not.toContain("Age: 15");
+    const later = buildTemporalCharacterContext([oldBody, reborn], {
+      universeId: "u1", timelineId: "main", storyOrder: 30, characterIds: ["c1"],
+    });
+    expect(later).toContain("Body instance: new-body");
+    expect(later).toContain("Previous body: old-body");
+    expect(later).toContain("healing: 45%");
+  });
 });
 
 describe("natural temporal target resolution", () => {
@@ -96,5 +167,19 @@ describe("natural temporal target resolution", () => {
     expect(output).toMatchObject({ status: "resolved", timelineId: "main", storyOrder: 15 });
     expect(output.context).toContain("Age: 16");
     expect(output.context).not.toContain("Age: 18");
+  });
+
+  it("does not let an unrevealed alternate-timeline preload create a spoiler ambiguity", () => {
+    const visible = state({ id: "visible-main", timelineId: "main", storyOrder: 10, appearance: { ageYears: 16 } });
+    const hidden = state({
+      id: "hidden-alt", timelineId: "what-if", storyOrder: 1, revealAtStoryOrder: 80,
+      appearance: { ageYears: 99, visualNotes: ["unrevealed alternate-timeline secret"] },
+    });
+    const output = resolveTemporalCharacterContext([visible, hidden], {
+      universeId: "u1", characterIds: ["c1"], storyOrder: 20,
+    });
+    expect(output.status).toBe("resolved");
+    expect(output.context).toContain("Age: 16");
+    expect(output.context).not.toContain("unrevealed alternate-timeline secret");
   });
 });

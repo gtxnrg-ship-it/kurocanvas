@@ -35,7 +35,7 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
   const tokens = new Set(tokenize(query.text ?? ""));
   const limit = Math.max(1, Math.min(100, Math.floor(query.limit ?? 12)));
   const eligible = records.filter(record => record.projectId === query.projectId &&
-    (query.includeProposed ? record.status !== "superseded" : record.status === "approved") &&
+    (query.includeProposed ? record.status !== "superseded" : record.status === "approved" || query.chapterNumber !== undefined && record.status === "superseded") &&
     (query.chapterNumber === undefined || record.chapterNumber === query.chapterNumber) &&
     (!query.kinds || query.kinds.includes(record.kind)) &&
     (!query.entityIds?.length || query.entityIds.some(id => record.entityIds.includes(id))));

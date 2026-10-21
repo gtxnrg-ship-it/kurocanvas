@@ -5,7 +5,7 @@ export interface AIStrokePlan {
   commands: NativeDrawingCommand[];
 }
 
-const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.add", "layer.remove", "layer.restore", "layer.rename", "layer.reorder", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
+const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.add", "layer.remove", "layer.rename", "layer.reorder", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
 const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
 const AI_MAX_ACTIONS = 48;
 const AI_MAX_POINTS_PER_STROKE = 128;

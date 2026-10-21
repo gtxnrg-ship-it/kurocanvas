@@ -112,7 +112,18 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     ? resolveCharacterVisualState(styleBible.characterStates, selectedProfile.characterName, selectedState.storyOrder) : undefined;
   const scarsAbsent = scarsAreAbsent(resolved?.traits.scars);
   const activeScars = selectedModel && selectedState && !scarsAbsent
-    ? selectedModel.scarOverlays.filter(scar => scar.introducedAtOrder <= selectedState.storyOrder && (scar.removedAtOrder === undefined || selectedState.storyOrder < scar.removedAtOrder))
+    ? selectedModel.scarOverlays.filter(scar => {
+        const explicitRemoval = styleBible?.characterStates.some(state =>
+          state.status === "approved"
+          && normalizeName(state.characterName) === normalizeName(selectedModel.characterName)
+          && state.storyOrder >= scar.introducedAtOrder
+          && state.storyOrder <= selectedState.storyOrder
+          && scarsAreAbsent(state.scars)
+        ) ?? false;
+        return scar.introducedAtOrder <= selectedState.storyOrder
+          && !explicitRemoval
+          && (scar.removedAtOrder === undefined || selectedState.storyOrder < scar.removedAtOrder);
+      })
     : [];
 
   useEffect(() => {

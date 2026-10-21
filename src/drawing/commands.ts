@@ -39,6 +39,14 @@ export interface RemoveStrokeCommand {
   strokeId: string;
 }
 
+export interface UpdateStrokeCommand {
+  version: typeof DRAWING_COMMAND_VERSION;
+  id: string;
+  type: "stroke.update";
+  strokeId: string;
+  patch: { tool?: "brush" | "eraser"; color?: string; size?: number };
+}
+
 /** Internal reversible command used by undo; restores the exact stroke ID and stack position. */
 export interface RestoreStrokeCommand {
   version: typeof DRAWING_COMMAND_VERSION;
@@ -92,6 +100,7 @@ export interface SetLayerLockCommand {
 export type NativeDrawingCommand =
   | AddStrokeCommand
   | RemoveStrokeCommand
+  | UpdateStrokeCommand
   | RestoreStrokeCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand

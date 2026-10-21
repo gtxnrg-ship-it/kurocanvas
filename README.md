@@ -8,10 +8,10 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 >
 > **Rough completion estimate:** approximately **45% of the full product vision is implemented in some form**. This is an engineering estimate, not a test-coverage metric. Core foundations exist, but several of the hardest end-to-end workflows and release requirements remain incomplete. **Release readiness is substantially lower than feature-foundation progress.**
 >
-> **Latest confirmed verification:** on commit [`b82299b`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/b82299b74b4a909182a91b08254dd1b4979ea2da), the automated regression tests, TypeScript checks, and production build passed. The Pages publish job failed because the repository's GitHub Pages site is not enabled/configured yet, so a live hosted preview is **not confirmed**. New commits trigger fresh checks; see [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions) for current results. Build output also warns about large JavaScript/model-runtime assets; performance on low-end phones still needs measurement. Passing automated checks does **not** prove every user journey works or that the app is ready for release.
+> **Verification status:** Every push to `main` triggers automated regression tests and a TypeScript/Vite production build. See [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions) for the latest commit’s exact result. A green build is necessary, not sufficient: browser-level package round trips, low-end Android performance, accessibility, and complete end-to-end journeys still need real-device validation. The Pages workflow now follows `main`, but a live hosted preview is **not confirmed** until the repository’s Pages site is enabled and deployment succeeds.
 
-- **Development branch:** `feat/universe-per-chat-foundation`
-- **Pull request:** [#127 — universe-first workspace, continuity memory, and native art-agent harness](https://github.com/gtxnrg-ship-it/kurocanvas/pull/127)
+- **Primary development branch:** `main`
+- **Merged foundation:** [#127 — universe-first workspace, continuity memory, and native art-agent harness](https://github.com/gtxnrg-ship-it/kurocanvas/pull/127) (merged; retained as implementation history)
 - **CI runs:** [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions)
 - **Source code:** [GitHub repository](https://github.com/gtxnrg-ship-it/kurocanvas)
 
@@ -22,13 +22,13 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | React + TypeScript application shell | Implemented | Needs broader real-device and end-to-end verification |
 | Home, chat, canvas, reader, Vault and settings areas | Implemented in the app | Feature completeness and edge cases vary by area |
 | Native editable 2D drawing | Implemented | Not all drawing capabilities are available to Kuro through a unified action registry |
-| Layers, strokes, drawing revisions and local storage | Implemented | Recovery, migration and cross-device portability need more verification |
+| Layers, strokes, drawing revisions and local storage | Implemented | Browser/device recovery and migration still need broader verification |
 | Universe/conversation separation and resume flows | Implemented on this branch | Isolation needs continued regression and end-to-end testing |
 | Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed |
-| Native drawing-agent execution | Partial | Broader action coverage, real-document read-back, iterative visual QA and robust rollback/cancellation remain |
-| Local browser model | Experimental | Text-only small model; quality and device performance are unverified |
+| Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
+| Local browser model | Experimental | Optional text-only model runs in a worker, supports cancellation and reports a local speed benchmark; real-device quality/performance remain unverified |
 | Hosted OpenAI-compatible provider | Integration implemented | Requires a compatible endpoint and valid configuration |
-| Portable project/export workflows | Partial | Round-trip, corruption handling and full asset portability require more testing |
+| Portable project/export workflows | Partial | Packages include universe transcripts, relationship/timeline canon, drawings and revision checkpoints; browser round-trip and corruption-recovery testing remain |
 | Android APK | **Not available yet** | No verified installable APK release is published |
 | Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
 
@@ -38,7 +38,7 @@ Statuses describe the code and current development scope; they are not a promise
 
 ### Option 1 — Open the development workspace
 
-**[Open Kuro Canvas in StackBlitz](https://stackblitz.com/github/gtxnrg-ship-it/kurocanvas/tree/feat/universe-per-chat-foundation?startScript=dev)**
+**[Open Kuro Canvas in StackBlitz](https://stackblitz.com/github/gtxnrg-ship-it/kurocanvas/tree/main?startScript=dev)**
 
 This opens a browser-based development environment. It may take time to install dependencies and start the app. It is a development workspace, not a stable hosted release, and it may not work if the repository or branch is inaccessible to StackBlitz.
 
@@ -55,7 +55,7 @@ Requirements: **Node.js 20+** and npm.
 ```bash
 git clone https://github.com/gtxnrg-ship-it/kurocanvas.git
 cd kurocanvas
-git switch feat/universe-per-chat-foundation
+git switch main
 npm install
 npm run dev
 ```
@@ -84,7 +84,7 @@ After the app opens, use this checklist to test the most important paths rather 
 - [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.
 - [ ] Create a second universe and confirm its conversation and saved drawings are separate.
 - [ ] In the first universe, ask Kuro for a drawing plan if a provider is connected. Inspect the proposed actions and approve only if the preview looks right.
-- [ ] Export a project if available, then test the exported file before relying on it as a backup.
+- [ ] Export a project, import it as a separate copy, and verify drawings, revision checkpoints, chat transcripts and chapter/relationship continuity before relying on it as a backup.
 
 This is a practical smoke test, not a substitute for the full release test suite. Report failures with the browser/device, exact steps, and any visible error message.
 

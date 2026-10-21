@@ -38,6 +38,16 @@ function parseEnglishNumber(phrase: string): number | undefined {
  * This lets recall work for messages such as "what happened in chapter two?" without
  * interpreting unrelated numbers elsewhere in the prompt as a chapter.
  */
+export function extractStoryChapterNumbers(message: string): number[] {
+  const chapters: number[] = [];
+  const pattern = /\b(?:chapter|ch\.?)\s*#?\s*(?:\d{1,7}(?:st|nd|rd|th)?|[a-z]+(?:[\s-]+[a-z]+){0,8})\b/gi;
+  for (const match of message.matchAll(pattern)) {
+    const chapter = parseStoryChapterNumber(match[0]);
+    if (chapter !== undefined) chapters.push(chapter);
+  }
+  return chapters;
+}
+
 export function parseStoryChapterNumber(message: string): number | undefined {
   const numeric = message.match(/\b(?:chapter|ch\.?)\s*#?\s*(\d{1,7})(?:st|nd|rd|th)?\b/i);
   if (numeric) {

@@ -5,7 +5,7 @@ export interface AIStrokePlan {
   commands: NativeDrawingCommand[];
 }
 
-const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
+const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.add", "layer.remove", "layer.restore", "layer.rename", "layer.reorder", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
 const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
 const AI_MAX_ACTIONS = 48;
 const AI_MAX_POINTS_PER_STROKE = 128;
@@ -46,7 +46,7 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
   for (const command of candidate.commands) {
     if (!command || typeof command !== "object" || Array.isArray(command)
       || !AI_ALLOWED_TYPES.has(String((command as { type?: unknown }).type))) {
-      throw new Error("This workflow only accepts approved native stroke and layer-property actions.");
+      throw new Error("This workflow only accepts approved native stroke and layer-management actions.");
     }
     const item = command as { type: string; points?: unknown };
     if ((item.type === "stroke.remove" || item.type === "stroke.update" || item.type === "stroke.transform") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");

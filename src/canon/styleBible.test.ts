@@ -35,7 +35,7 @@ describe("project style bible", () => {
 
   it("detects conflicting approved visual states at the same story order", () => {
     const bible = seeded();
-    bible.characterStates.push({ id:"state-conflict", characterName:"Ren", storyOrder:12, hair:"long blond hair", scars:"thin scar across left eyebrow", status:"approved" });
+    bible.characterStates.push({ id:"state-conflict", characterName:"Ren", storyOrder:12, chapterLabel:"Chapter 12", hair:"long blond hair", scars:"thin scar across left eyebrow", status:"approved" });
     expect(findStyleConflicts(bible).some(issue=>issue.code==="same-time-visual-conflict" && issue.severity==="error")).toBe(true);
   });
 

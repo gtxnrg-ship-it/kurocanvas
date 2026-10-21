@@ -6,12 +6,12 @@ import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel'; filled?: boolean; text?: string; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble'; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
@@ -40,26 +40,41 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   if (stroke.shape === 'text' && stroke.points.length) {
     const start = stroke.points[0];
     ctx.fillStyle = stroke.color;
-    ctx.font = '600 ' + Math.max(8, stroke.size) + 'px Inter, Trebuchet MS, sans-serif';
+    const font = stroke.fontFamily === 'serif' ? 'Georgia, serif' : stroke.fontFamily === 'sans' ? 'Arial, sans-serif' : 'Trebuchet MS, Comic Sans MS, cursive';
+    ctx.font = '600 ' + Math.max(8, stroke.size) + 'px ' + font;
     ctx.textBaseline = 'top';
     (stroke.text ?? '').split('\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
   } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
     ctx.lineWidth = (stroke.shape === 'panel' ? Math.max(4, stroke.size) : stroke.size) * widthMultiplier;
-    ctx.beginPath();
-    if (stroke.shape === 'line') {
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-    } else if (stroke.shape === 'rectangle' || stroke.shape === 'panel') {
-      ctx.rect(Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+    if (stroke.shape === 'bubble') {
+      const x = Math.min(start.x, end.x), y = Math.min(start.y, end.y);
+      const w = Math.max(1, Math.abs(end.x - start.x)), h = Math.max(1, Math.abs(end.y - start.y));
+      const fillColor = stroke.fillColor ?? '#fffdfb';
+      // Draw the tail first; the filled ellipse covers the tail's join for a clean balloon seam.
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.85, y + h * 0.85);
+      ctx.lineTo(x + w * 1.12, y + h * 1.2);
+      ctx.lineTo(x + w * 0.71, y + h * 0.95);
+      ctx.closePath(); ctx.fillStyle = fillColor; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, Math.max(w / 2, 0.01), Math.max(h / 2, 0.01), 0, 0, Math.PI * 2);
+      ctx.fillStyle = fillColor; ctx.fill(); ctx.stroke();
     } else {
-      const rx = Math.abs(end.x - start.x) / 2;
-      const ry = Math.abs(end.y - start.y) / 2;
-      ctx.ellipse((start.x + end.x) / 2, (start.y + end.y) / 2, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+      ctx.beginPath();
+      if (stroke.shape === 'line') {
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+      } else if (stroke.shape === 'rectangle' || stroke.shape === 'panel') {
+        ctx.rect(Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+      } else {
+        const rx = Math.abs(end.x - start.x) / 2;
+        const ry = Math.abs(end.y - start.y) / 2;
+        ctx.ellipse((start.x + end.x) / 2, (start.y + end.y) / 2, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+      }
+      if (stroke.filled && stroke.shape !== 'line') ctx.fill();
+      ctx.stroke();
     }
-    if (stroke.filled && stroke.shape !== 'line') ctx.fill();
-    ctx.stroke();
   } else if (stroke.points.length === 1) {
     const p = stroke.points[0];
     ctx.beginPath();
@@ -93,7 +108,9 @@ function getStrokeBounds(stroke: Stroke) {
   const textLines = (stroke.text ?? '').split('\n');
   const textWidth = stroke.shape === 'text' ? Math.max(12, ...textLines.map(line => line.length * stroke.size * 0.62)) : 0;
   const textHeight = stroke.shape === 'text' ? textLines.length * stroke.size * 1.3 : 0;
-  return { x: minX - pad, y: minY - pad, width: Math.max(1, maxX - minX, textWidth) + pad * 2, height: Math.max(1, maxY - minY, textHeight) + pad * 2 };
+  const bubbleWidth = stroke.shape === 'bubble' ? Math.max(8, (maxX - minX) * 0.12) : 0;
+  const bubbleHeight = stroke.shape === 'bubble' ? Math.max(8, (maxY - minY) * 0.22) : 0;
+  return { x: minX - pad, y: minY - pad, width: Math.max(1, maxX - minX, textWidth) + pad * 2 + bubbleWidth, height: Math.max(1, maxY - minY, textHeight) + pad * 2 + bubbleHeight };
 }
 
 function createSurface(width: number, height: number): HTMLCanvasElement | null {
@@ -121,6 +138,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [color, setColor] = useState(COLORS[2]);
   const [size, setSize] = useState(6);
   const [textDraft, setTextDraft] = useState('');
+  const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -354,7 +372,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (tool === 'text') {
       if (!textDraft.trim()) { setNotice('Type your lettering in the toolbar, then tap the canvas to place it.'); return; }
       const at = pointFromEvent(e);
-      const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, color, size: Math.max(12, size * 2), points: [at] };
+      const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, fontFamily: letteringFont, color, size: Math.max(12, size * 2), points: [at] };
       moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
       const beforeText = moveSnapshotRef.current;
       if (beforeText) setEditUndoStack(old => [...old, beforeText]);
@@ -364,7 +382,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), brushPreset: tool === 'brush' ? brushPreset : undefined, color, size, points: [start] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' || tool === 'bubble' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), fillColor: tool === 'bubble' ? '#fffdfb' : undefined, brushPreset: tool === 'brush' ? brushPreset : undefined, color, size, points: [start] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -640,7 +658,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
 
   return <section className="alt drawing-alt">
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Line, rectangle, ellipse, and comic-panel tools create editable vector-like strokes. Pressure is used when your device reports it. The eraser only affects the active layer; Undo restores the last mark. PNG export excludes hidden layers.</div>}
+    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Lettering supports comic, sans, and serif fonts. Pressure is used when your device reports it. The eraser only affects the active layer; Undo restores the last mark. PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
@@ -650,6 +668,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='line'?'chosen':''} onClick={() => setTool('line')} title="Line"><Minus size={16}/><span>Line</span></button>
         <button className={tool==='rectangle'?'chosen':''} onClick={() => setTool('rectangle')} title="Rectangle"><Square size={16}/><span>Rectangle</span></button>
         <button className={tool==='panel'?'chosen':''} onClick={() => setTool('panel')} title="Draw a comic panel frame"><Square size={16}/><span>Panel</span></button>
+        <button className={tool==='bubble'?'chosen':''} onClick={() => setTool('bubble')} title="Draw a speech balloon with a tail"><MessageCircle size={16}/><span>Bubble</span></button>
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
@@ -658,7 +677,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
-      {tool==='text' && <label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label>}
+      {tool==='text' && <><label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>

@@ -46,7 +46,7 @@ This opens a browser-based development environment. It may take time to install 
 
 **[Try the GitHub Pages preview](https://gtxnrg-ship-it.github.io/kurocanvas/)**
 
-This is the intended development-preview URL. Availability depends on GitHub Pages being enabled and a successful deployment having completed. If it does not load, check the [deployment workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/deploy-pages-preview.yml) and repository Pages settings. A successful CI run alone does not prove that Pages has been enabled or that a deployment is live.
+This is the intended development-preview URL. Availability depends on GitHub Pages being enabled and a successful deployment having completed. A repository maintainer must enable Pages once in **Settings → Pages → Build and deployment → Source: GitHub Actions**; the CI integration cannot create the Pages site because it lacks repository administration permission. Then check the [deployment workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/deploy-pages-preview.yml). A successful CI run alone does not prove that Pages has been enabled or that a deployment is live.
 
 ### Option 3 — Run it locally
 

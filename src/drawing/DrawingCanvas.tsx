@@ -336,7 +336,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       });
       if (!target) { setSelectedStrokeId(null); setNotice('Tap an unlocked object to select it. Drag inside to move; use the top handle to rotate and corner handle to resize.'); return; }
       const bounds = getStrokeBounds(target);
-      const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+      const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, pressure: 0.5 };
       if (target.id !== selectedStrokeId) mode = 'move';
       setSelectedStrokeId(target.id); e.currentTarget.setPointerCapture(e.pointerId);
       selectionDragRef.current = { pointerX: e.clientX, pointerY: e.clientY, strokeId: target.id, startPoints: target.points.map(point => ({ ...point })), moved: false, mode, bounds, center, startAngle: Math.atan2(at.y - center.y, at.x - center.x), startRotation: target.rotation ?? 0 };

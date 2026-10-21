@@ -130,3 +130,6 @@
 .text-draft-control input{min-width:0;flex:1;padding:8px 9px;border:1px solid #514063;border-radius:8px;background:#100e17;color:#f0e8ff;font:inherit;font-size:11px}
 .text-draft-control input:focus{outline:1px solid #a78bfa;border-color:#a78bfa}
 @media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input{width:100%}}
+
+/* Visible transform affordance for manual object selection */
+.drawing-paper .canvas-selection-outline{position:absolute;z-index:4;border:1px solid #a78bfa;outline:1px solid rgba(255,255,255,.75);outline-offset:2px;box-shadow:0 0 0 1px rgba(10,8,16,.5);pointer-events:none;min-width:2px;min-height:2px}

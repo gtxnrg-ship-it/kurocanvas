@@ -20,6 +20,7 @@ export interface CharacterVisualState {
   characterName: string;
   storyOrder: number;
   chapterLabel?: string;
+  chapterNumber?: number;
   age?: string;
   hair?: string;
   eyes?: string;
@@ -75,7 +76,7 @@ export function validateStyleBible(bible: ProjectStyleBible, expectedProjectId?:
   }
   for (const rule of bible.rules ?? []) if (!rule.rule.trim()) errors.push("Style rules cannot be empty.");
   for (const state of bible.characterStates ?? []) {
-    if (!state.characterName.trim() || !Number.isFinite(state.storyOrder)) errors.push("Character visual states need a name and numeric story order.");
+    if (!state.characterName.trim() || !Number.isFinite(state.storyOrder) || (state.chapterNumber !== undefined && (!Number.isFinite(state.chapterNumber) || state.chapterNumber < 0))) errors.push("Character visual states need a name and numeric story order; chapter number must be non-negative.");
   }
   return errors;
 }
@@ -112,7 +113,7 @@ export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, pro
   const approvedInspirations = bible.inspirations.filter(source => source.status === "approved");
   const names = [...new Set(bible.characterStates.filter(s=>s.status==="approved").map(s=>s.characterName))];
   const relevantNames = names.filter(name => normalize(userMessage).includes(normalize(name)));
-  const chosenStates = bible.characterStates.filter(s => s.status === "approved" && (targetStoryOrder === undefined || s.storyOrder <= targetStoryOrder) && (!relevantNames.length || relevantNames.some(n=>normalize(n)===normalize(s.characterName))))
+  const chosenStates = bible.characterStates.filter(s => s.status === "approved" && (targetStoryOrder === undefined || (s.chapterNumber ?? s.storyOrder) <= targetStoryOrder) && (!relevantNames.length || relevantNames.some(n=>normalize(n)===normalize(s.characterName))))
     .sort((a,b)=>a.storyOrder-b.storyOrder);
   const lines = [
     "PROJECT STYLE BIBLE — CONTINUITY CONTRACT",
@@ -131,7 +132,7 @@ export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, pro
     for (const rule of approvedRules) lines.push("- [" + rule.category + "] " + rule.rule);
   }
   if (chosenStates.length) {
-    lines.push("APPROVED TEMPORAL CHARACTER VISUAL STATES (oldest first; use only the latest state at or before the requested story order):");
+    lines.push("APPROVED TEMPORAL CHARACTER VISUAL STATES (oldest first; use only states at or before the requested chapter/order):");
     for (const state of chosenStates) {
       const attrs = (["age","hair","eyes","face","outfit","body","scars","accessories","expressionNotes"] as const)
         .filter(key=>state[key]?.trim()).map(key=>key + "=" + state[key]);

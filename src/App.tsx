@@ -118,7 +118,7 @@ export default function App(){
  try{
   const conversation=await universeStorage.createConversation(activeUniverseId,'New conversation '+(universeConversations.length+1));
   const conversations=await conversationStorage.list(activeUniverseId);
-  setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));
+  setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));const universe=await universeStorage.load(activeUniverseId);if(universe)setRecentConversations(current=>[...current.filter(value=>value.id!==conversation.id),{id:conversation.id,universeId:activeUniverseId,universeTitle:universe.title,title:conversation.title,updatedAt:conversation.updatedAt,projectId:universe.projectId,homeConversationId:universe.homeConversationId}].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
   setMessages([]);persistedMessageCount.current=0;setActiveConversationId(conversation.id);setActiveDrawingId('');setDraft('');setProposedPlan(null);setCanvasRequest(null);setMode('chat');
   try{localStorage.setItem('kuro-active-conversation',conversation.id);}catch{}
   setCanonNotice('New conversation explicitly attached to this universe. Approved canon is shared; the transcript remains separate.');

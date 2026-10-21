@@ -38,7 +38,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
     setAllowInsecureLocalhost(true);
     setModels([]);
     setError("");
-    setStatus("Preset selected. Start the separate Qwen3.8-27B inference server first, then test the connection.");
+    setStatus("Desktop/server preset selected. This does not install the model; start the separate Qwen3.8-27B inference server, then test the connection.");
   }
 
   async function discoverModels() {
@@ -92,8 +92,8 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
     <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local inference servers. Model weights and inference software are installed separately.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
     <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
     <div className="provider-recommended-model">
-      <strong>Recommended open-weight candidate: Qwen3.8-27B</strong>
-      <p>Multimodal, agent-focused, Apache-2.0 model. Its full-precision weights are about 55.6 GB and need more memory at runtime, so this preset targets a capable desktop/server—not a typical phone. Kuro can attach a bounded canvas preview to drawing and visual-inspection requests for models advertising vision; general reference uploads and a full iterative visual-QA loop are still unfinished. Hardware-specific quantized variants may use less memory; see the model strategy guide.</p>
+      <strong>Desktop/server evaluation candidate: Qwen3.8-27B</strong>
+      <p>Optional multimodal, agent-focused, Apache-2.0 candidate for capable desktops/servers only—not Kuro's default and not a phone recommendation. Full-precision weights are about 55.6 GB and runtime memory needs are higher. For Android, we must benchmark compact models on real low-end devices before choosing a default; Kuro's non-AI canvas and saved-universe features should not depend on downloading a large model. Kuro can attach a bounded canvas preview to drawing and visual-inspection requests for models advertising vision; general reference uploads and a full iterative visual-QA loop are still unfinished. See the device-tier model strategy guide.</p>
       <button type="button" className="provider-secondary" onClick={useRecommendedQwenLocalEndpoint}>Use local Qwen3.8 endpoint</button>
       <a href="https://huggingface.co/Qwen/Qwen3.8-27B" target="_blank" rel="noreferrer">Official model card ↗</a>
     </div>

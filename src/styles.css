@@ -452,3 +452,9 @@
 .inline-reference-note,.inline-reference-status{margin:0;padding:0 12px 10px;font-size:10px;line-height:1.55;color:#a69db7}
 .inline-reference-status{color:#d9c9ff;padding-top:0}
 @media(max-width:640px){.inline-reference-grid{grid-template-columns:minmax(0,1fr)}.inline-reference-card{display:grid;grid-template-columns:minmax(90px,34%) minmax(0,1fr)}.inline-reference-image{aspect-ratio:auto;min-height:180px}.inline-reference-detail{padding:9px}.inline-reference-title{font-size:10px}}
+
+/* Stylus-pressure sensitivity control for the manual drawing toolbar. */
+.pressure-control{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid rgba(167,139,250,.22);border-radius:9px;background:rgba(24,20,37,.78);font-size:11px;color:#cfc5e3;white-space:nowrap}
+.pressure-control input[type=range]{width:76px;accent-color:var(--purple);cursor:pointer}
+.pressure-control output{min-width:30px;color:#f3edff;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.pressure-control{gap:4px;padding:5px 6px}.pressure-control input[type=range]{width:58px}}

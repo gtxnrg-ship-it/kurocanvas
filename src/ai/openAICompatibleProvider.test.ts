@@ -50,6 +50,7 @@ describe("OpenAICompatibleProvider", () => {
       modelUri: "Qwen/Qwen3.8-27B",
       providerId: "test",
       location: "local",
+      capabilities: ["chat", "vision", "structured-output"],
       installed: true,
       enabled: true,
     });

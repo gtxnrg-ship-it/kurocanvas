@@ -21,7 +21,7 @@ import {
 } from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -29,6 +29,7 @@ const DRAWINGS = "drawings";
 const DRAWING_REVISIONS = "drawingRevisions";
 const CANON = "canon";
 const STORY_MEMORY = "storyMemory";
+const STORY_MEMORY_TOKENS = "storyMemoryTokens";
 const ART_DIRECTION = "artDirection";
 const STYLE_BIBLE = "styleBible";
 const REFERENCE_SOURCES = "referenceSources";
@@ -39,6 +40,85 @@ const CHAT_MESSAGES = "chatMessages";
 const RELATIONSHIPS = "relationships";
 const CHARACTER_EVOLUTION = "characterEvolution";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
+
+type StoryMemoryTokenIndexRecord = { id: string; projectId: string; token: string; recordId: string };
+
+function memoryTokensForStorage(record: StoryMemoryRecord): string[] {
+  const thread = record.storyThread ? [
+    record.storyThread.type, record.storyThread.clueDescription, record.storyThread.plannedPayoff,
+    ...record.storyThread.linkedEntityIds,
+  ] : [];
+  const prioritized = [record.title, ...record.entityIds, ...record.tags, ...thread, record.summary];
+  const tokens = new Set<string>();
+  for (const part of prioritized) {
+    for (const token of part.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+      if (token.length > 1) tokens.add(token);
+      if (tokens.size >= 64) return [...tokens];
+    }
+  }
+  return [...tokens];
+}
+
+const MEMORY_QUERY_STOPWORDS = new Set([
+  "the","and","for","with","that","this","what","when","where","who","why","how","please","would","could","should",
+  "write","draft","make","create","chapter","chapters","scene","scenes","story","series","outline","recap","remember",
+  "happened","using","from","into","about","then","them","they","have","has","was","were","are","our","your","their",
+]);
+
+function memoryQueryTokens(text: string): string[] {
+  return [...new Set(text.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
+    .filter(token => token.length > 1 && !MEMORY_QUERY_STOPWORDS.has(token)))].slice(0, 16);
+}
+
+async function readBoundedIndexValues<T>(
+  storeName: string,
+  indexName: string,
+  range: IDBKeyRange,
+  direction: IDBCursorDirection,
+  limit: number,
+): Promise<T[]> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<T[]>((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const request = tx.objectStore(storeName).index(indexName).openCursor(range, direction);
+      const values: T[] = [];
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor || values.length >= limit) return;
+        values.push(cursor.value as T);
+        if (values.length < limit) cursor.continue();
+      };
+      request.onerror = () => reject(request.error ?? new Error("Could not read indexed story-memory records."));
+      tx.oncomplete = () => resolve(values);
+      tx.onerror = () => reject(tx.error ?? new Error("Story-memory index query failed."));
+      tx.onabort = () => reject(tx.error ?? new Error("Story-memory index query was aborted."));
+    });
+  } finally { db.close(); }
+}
+
+async function readStoryMemoryByIds(ids: readonly string[]): Promise<StoryMemoryRecord[]> {
+  if (!ids.length) return [];
+  const db = await openDatabase();
+  try {
+    return await new Promise<StoryMemoryRecord[]>((resolve, reject) => {
+      const tx = db.transaction(STORY_MEMORY, "readonly");
+      const store = tx.objectStore(STORY_MEMORY);
+      const records: StoryMemoryRecord[] = [];
+      for (const id of ids) {
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const value = request.result as StoryMemoryRecord | undefined;
+          if (value) records.push(value);
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not load a matched story-memory record."));
+      }
+      tx.oncomplete = () => resolve(records);
+      tx.onerror = () => reject(tx.error ?? new Error("Matched story-memory lookup failed."));
+      tx.onabort = () => reject(tx.error ?? new Error("Matched story-memory lookup was aborted."));
+    });
+  } finally { db.close(); }
+}
 
 function openDatabase(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error(DB_UNAVAILABLE));
@@ -53,6 +133,39 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(DRAWING_REVISIONS)) db.createObjectStore(DRAWING_REVISIONS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STORY_MEMORY)) db.createObjectStore(STORY_MEMORY, { keyPath: "id" });
+      const storyMemoryStore = request.transaction?.objectStore(STORY_MEMORY);
+      if (storyMemoryStore && !storyMemoryStore.indexNames.contains("byProjectId")) {
+        storyMemoryStore.createIndex("byProjectId", "projectId", { unique: false });
+      }
+      if (storyMemoryStore && !storyMemoryStore.indexNames.contains("byProjectAndChapter")) {
+        storyMemoryStore.createIndex("byProjectAndChapter", ["projectId", "chapterNumber"], { unique: false });
+      }
+      if (storyMemoryStore && !storyMemoryStore.indexNames.contains("byProjectTimelineOrder")) {
+        storyMemoryStore.createIndex("byProjectTimelineOrder", ["projectId", "timelineId", "storyOrder"], { unique: false });
+      }
+      if (storyMemoryStore && !storyMemoryStore.indexNames.contains("byProjectUpdated")) {
+        storyMemoryStore.createIndex("byProjectUpdated", ["projectId", "updatedAt"], { unique: false });
+      }
+      const newStoryMemoryTokenStore = !db.objectStoreNames.contains(STORY_MEMORY_TOKENS);
+      if (newStoryMemoryTokenStore) {
+        const tokenStore = db.createObjectStore(STORY_MEMORY_TOKENS, { keyPath: "id" });
+        tokenStore.createIndex("byProjectId", "projectId", { unique: false });
+        tokenStore.createIndex("byProjectToken", ["projectId", "token"], { unique: false });
+        tokenStore.createIndex("byRecordId", "recordId", { unique: false });
+        // One-time version-13 -> 14 backfill keeps existing Vault memories searchable.
+        if (storyMemoryStore) {
+          const cursorRequest = storyMemoryStore.openCursor();
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            const record = cursor.value as StoryMemoryRecord;
+            for (const token of memoryTokensForStorage(record)) {
+              tokenStore.put({ id: record.id + "::" + token, projectId: record.projectId, token, recordId: record.id } satisfies StoryMemoryTokenIndexRecord);
+            }
+            cursor.continue();
+          };
+        }
+      }
       if (!db.objectStoreNames.contains(ART_DIRECTION)) db.createObjectStore(ART_DIRECTION, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STYLE_BIBLE)) db.createObjectStore(STYLE_BIBLE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(REFERENCE_SOURCES)) db.createObjectStore(REFERENCE_SOURCES, { keyPath: "id" });

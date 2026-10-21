@@ -144,5 +144,5 @@
 .selected-object-actions button{display:inline-flex;align-items:center;gap:5px;border:1px solid #443951;border-radius:7px;background:#211a2d;color:#eee5fa;padding:7px 9px;font-size:11px;cursor:pointer}
 .selected-object-actions button:hover{border-color:#aa8be3;background:#302340}
 
-.drawing-paper .canvas-selection-outline::before{content:"";position:absolute;left:50%;top:-18px;width:9px;height:9px;transform:translateX(-50%);border:2px solid #fff;background:#a78bfa;border-radius:50%;box-shadow:0 0 0 2px rgba(24,18,34,.85)}
+.drawing-paper .canvas-selection-outline::before{content:"";position:absolute;left:50%;top:-24px;width:9px;height:9px;transform:translateX(-50%);border:2px solid #fff;background:#a78bfa;border-radius:50%;box-shadow:0 0 0 2px rgba(24,18,34,.85)}
 .drawing-paper .canvas-selection-outline::after{content:"";position:absolute;right:-5px;bottom:-5px;width:9px;height:9px;border:1px solid #fff;background:#a78bfa;border-radius:2px;box-shadow:0 0 0 2px rgba(24,18,34,.85)}

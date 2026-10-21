@@ -13,7 +13,7 @@ type WorkerRequestPayload =
 export type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
-  | { id: number; type: "result"; text: string; finishReason: "stop" | "length" }
+  | { id: number; type: "result"; text: string; outputTokens: number; finishReason: "stop" | "length" }
   | { id: number; type: "error"; message: string };
 export type ModelWorker = {
   postMessage: (message: WorkerRequest) => void;
@@ -94,7 +94,7 @@ export class LocalTinyModelProvider implements ModelProvider {
       const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens }, request.signal);
       if (request.signal?.aborted) return this.cancelledResponse(model);
       if (response.type !== "result") throw new Error("The local model worker returned an unexpected response.");
-      return { text: response.text, modelId: model.id, providerId: this.id, finishReason: response.finishReason };
+      return { text: response.text, modelId: model.id, providerId: this.id, finishReason: response.finishReason, usage: { outputTokens: response.outputTokens } };
     } catch (error) {
       if (request.signal?.aborted) return this.cancelledResponse(model);
       throw error;

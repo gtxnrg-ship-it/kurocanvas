@@ -9,12 +9,25 @@ import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord 
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
+type SymmetryMode = 'none' | 'vertical' | 'horizontal' | 'both';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
+function mirrorStrokeCopies(stroke: Stroke, width: number, height: number, mode: SymmetryMode): Stroke[] {
+  if (mode === 'none' || (stroke.shape && !['line','rectangle','ellipse'].includes(stroke.shape))) return [];
+  const copies: Stroke[] = [];
+  const makeCopy = (mirrorX: boolean, mirrorY: boolean): Stroke => ({
+    ...stroke, id: crypto.randomUUID(),
+    points: stroke.points.map(point => ({ ...point, x: mirrorX ? width - point.x : point.x, y: mirrorY ? height - point.y : point.y })),
+  });
+  if (mode === 'vertical' || mode === 'both') copies.push(makeCopy(true, false));
+  if (mode === 'horizontal' || mode === 'both') copies.push(makeCopy(false, true));
+  if (mode === 'both') copies.push(makeCopy(true, true));
+  return copies;
+}
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
@@ -187,6 +200,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
   const [stabilizer, setStabilizer] = useState(0);
+  const [symmetryMode, setSymmetryMode] = useState<SymmetryMode>('none');
   const [panelLayout, setPanelLayout] = useState<PanelLayoutPreset>('two-rows');
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -481,7 +495,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       const strength = active.shape === undefined ? (stabilizer / 10) * 0.72 : 0;
       active.points.push({ x: previous.x + (raw.x - previous.x) * (1 - strength), y: previous.y + (raw.y - previous.y) * (1 - strength), pressure: raw.pressure });
     }
-    render([...strokes, active], background);
+    render([...strokes, active, ...mirrorStrokeCopies(active, docRef.current.width, docRef.current.height, symmetryMode)], background);
   };
   const pointerUp = () => {
     if (panRef.current) { panRef.current = null; return; }
@@ -492,13 +506,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       moveSnapshotRef.current = null; return;
     }
     if (!activeRef.current) return;
-    setStrokes(old => [...old, activeRef.current!]);
+    const committed = activeRef.current;
+    const mirrored = mirrorStrokeCopies(committed, docRef.current.width, docRef.current.height, symmetryMode);
+    setStrokes(old => [...old, committed, ...mirrored]);
     activeRef.current = null;
     const beforeStroke = moveSnapshotRef.current;
     if (beforeStroke) setEditUndoStack(old => [...old, beforeStroke]);
     moveSnapshotRef.current = null; setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
     setRedoStack([]);
-    setNotice('Drawing mark added · Undo is available');
+    setNotice(mirrored.length ? 'Stroke mirrored across ' + (symmetryMode === 'both' ? 'both symmetry axes' : symmetryMode + ' symmetry') + ' · Undo removes the complete set' : 'Drawing mark added · Undo is available');
   };
   const undo = () => {
     const action = historyOrder[historyOrder.length - 1];
@@ -792,7 +808,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
       {tool==='text' && <><label className="text-draft-control">Lettering <textarea rows={2} value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type dialogue; use new lines, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
-      {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>}
+      {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>
+      <label className="symmetry-control">Symmetry <select aria-label="Drawing symmetry" value={symmetryMode} onChange={e => setSymmetryMode(e.target.value as SymmetryMode)}><option value="none">Off</option><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option><option value="both">Four-way</option></select></label>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<label className="export-scale-control">Resolution <select aria-label="PNG export resolution" value={exportScale} onChange={e => setExportScale(Number(e.target.value) as 1 | 1.5 | 2)}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option></select></label><label className="transparent-export-control" title="Export without the paper background"><input type="checkbox" checked={transparentExport} onChange={e => setTransparentExport(e.target.checked)}/> Transparent export</label><button onClick={exportSvg} title="Export vector artwork as SVG"><Download size={15}/> Export SVG</button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>

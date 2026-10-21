@@ -1,13 +1,15 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
+import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
 const DRAWINGS = "drawings";
 const CANON = "canon";
+const STORY_MEMORY = "storyMemory";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -21,6 +23,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(AUTOSAVE)) db.createObjectStore(AUTOSAVE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(DRAWINGS)) db.createObjectStore(DRAWINGS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
+      if (!db.objectStoreNames.contains(STORY_MEMORY)) db.createObjectStore(STORY_MEMORY, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -192,5 +195,45 @@ export const canonStorage = {
   },
   async remove(projectId: string): Promise<void> {
     await requestValue<undefined>(CANON, "readwrite", store => store.delete(projectId));
+  },
+};
+
+
+/** Durable chapter/event/character-change memory, scoped to a project. */
+export const storyMemoryStorage = {
+  async save(record: StoryMemoryRecord): Promise<void> {
+    const errors = validateStoryMemoryRecord(record, record.projectId);
+    if (errors.length) throw new Error("Story memory validation failed: " + errors.join(" "));
+    await requestValue<IDBValidKey>(STORY_MEMORY, "readwrite", store => store.put({ ...record, updatedAt: new Date().toISOString() }));
+  },
+  async list(projectId: string): Promise<StoryMemoryRecord[]> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading story memory.");
+    const records = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll());
+    const scoped = records.filter(record => record.projectId === projectId);
+    for (const record of scoped) {
+      const errors = validateStoryMemoryRecord(record, projectId);
+      if (errors.length) throw new Error("Saved story memory is invalid: " + errors.join(" "));
+    }
+    return scoped.sort((a, b) => (a.storyOrder ?? -1) - (b.storyOrder ?? -1) || a.updatedAt.localeCompare(b.updatedAt));
+  },
+  async remove(id: string, projectId: string): Promise<void> {
+    const existing = await requestValue<StoryMemoryRecord | undefined>(STORY_MEMORY, "readonly", store => store.get(id));
+    if (existing && existing.projectId !== projectId) throw new Error("Cannot delete story memory from another project.");
+    await requestValue<undefined>(STORY_MEMORY, "readwrite", store => store.delete(id));
+  },
+  async removeProject(projectId: string): Promise<void> {
+    const records = await this.list(projectId);
+    if (!records.length) return;
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORY_MEMORY, "readwrite");
+        const store = tx.objectStore(STORY_MEMORY);
+        for (const record of records) store.delete(record.id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not remove project story memory."));
+        tx.onabort = () => reject(tx.error ?? new Error("Project story memory removal was cancelled."));
+      });
+    } finally { db.close(); }
   },
 };

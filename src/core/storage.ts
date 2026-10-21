@@ -493,6 +493,35 @@ export const universeStorage = {
       });
     } finally { db.close(); }
   },
+  /** Explicitly attach an additional conversation to an existing universe. */
+  async createConversation(universeId: string, title = "New conversation"): Promise<ConversationRecord> {
+    const current = await this.load(universeId);
+    if (!current) throw new Error("Choose an existing universe before creating an attached conversation.");
+    const now = new Date().toISOString();
+    const conversation: ConversationRecord = {
+      schemaVersion: 1,
+      id: crypto.randomUUID(),
+      universeId,
+      title: title.trim() || "New conversation",
+      createdAt: now,
+      updatedAt: now,
+      lifecycle: "active",
+      metadata: { explicitlyAttached: true },
+    };
+    const updatedUniverse = { ...current, updatedAt: now };
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([UNIVERSES, CONVERSATIONS], "readwrite");
+        tx.objectStore(UNIVERSES).put(updatedUniverse);
+        tx.objectStore(CONVERSATIONS).add(conversation);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not create conversation."));
+        tx.onabort = () => reject(tx.error ?? new Error("Conversation creation was cancelled."));
+      });
+    } finally { db.close(); }
+    return conversation;
+  },
   async save(universe: UniverseRecord): Promise<void> {
     if (!validateUniverseRecord(universe)) throw new Error("Refusing to save an invalid universe.");
     await requestValue<IDBValidKey>(UNIVERSES, "readwrite", store => store.put(universe));

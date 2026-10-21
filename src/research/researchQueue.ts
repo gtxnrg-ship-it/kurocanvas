@@ -34,6 +34,15 @@ export const RESEARCH_QUEUE_CHANGED = "kuro-research-queue-changed";
 const SEARCH_LIMIT: Record<ResearchDepth, number> = { quick: 3, balanced: 5, deep: 8, exhaustive: 12 };
 const EXTRACT_CHARS: Record<ResearchDepth, number> = { quick: 1000, balanced: 1700, deep: 2300, exhaustive: 3000 };
 
+/**
+ * Recognize source-dependent follow-ups so a chat response cannot silently
+ * fall back to unsupported memory when a queued research task is still running.
+ */
+export function isResearchFollowUpRequest(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  return /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results|sources|research)|based on (?:the |your )?research|what did (?:you|the research|the sources|your research) find|what have you found|what did you discover|use (?:those|these|the) sources|cite (?:those|these|the) sources|according to (?:the |your )?research|from (?:the |your )?research)\b/i.test(text);
+}
+
 export interface ResearchTaskIntent {
   query: string;
   depth: ResearchDepth;

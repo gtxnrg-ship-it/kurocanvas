@@ -10,6 +10,7 @@ import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
 import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPalette';
 import { flipStrokeGeometry, type FlipAxis } from './flipArtwork';
+import { applyStrokeAppearance } from './strokeAppearance';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
@@ -687,6 +688,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   };
   const selectedStroke = selectedStrokeId ? strokes.find(stroke => stroke.id === selectedStrokeId) : undefined;
   const snapshotStrokes = () => strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+  const selectedStrokeLocked = !!selectedStroke && !!layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id))?.locked;
+  const checkpointSelectedEdit = () => {
+    if (!selectedStroke || selectedStrokeLocked) return;
+    setEditUndoStack(old => [...old, snapshotStrokes()]);
+    setHistoryOrder(old => [...old, 'edit']);
+    setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
+  };
   const removeSelected = () => {
     if (!selectedStroke) return;
     const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
@@ -992,7 +1000,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
-      {tool === 'select' && selectedStroke && <div className="selection-transform-tools" aria-label="Selected artwork transforms"><button type="button" onClick={() => flipSelected('horizontal')} title="Mirror selected vector artwork left to right">Flip ↔</button><button type="button" onClick={() => flipSelected('vertical')} title="Mirror selected vector artwork top to bottom">Flip ↕</button></div>}
+      {tool === 'select' && selectedStroke && <div className="selection-transform-tools" aria-label="Selected artwork inspector"><span className="selection-inspector-title">Object</span><label className="selection-color-control">Color <input aria-label="Selected object color" type="color" value={/^#[0-9a-f]{6}$/i.test(selectedStroke.color) ? selectedStroke.color : '#171321'} disabled={selectedStrokeLocked} onFocus={checkpointSelectedEdit} onChange={e => setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { color: e.target.value }))}/></label><label className="selection-opacity-control">Opacity <input aria-label="Selected object opacity" type="range" min="0" max="100" value={Math.round((selectedStroke.opacity ?? 1) * 100)} disabled={selectedStrokeLocked} onPointerDown={checkpointSelectedEdit} onKeyDown={e => {if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key) && !e.repeat) checkpointSelectedEdit();}} onChange={e => setStrokes(old => applyStrokeAppearance(old, selectedStroke.id, { opacity: Number(e.target.value) / 100 }))}/><span>{Math.round((selectedStroke.opacity ?? 1) * 100)}%</span></label><button type="button" disabled={selectedStrokeLocked} onClick={() => flipSelected('horizontal')} title="Mirror selected vector artwork left to right">Flip ↔</button><button type="button" disabled={selectedStrokeLocked} onClick={() => flipSelected('vertical')} title="Mirror selected vector artwork top to bottom">Flip ↕</button></div>}
       <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}{customColors.map(c => <span className="custom-swatch" key={c}><button aria-label={'Choose saved color '+c} title={'Saved '+c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/><button type="button" className="custom-swatch-remove" aria-label={'Remove saved color '+c} title="Remove swatch" onClick={() => removeCustomColor(c)}>×</button></span>)}<button type="button" className="add-color-swatch" onClick={addCurrentColorToPalette} title="Save the current color as a reusable swatch">+ Swatch</button><label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
       <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option><option value="watercolor">Watercolor wash</option><option value="dry-brush">Dry brush</option><option value="calligraphy">Calligraphy nib</option></select></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>

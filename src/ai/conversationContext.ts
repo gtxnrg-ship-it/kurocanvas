@@ -12,6 +12,7 @@ export function buildKuroConversationTurns(
 ): ModelMessage[] {
   const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.min(24, Math.floor(limit))) : 12;
   const safeChars = Number.isFinite(maxCharsPerMessage) ? Math.max(1, Math.min(6000, Math.floor(maxCharsPerMessage))) : 2400;
+  if (safeLimit === 0) return [];
   return messages.slice(-safeLimit).flatMap(message => {
     if ((message.role !== "user" && message.role !== "kuro") || typeof message.text !== "string") return [];
     const content = message.text.trim();

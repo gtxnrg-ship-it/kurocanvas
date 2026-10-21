@@ -14,7 +14,8 @@ self.addEventListener("activate", event => {
 });
 self.addEventListener("message", event => {
   if (event.data && event.data.type === "KURO_RESEARCH_QUEUED") {
-    event.waitUntil?.(Promise.resolve());
+    registerResearchSync();
+  } else if (event.data && event.data.type === "KURO_RESEARCH_RESUMED") {
     registerResearchSync();
   }
 });
@@ -61,9 +62,12 @@ async function claimNextTask() {
       const request = store.getAll();
       request.onsuccess = () => {
         const now = Date.now();
-        const next = request.result.filter(task =>
+        const all = request.result;
+        const settings = all.find(item => item.id === "__queue-settings__");
+        if (settings && settings.queuePaused) return;
+        const next = all.filter(task => task.id !== "__queue-settings__" && (
           task.status === "queued" || task.status === "running" && (task.leaseUntil || 0) <= now
-        ).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+        )).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
         if (!next) return;
         claimed = {
           ...next, status: "running", stage: "Researching while Kuro is in the background",

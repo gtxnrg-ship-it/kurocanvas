@@ -2,6 +2,7 @@ export interface ScarOverlay {
   id: string;
   characterStateId: string;
   introducedAtOrder: number;
+  removedAtOrder?: number;
   label: string;
   x: number;
   y: number;
@@ -38,6 +39,7 @@ export function validateCharacterModel(value: unknown, projectId?: string): stri
     if (!scar || typeof scar.id !== "string" || typeof scar.characterStateId !== "string" || typeof scar.label !== "string" || !Number.isFinite(scar.introducedAtOrder)
       || ![scar.x, scar.y, scar.z, scar.length, scar.angle].every(Number.isFinite)
       || Math.abs(scar.x) > 0.5 || Math.abs(scar.y) > 0.5 || Math.abs(scar.z) > 0.5
+      || (scar.removedAtOrder !== undefined && (!Number.isFinite(scar.removedAtOrder) || scar.removedAtOrder <= scar.introducedAtOrder))
       || scar.length <= 0 || scar.length > 0.5 || scar.angle < -180 || scar.angle > 180
       || !/^#[0-9a-f]{6}$/i.test(scar.color)) {
       errors.push("A scar overlay has invalid coordinates, size, angle, color, or state linkage.");

@@ -10,6 +10,7 @@ import { validateRelationshipRecord, type RelationshipRecord } from "../canon/re
 import { validateCharacterEvolutionState, type CharacterEvolutionState } from "../canon/characterEvolution";
 import {
   validateUniverseRecord,
+  validateUniverseProjectPartition,
   validateConversationRecord,
   validateChatMessageRecord,
   type UniverseRecord,
@@ -586,11 +587,44 @@ export const universeStorage = {
     try {
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction([UNIVERSES, CONVERSATIONS], "readwrite");
-        tx.objectStore(UNIVERSES).add(bundle.universe);
-        tx.objectStore(CONVERSATIONS).add(bundle.homeConversation);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error("Could not create chat universe."));
-        tx.onabort = () => reject(tx.error ?? new Error("Chat universe creation was cancelled."));
+        let invariantFailure: Error | undefined;
+        let settled = false;
+        tx.oncomplete = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        // Defer rejection to onabort so the explicit invariant message is preserved.
+        tx.onerror = () => {};
+        tx.onabort = () => {
+          if (settled) return;
+          settled = true;
+          reject(invariantFailure ?? tx.error ?? new Error("Chat universe creation was cancelled."));
+        };
+        const universeStore = tx.objectStore(UNIVERSES);
+        const existingRequest = universeStore.getAll();
+        existingRequest.onerror = () => {
+          invariantFailure = existingRequest.error instanceof Error
+            ? existingRequest.error
+            : new Error("Could not check existing universe ownership.");
+          try { tx.abort(); } catch { /* Already inactive. */ }
+        };
+        existingRequest.onsuccess = () => {
+          const existing = existingRequest.result as UniverseRecord[];
+          const partitionErrors = validateUniverseProjectPartition([...existing, bundle.universe]);
+          if (partitionErrors.length) {
+            invariantFailure = new Error(partitionErrors[0]);
+            try { tx.abort(); } catch { /* Already inactive. */ }
+            return;
+          }
+          try {
+            universeStore.add(bundle.universe);
+            tx.objectStore(CONVERSATIONS).add(bundle.homeConversation);
+          } catch (error) {
+            invariantFailure = error instanceof Error ? error : new Error("Could not queue the new universe.");
+            try { tx.abort(); } catch { /* Already inactive. */ }
+          }
+        };
       });
     } finally { db.close(); }
   },
@@ -848,6 +882,8 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
     }
   }
   for (const memory of bundle.memories) errors.push(...validateStoryMemoryRecord(memory, projectId));
+
+  errors.push(...validateUniverseProjectPartition(bundle.universes));
 
   const universeById = new Map(bundle.universes.map(universe => [universe.id, universe]));
   const conversationById = new Map(bundle.conversations.map(conversation => [conversation.id, conversation]));

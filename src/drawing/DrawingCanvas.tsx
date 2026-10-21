@@ -6,11 +6,11 @@ import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text'; filled?: boolean; text?: string; rotation?: number; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel'; filled?: boolean; text?: string; rotation?: number; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
@@ -40,12 +40,12 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
-    ctx.lineWidth = stroke.size;
+    ctx.lineWidth = stroke.shape === 'panel' ? Math.max(4, stroke.size) : stroke.size;
     ctx.beginPath();
     if (stroke.shape === 'line') {
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-    } else if (stroke.shape === 'rectangle') {
+    } else if (stroke.shape === 'rectangle' || stroke.shape === 'panel') {
       ctx.rect(Math.min(start.x, end.x), Math.min(start.y, end.y), Math.abs(end.x - start.x), Math.abs(end.y - start.y));
     } else {
       const rx = Math.abs(end.x - start.x) / 2;
@@ -357,7 +357,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), color, size, points: [start] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), color, size, points: [start] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -642,6 +642,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
         <button className={tool==='line'?'chosen':''} onClick={() => setTool('line')} title="Line"><Minus size={16}/><span>Line</span></button>
         <button className={tool==='rectangle'?'chosen':''} onClick={() => setTool('rectangle')} title="Rectangle"><Square size={16}/><span>Rectangle</span></button>
+        <button className={tool==='panel'?'chosen':''} onClick={() => setTool('panel')} title="Draw a comic panel frame"><Square size={16}/><span>Panel</span></button>
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>

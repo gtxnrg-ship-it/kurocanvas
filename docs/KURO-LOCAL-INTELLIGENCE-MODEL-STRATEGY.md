@@ -1,53 +1,32 @@
 # Kuro Local Intelligence Model Strategy
 
-Status: model choice and connection path implemented; local runtime still external, 2026-10-21.
+Status: selected browser-local model and download flow under implementation; quality on Kuro tasks remains unverified, 2026-10-21.
 
-## Desktop/server evaluation candidate: Qwen3.8-27B
+## Selected model: SmolLM2-135M-Instruct (quantized ONNX)
 
-**Qwen/Qwen3.8-27B is not Kuro's default model and is not a mobile recommendation.** It is only a high-capability open-weight candidate for desktop/server evaluation. The official model card describes image-plus-text input, agentic/coding improvements, and Apache-2.0 licensing. This is a candidate—not a claim that it is universally best or that its quality matches ChatGPT.
+**One model for the first integrated build:** `onnx-community/SmolLM2-135M-Instruct-ONNX-MHA`, from the Hugging Face ONNX Community.
 
-The application now has a dedicated connection preset for `http://localhost:8000/v1` and model ID `Qwen/Qwen3.8-27B`. The existing OpenAI-compatible provider sends Kuro's requests to that endpoint. The preset does not install the model or start the server.
+- **Model:** SmolLM2-135M-Instruct, 135 million parameters.
+- **Download target:** about **137 MB** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
+- **Runtime:** Transformers.js with ONNX Runtime Web, running in the browser. The model is fetched on the user's explicit request and stored in the browser-managed cache.
+- **License:** Apache-2.0 for SmolLM2. Verify the exact model repository's license and revision before any repackaging/distribution.
+- **Capabilities:** text-only instruction following. No image input, and no claim that the base model is already specialized for Kuro's tool schemas.
+- **Why this choice:** the existing KuroCanvas product is a React/Vite browser app, and this is a published browser-ready ONNX export around the user's desired 100 MB scale. FunctionGemma 270M is more directly trained for function calling, but the published ONNX export currently totals about 2.94 GB; its smaller GGUF builds require a different inference runtime that is not integrated into this web app. For this first end-to-end build, the browser-ready 137 MB model is the more practical choice. See [SmolLM2 browser ONNX model](https://huggingface.co/onnx-community/SmolLM2-135M-Instruct-ONNX-MHA), [SmolLM2 model card](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
 
-### Run the recommended model locally
+This is a **practical integration choice, not a claim that 135M parameters can equal a 5B–30B general model**. The initial goal is to make Kuro's browser-local inference path real, then measure tool-plan validity and task success before trusting it with more autonomy. Its language quality and instruction-following may be weak; the harness must validate outputs and fail safely.
 
-On a capable desktop/server with a compatible GPU and enough memory/disk space, follow the current official model card. Its published Transformers weights total about 55.6 GB; actual runtime memory requirements are higher than just the weight file size.
+### Download and runtime behavior
 
-```bash
-python -m venv .venv
-# Activate the environment for your OS, then:
-python -m pip install --upgrade pip
-python -m pip install vllm
-vllm serve Qwen/Qwen3.8-27B --host 127.0.0.1 --port 8000 --reasoning-parser qwen3
-```
+In Preferences, the user explicitly chooses **Download ~137 MB model & connect**. The app reports download progress and initializes the model before connecting. Transformers.js caches the downloaded artifacts in the browser cache. This is not an APK install or permanent file-library download: browser storage can be evicted, so the app may need to fetch the model again later. The first download requires internet; inference runs locally once the files and runtime are available.
 
-The first launch downloads model weights and can take substantial time and bandwidth. Do not run this on a low-memory phone. The full BF16 checkpoint needs more than its on-disk size in runtime memory; the vLLM recipe estimates about 67 GB minimum VRAM for that variant. Official quantized variants exist, including FP8 (about 38 GB minimum VRAM) and hardware-specific NVFP4 (about 32 GB minimum VRAM on supported Blackwell GPUs); use the exact official recipe for your GPU instead of assuming every quantization runs everywhere. See the [official vLLM Qwen3.8 recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-27B) for current hardware and launch requirements.
-
-When the server is ready, open Kuro Canvas → Settings → Connect a model → **Use local Qwen3.8 endpoint** → **Test connection and list models** → choose the returned model ID → **Connect model**. Keep the server running while Kuro uses it.
-
-Official references:
-- Model card and runtime instructions: https://huggingface.co/Qwen/Qwen3.8-27B
-- Official model-family repository: https://github.com/QwenLM/Qwen3.8
+The app must never silently download this model on first launch. The download is opt-in, and prompts/story content are not sent to a model provider when using this local provider. This model is text-only: canvas images are not attached to its requests.
 
 ### What is integrated—and what is not
 
-- **Implemented:** model-provider adapter, model discovery, non-streaming chat-completions requests, cancellation signal propagation, endpoint validation, a Qwen3.8 local endpoint preset, and provider adapter tests.
-- **Not implemented:** bundled model weights/runtime, automatic model download/installation, verified one-click startup, hardware auto-detection, a measured Kuro benchmark result, or ChatGPT-level parity.
-- **Vision integration status:** when the selected model ID/name identifies Qwen3.8-27B, Kuro now rasterizes the current editable canvas to a bounded 1024-pixel JPEG preview and attaches it for drawing requests or explicit visual-inspection requests. Other models do not receive this image automatically. There is not yet a general user-upload/reference-image chat attachment flow or a verified iterative visual-QA loop. Treat this as an initial vision bridge, not complete visual-agent support.
-- **Important agent gap:** a chat completion is not the same as reliable native-tool execution. The shared action registry, result read-back, iterative visual QA, rollback and cancellation still need end-to-end closure.
-
-This path makes the model connection real without pretending a 55.6 GB model is bundled into a small web app. Do not direct ordinary Android users to install this model.
-
-## Primary language-and-vision candidate
-
-**Qwen/Qwen3.8-27B** — https://huggingface.co/Qwen/Qwen3.8-27B
-
-Why it is the first candidate to evaluate:
-- The published model card identifies it as an open-weight, Apache-2.0 model.
-- It accepts image-plus-text input, so Kuro can inspect sketches, references, screenshots, character sheets, and existing canvas previews instead of reasoning from text alone.
-- The published repository is 55.6 GB in its listed Transformers format. This is a substantial desktop/server model, not a realistic default download for low-memory Android phones.
-- The model card describes improvements to multi-step/long-horizon agentic work. These are promising claims, not proof that it will meet Kuro's creative-quality bar; we must evaluate it against our own tasks.
-
-Do not silently lock this in as the forever winner. Benchmark it against a smaller Qwen3.8 family member and at least one other permissively licensed model on a reproducible Kuro evaluation set. Model versions and licenses must be pinned to exact revisions before packaging or fine-tuning.
+- **Being implemented:** local browser provider, one-click model preparation with progress, cached local inference, model-provider routing, text-only capability declaration, and removal of the oversized Qwen preset.
+- **Not yet verified:** successful model download in the deployed app, inference on representative low-end Android devices, actual Kuro task success, long-session memory performance, and robust cancellation during an in-progress ONNX generation.
+- **Not included:** fine-tuning on Kuro's native drawing schemas, vision input, a complete iterative visual-QA loop, a bundled model file, or permanent offline guarantees.
+- **Important:** browser cache is not a durable model-install directory. If Kuro later ships as a native Android app, evaluate a native on-device runtime and model package separately; do not claim that the web build is equivalent to a native LiteRT integration.
 
 ## Harness-first intelligence: the model is one component, not the agent
 
@@ -83,7 +62,7 @@ These parameter ranges are evaluation targets, not guarantees of memory use or q
 
 ### Required model-selection gates
 
-1. Keep the 27B preset labelled **desktop/server only**; never call it the default for Android.
+1. Keep the selected 135M model's limitations visible; never imply it supports vision or is already fine-tuned for Kuro.
 2. Benchmark at least one compact text model and one compact vision-capable candidate on representative low-end Android hardware before selecting a mobile default.
 3. Record model download size, peak resident memory, cold-start time, time-to-first-token, tokens/second, battery/thermal behavior, context limit, and crash rate. Test with the app and canvas open, not in an isolated benchmark only.
 4. Test Kuro-specific tasks: multi-turn creative planning, strict structured tool calls, canon retrieval, character continuity, revision-following, uncertainty, and recovery from malformed output. A model that chats well but cannot reliably use drawing tools must not be presented as a complete art agent.
@@ -146,7 +125,7 @@ Create a permissioned benchmark covering:
 
 The current application has a compatible-provider connection layer and model capability/selection contracts. This is not a bundled inference engine, does not include model weights, and does not provide a turnkey offline model on first launch. A configured local endpoint means the user or operator has separately installed and started a compatible inference server.
 
-Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The open-weight Qwen3.8-27B model is a desktop/server candidate to benchmark, not a mobile default, completed integration, or guarantee of parity. Its full-precision model files are too large to assume a practical default download on low-memory mobile devices. The product must distinguish:
+Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The selected SmolLM2-135M model is a compact browser-local baseline, not a guarantee of parity with larger models. Its task quality must be measured before release. The product must distinguish:
 - **Connected provider:** a configured endpoint answers requests.
 - **Installed local model:** weights and compatible runtime are present and pass a smoke test.
 - **Bundled model/runtime:** the shipped package contains or installs the explicitly licensed runtime and a documented model acquisition flow.

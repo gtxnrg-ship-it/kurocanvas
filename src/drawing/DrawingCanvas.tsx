@@ -4,6 +4,7 @@ import { drawingStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
+import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse';
 type Point = { x: number; y: number; pressure: number };
@@ -75,6 +76,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<'loading'|'saved'|'saving'|'error'>('loading');
+  const [planAction, setPlanAction] = useState<DrawingActionRecord | null>(null);
+  const [planRunNonce, setPlanRunNonce] = useState(0);
   const handledPlanRef = useRef<string | null>(null);
 
   const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
@@ -192,8 +195,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
 
   useEffect(() => {
-    if (!pendingPlan || !loaded || !onPlanResult || handledPlanRef.current === pendingPlan.id) return;
-    handledPlanRef.current = pendingPlan.id;
+    const runKey = pendingPlan ? pendingPlan.id + ':' + planRunNonce : '';
+    if (!pendingPlan || !loaded || !onPlanResult || handledPlanRef.current === runKey) return;
+    handledPlanRef.current = runKey;
+    const queued = createDrawingAction({ id: runKey, title: 'Apply approved drawing plan', description: pendingPlan.commands.length + ' native drawing command(s)', commandId: pendingPlan.id, requiresApproval: false });
+    const running = transitionDrawingAction(queued, { type: 'execution.start', actionId: runKey });
+    setPlanAction(running);
     let cancelled = false;
     (async () => {
       try {
@@ -214,16 +221,18 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
         setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
         setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]);
         setSaveState('saved'); setNotice('Approved AI drawing applied and saved locally');
+        setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
         onPlanResult(pendingPlan.id, 'success', 'Applied and saved locally');
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : 'Unknown drawing error';
-        setNotice('AI drawing rejected: ' + message);
+        setNotice('AI drawing failed: ' + message);
+        setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: message }));
         onPlanResult(pendingPlan.id, 'error', message);
       }
     })();
     return () => { cancelled = true; };
-  }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, layers]);
+  }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, layers, planRunNonce]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -377,6 +386,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     <div className="drawing-stage" ref={wrapRef}>
       <div className="drawing-paper" style={{ transform: 'scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
     </div>
+    {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>AI action · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
   </section>;
 }

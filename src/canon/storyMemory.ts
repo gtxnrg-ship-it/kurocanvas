@@ -36,6 +36,8 @@ export interface StoryMemoryRecord {
 export interface StoryMemoryQuery {
   projectId: string; text?: string; chapterNumber?: number; entityIds?: string[];
   kinds?: StoryMemoryRecord["kind"][]; includeProposed?: boolean; limit?: number; timelineId?: string; maxStoryOrder?: number;
+  /** Add approved earlier-chapter facts as continuity context while keeping exact target-chapter facts highest-ranked. */
+  includePriorChapters?: boolean;
 }
 export interface StoryMemoryResult { records: StoryMemoryRecord[]; assetRefs: string[]; warnings: string[] }
 
@@ -225,7 +227,11 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
   const limit = Math.max(1, Math.min(100, Math.floor(query.limit ?? 12)));
   const eligible = records.filter(record => record.projectId === query.projectId &&
     (query.includeProposed ? record.status !== "superseded" : record.status === "approved" || query.chapterNumber !== undefined && record.status === "superseded") &&
-    (query.chapterNumber === undefined || record.chapterNumber === query.chapterNumber) &&
+    (query.chapterNumber === undefined || record.chapterNumber === query.chapterNumber ||
+      query.includePriorChapters === true && (
+        record.chapterNumber !== undefined && record.chapterNumber < query.chapterNumber ||
+        record.chapterNumber === undefined && record.sceneNumber === undefined && record.storyOrder === undefined && record.timelineId === undefined
+      )) &&
     (!query.timelineId || record.timelineId === query.timelineId) &&
     (query.maxStoryOrder === undefined || record.storyOrder === undefined || record.storyOrder <= query.maxStoryOrder) &&
     (!query.kinds || query.kinds.includes(record.kind)) &&
@@ -237,7 +243,9 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
     ] : [];
     const searchable = tokenize([record.title, record.summary, ...record.tags, ...record.entityIds, ...threadSearch].join(" "));
     const score = tokens.size ? Array.from(tokens).reduce((sum, token) => sum + (searchable.includes(token) ? 1 : 0), 0) : 1;
-    const chapterBoost = query.chapterNumber !== undefined && record.chapterNumber === query.chapterNumber ? 100 : 0;
+    const chapterBoost = query.chapterNumber !== undefined && record.chapterNumber === query.chapterNumber ? 300
+      : query.includePriorChapters && query.chapterNumber !== undefined && record.chapterNumber !== undefined
+        ? Math.max(0, 40 - (query.chapterNumber - record.chapterNumber)) : 0;
     const entityBoost = query.entityIds?.some(id => record.entityIds.includes(id)) ? 20 : 0;
     return { record, score: score + chapterBoost + entityBoost };
   }).filter(item => item.score > 0)
@@ -264,7 +272,9 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
   for (const record of result.records) {
     let chapter = "";
     if (record.chapterNumber !== undefined) chapter = " (chapter " + record.chapterNumber + (record.sceneNumber === undefined ? ")" : ", scene " + record.sceneNumber + ")");
-    lines.push("[" + record.status.toUpperCase() + "] " + record.kind + ": " + record.title + chapter);
+    const timeline = record.timelineId ? " · timeline " + record.timelineId : "";
+    const order = record.storyOrder === undefined ? "" : " · story order " + record.storyOrder;
+    lines.push("[" + record.status.toUpperCase() + "] " + record.kind + ": " + record.title + chapter + timeline + order);
     lines.push("Summary: " + record.summary);
     if (record.entityIds.length) lines.push("Entities: " + record.entityIds.join(", "));
     if (record.assetRefs.length) lines.push("Reusable asset references: " + record.assetRefs.join(", "));
@@ -280,6 +290,8 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
       if (thread.linkedEntityIds.length) lines.push("Linked story entities: " + thread.linkedEntityIds.join(", "));
     }
   }
+  const timelines = [...new Set(result.records.map(record => record.timelineId).filter((value): value is string => !!value))];
+  if (timelines.length > 1) lines.push("TIMELINE SEPARATION WARNING: These results include multiple timelines (" + timelines.join(", ") + "). Keep each timeline's events separate; do not combine mutually exclusive facts. State which version applies when the user has not selected one.");
   for (const warning of result.warnings) lines.push("CONTINUITY WARNING: " + warning);
   const output = lines.join("\n");
   return output.length > cap ? output.slice(0, cap - 32).trimEnd() + "\n[Memory context truncated.]" : output;

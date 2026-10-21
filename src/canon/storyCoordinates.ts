@@ -57,11 +57,18 @@ export function parseStoryChapterNumber(message: string): number | undefined {
   const ordinal = message.match(/\b(?:chapter|ch\.?)\s*#?\s*(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth|hundredth|thousandth|millionth)\b/i);
   if (ordinal) return ORDINALS[ordinal[1].toLocaleLowerCase()];
   const words = message.match(/\b(?:chapter|ch\.?)\s*#?\s*([a-z]+(?:[\s-]+[a-z]+){0,8})\b/i);
-  if (!words) return undefined;
-  const tokens = words[1].replace(/-/g, " ").split(/\s+/);
-  for (let count = tokens.length; count > 0; count--) {
-    const value = parseEnglishNumber(tokens.slice(0, count).join(" "));
-    if (value !== undefined && Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000) return value;
+  if (words) {
+    const tokens = words[1].replace(/-/g, " ").split(/\s+/);
+    for (let count = tokens.length; count > 0; count--) {
+      const value = parseEnglishNumber(tokens.slice(0, count).join(" "));
+      if (value !== undefined && Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000) return value;
+    }
+  }
+  const reversed = message.match(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|thirtieth|fortieth|fiftieth|sixtieth|seventieth|eightieth|ninetieth|hundredth|thousandth|millionth|\d{1,7}(?:st|nd|rd|th)?)\s+chapter\b/i);
+  if (reversed) {
+    const token = reversed[1].toLocaleLowerCase();
+    const value = ORDINALS[token] ?? Number(token.replace(/(?:st|nd|rd|th)$/i, ""));
+    if (Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000) return value;
   }
   return undefined;
 }

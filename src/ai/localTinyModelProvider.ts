@@ -1,4 +1,4 @@
-import type { ModelDescriptor, ModelMessage, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
+import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
 
 export const KURO_TINY_MODEL_ID = "onnx-community/SmolLM2-135M-Instruct-ONNX-MHA";
 export const KURO_TINY_MODEL_URI = "kuro-local-smollm2-135m";
@@ -84,7 +84,6 @@ export class LocalTinyModelProvider implements ModelProvider {
       ...inputs,
       max_new_tokens: maxNewTokens,
       do_sample: false,
-      ...(request.signal ? { signal: request.signal } : {}),
     });
     if (request.signal?.aborted) {
       return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };

@@ -1,0 +1,105 @@
+export type CharacterCameraPreset =
+  | "front"
+  | "three-quarter-left"
+  | "three-quarter-right"
+  | "profile-left"
+  | "profile-right"
+  | "back"
+  | "close-up"
+  | "full-body"
+  | "high-angle";
+
+export type CharacterModelAgentCommand =
+  | { version: 1; id: string; type: "camera.preset"; preset: CharacterCameraPreset }
+  | { version: 1; id: string; type: "camera.zoom"; factor: number }
+  | { version: 1; id: string; type: "model.rotateView"; degrees: number }
+  | { version: 1; id: string; type: "model.resetViewRotation" };
+
+export interface CharacterModelAgentPlan {
+  summary: string;
+  commands: CharacterModelAgentCommand[];
+}
+
+const PRESETS = new Set<CharacterCameraPreset>([
+  "front", "three-quarter-left", "three-quarter-right", "profile-left", "profile-right",
+  "back", "close-up", "full-body", "high-angle",
+]);
+const MAX_ACTIONS = 8;
+const MAX_RESPONSE_CHARS = 24_000;
+
+/** Recognize explicit native 3D-viewport requests; this does not invoke image generation. */
+export function isCharacterModelToolRequest(message: string): boolean {
+  const text = message.normalize("NFKC");
+  if (/\b(?:camera|orbit controls?|camera angle|viewport angle|zoom in|zoom out|pan the view)\b/i.test(text)) {
+    return /\b(?:character|model|3d|viewport|view|figure|avatar|scene|camera|orbit|zoom)\b/i.test(text);
+  }
+  return /\b(?:rotate|turn|spin)\s+(?:the\s+)?(?:3d\s+)?(?:character\s+)?model\b/i.test(text)
+    || /\b(?:front view|side view|profile view|back view|three[- ]quarter view|full[- ]body view|close[- ]up view)\b/i.test(text);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Validate untrusted model output against a small allowlist of reversible viewport actions. */
+export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPlan {
+  if (raw.length > MAX_RESPONSE_CHARS) throw new Error("The 3D tool plan exceeds the response-size limit.");
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error("Kuro did not return valid JSON for the 3D tool plan."); }
+  if (!isObject(parsed)) throw new Error("The 3D tool plan must be a JSON object.");
+  if (typeof parsed.summary !== "string" || !parsed.summary.trim() || parsed.summary.length > 500) {
+    throw new Error("The 3D tool plan needs a short, meaningful summary.");
+  }
+  if (!Array.isArray(parsed.commands) || parsed.commands.length > MAX_ACTIONS) {
+    throw new Error("The 3D tool plan must contain at most " + MAX_ACTIONS + " commands.");
+  }
+  const seen = new Set<string>();
+  const commands: CharacterModelAgentCommand[] = [];
+  for (const rawCommand of parsed.commands) {
+    if (!isObject(rawCommand) || rawCommand.version !== 1 || typeof rawCommand.id !== "string"
+      || !rawCommand.id.trim() || rawCommand.id.length > 120 || seen.has(rawCommand.id)
+      || typeof rawCommand.type !== "string") {
+      throw new Error("Every 3D tool command needs a unique ID, version 1, and a supported type.");
+    }
+    seen.add(rawCommand.id);
+    if (rawCommand.type === "camera.preset") {
+      if (Object.keys(rawCommand).some(key => !["version", "id", "type", "preset"].includes(key))
+        || typeof rawCommand.preset !== "string" || !PRESETS.has(rawCommand.preset as CharacterCameraPreset)) {
+        throw new Error("Camera preset is unknown or contains unsupported fields.");
+      }
+      commands.push({ version: 1, id: rawCommand.id, type: "camera.preset", preset: rawCommand.preset as CharacterCameraPreset });
+    } else if (rawCommand.type === "camera.zoom") {
+      if (Object.keys(rawCommand).some(key => !["version", "id", "type", "factor"].includes(key))
+        || typeof rawCommand.factor !== "number" || !Number.isFinite(rawCommand.factor)
+        || rawCommand.factor < 0.65 || rawCommand.factor > 1.8) {
+        throw new Error("Camera zoom factor must be between 0.65 and 1.8.");
+      }
+      commands.push({ version: 1, id: rawCommand.id, type: "camera.zoom", factor: rawCommand.factor });
+    } else if (rawCommand.type === "model.rotateView") {
+      if (Object.keys(rawCommand).some(key => !["version", "id", "type", "degrees"].includes(key))
+        || typeof rawCommand.degrees !== "number" || !Number.isFinite(rawCommand.degrees)
+        || rawCommand.degrees < -180 || rawCommand.degrees > 180) {
+        throw new Error("Viewport model rotation must be between -180 and 180 degrees.");
+      }
+      commands.push({ version: 1, id: rawCommand.id, type: "model.rotateView", degrees: rawCommand.degrees });
+    } else if (rawCommand.type === "model.resetViewRotation") {
+      if (Object.keys(rawCommand).some(key => !["version", "id", "type"].includes(key))) {
+        throw new Error("Reset rotation does not accept extra fields.");
+      }
+      commands.push({ version: 1, id: rawCommand.id, type: "model.resetViewRotation" });
+    } else {
+      throw new Error("Unsupported 3D tool command: " + rawCommand.type);
+    }
+  }
+  return { summary: parsed.summary.trim(), commands };
+}
+
+export function describeCharacterModelAgentCommand(command: CharacterModelAgentCommand): string {
+  switch (command.type) {
+    case "camera.preset": return "Set camera to " + command.preset.replace(/-/g, " ") + " view";
+    case "camera.zoom": return (command.factor >= 1 ? "Zoom in " : "Zoom out ") + Math.round(Math.abs(command.factor - 1) * 100) + "%";
+    case "model.rotateView": return "Rotate displayed model by " + command.degrees + "° (view only)";
+    case "model.resetViewRotation": return "Reset displayed model orientation";
+  }
+}

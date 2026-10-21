@@ -43,23 +43,23 @@ export interface ResearchTaskIntent {
 /** Classify explicit research commands before the chat model answers from memory alone. */
 export function extractResearchTaskIntent(message: string): ResearchTaskIntent | undefined {
   const text = message.normalize("NFKC").trim();
-  const command = text.match(/^\\s*(?:(?:quickly|briefly|exhaustively|comprehensively)\\s+)?(?:please\\s+)?(?:(?:can|could|would) you\\s+)?(research|investigate|fact[- ]check|look up|search(?:\\s+(wikipedia|crossref))?|find\\s+(?:credible\\s+|scholarly\\s+)?sources)\\b/i);
+  const command = text.match(/^\s*(?:(?:quickly|briefly|exhaustively|comprehensively)\s+)?(?:please\s+)?(?:(?:can|could|would) you\s+)?(research|investigate|fact[- ]check|look up|search(?:\s+(wikipedia|crossref))?|find\s+(?:credible\s+|scholarly\s+)?sources)\b/i);
   if (!command) return undefined;
   const commandLength = command[0].length;
   let query = text.slice(commandLength)
-    .replace(/^\\s*(?:about|for|on|into|regarding)\\s+/i, "")
-    .replace(/\\s*(?:,?\\s*and)?\\s*(?:cite|include|provide)\\s+(?:credible\\s+|reliable\\s+)?(?:sources?|citations?|references?)\\b[\\s\\S]*$/i, "")
-    .replace(/\\s+/g, " ")
+    .replace(/^\s*(?:about|for|on|into|regarding)\s+/i, "")
+    .replace(/\s*(?:,?\s*and)?\s*(?:cite|include|provide)\s+(?:credible\s+|reliable\s+)?(?:sources?|citations?|references?)\b[\s\S]*$/i, "")
+    .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);
   if (query.length < 3) return undefined;
   const lower = text.toLocaleLowerCase();
-  const depth: ResearchDepth = /\\b(?:exhaustive|comprehensive|as many as possible|deep dive)\\b/i.test(lower)
+  const depth: ResearchDepth = /\b(?:exhaustive|comprehensive|as many as possible|deep dive)\b/i.test(lower)
     ? "exhaustive"
-    : /\\b(?:quick(?:ly)?|brief(?:ly)?|short)\\b/i.test(lower) ? "quick"
-    : /\\bbalanced\\b/i.test(lower) ? "balanced" : "deep";
+    : /\b(?:quick(?:ly)?|brief(?:ly)?|short)\b/i.test(lower) ? "quick"
+    : /\bbalanced\b/i.test(lower) ? "balanced" : "deep";
   const sourceProvider: ResearchSourceProvider = command[2]?.toLowerCase() === "crossref"
-    || /\\b(?:scholarly papers?|academic papers?|journal articles?)\\b/i.test(lower)
+    || /\b(?:scholarly papers?|academic papers?|journal articles?)\b/i.test(lower)
     ? "crossref" : "wikipedia";
   return { query, depth, sourceProvider };
 }
@@ -570,7 +570,7 @@ export async function buildResearchContext(
   if (!completed.length) return "";
   const tokens = [...new Set(userMessage.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
     .filter(token => token.length >= 3 && !["the","and","for","with","that","this","about","using","research","source","sources","please","from","into","what","when","where","would","could","should","kuro","help"].includes(token)))];
-  const researchFollowUp = /\\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results)|based on (?:the )?research)\\b/i.test(userMessage);
+  const researchFollowUp = /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results)|based on (?:the )?research)\b/i.test(userMessage);
   const ranked = completed.map(task => {
     const haystack = (task.query + " " + task.sources.map(source => source.title + " " + source.extract).join(" "))
       .normalize("NFKC").toLocaleLowerCase();

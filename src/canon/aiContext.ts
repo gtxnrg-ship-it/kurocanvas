@@ -9,6 +9,8 @@ export interface CanonRevealGateOptions {
   timelineId?: string;
   storyOrder?: number;
   chapterNumber?: number;
+  /** Explicit author intent to plant a subtle cameo, clue, or foreshadowing beat. */
+  allowAuthorDirectedForeshadowing?: boolean;
 }
 
 export interface CanonContextOptions {
@@ -17,6 +19,17 @@ export interface CanonContextOptions {
   maxFacts?: number;
   maxCharacters?: number;
   revealGate?: CanonRevealGateOptions;
+}
+
+/**
+ * Detect a deliberate author instruction to plant a clue/cameo before its
+ * main reveal. This is not enabled by merely discussing a future character:
+ * a concrete story-creation action and an intentional clue signal are required.
+ */
+export function isIntentionalForeshadowingRequest(message: string): boolean {
+  const deliberateClue = /\b(?:easter\s*egg|cameo|foreshadow\w*|plant(?:ing)?\s+(?:a\s+)?clue|hidden\s+clue|future\s+(?:character|cameo|payoff)|unrevealed\s+(?:character|figure)|later\s+revealed|background\s+(?:character|figure|appearance)|blink[- ]and[- ]you[- ]miss[- ]it|brief\s+appearance|bump(?:s|ed)?\s+into|pass(?:es|ed)?\s+by|reader\s+won't\s+know|audience\s+won't\s+know)\b/i.test(message);
+  const creationAction = /\b(?:write|draft|continue|create|make|include|insert|plant|add|show|draw|render|compose|produce|script|stage|feature)\b/i.test(message);
+  return deliberateClue && creationAction;
 }
 
 function eligibleRevealStates(options: CanonRevealGateOptions): CharacterEvolutionState[] {
@@ -95,6 +108,14 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
 } {
   const point = resolveRevealPoint(gate);
   const states = eligibleRevealStates(gate);
+  if (gate.allowAuthorDirectedForeshadowing && !point.ambiguous) {
+    // The author explicitly asked for an intentional early clue. Keep full author
+    // knowledge available to Kuro, while response guidance keeps reader-facing
+    // narration at the requested point in the story.
+    return { bundle, hiddenCount: 0, unresolvedTarget: false, hiddenTokens: [],
+      ...(point.storyOrder === undefined ? {} : { maxStoryOrder: point.storyOrder }),
+      ...(point.timelineId ? { timelineId: point.timelineId } : {}) };
+  }
   const characterEntities = bundle.entities.filter(entity => entity.kind.toLocaleLowerCase() === "character");
   const hiddenIds = new Set<string>();
   const hiddenNames = new Set<string>();
@@ -154,7 +175,7 @@ export function hasUnrevealedCharacterMention(
   bundle: CanonBundle | undefined,
   gate: CanonRevealGateOptions,
 ): boolean {
-  if (!bundle || !gate.enabled || !output.trim()) return false;
+  if (!bundle || !gate.enabled || gate.allowAuthorDirectedForeshadowing || !output.trim()) return false;
   const hiddenTokens = filterUnrevealedCanon(bundle, gate).hiddenTokens;
   if (!hiddenTokens.length) return false;
   const normalizePhrase = (value: string) =>
@@ -172,7 +193,7 @@ export function filterConversationTurnsForRevealGate<T extends { content: unknow
   bundle: CanonBundle | undefined,
   gate: CanonRevealGateOptions,
 ): T[] {
-  if (!bundle || !gate.enabled) return [...turns];
+  if (!bundle || !gate.enabled || gate.allowAuthorDirectedForeshadowing) return [...turns];
   const filtered = filterUnrevealedCanon(bundle, gate);
   if (!filtered.hiddenTokens.length) return [...turns];
   const extractText = (value: unknown, depth = 0): string => {
@@ -226,6 +247,16 @@ export function buildApprovedCanonContext(
   let revealTimelineId: string | undefined;
   if (options.revealGate?.enabled) {
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
+    if (options.revealGate.allowAuthorDirectedForeshadowing) {
+      const point = resolveRevealPoint(options.revealGate);
+      if (point.ambiguous) {
+        revealNotice = "AUTHOR-DIRECTED FORESHADOWING: The author's clue request is explicit, but the chapter maps to conflicting approved timelines. Ask which timeline to use before selecting a specific future cameo; do not blend parallel universes.";
+      } else {
+        revealNotice = "AUTHOR-DIRECTED FORESHADOWING MODE: The author explicitly requested an intentional early clue/cameo. Full project canon may be used as AUTHOR-ONLY planning knowledge. Keep the actual chapter/dialogue/art reader-facing: preserve the intended subtlety and do not reveal a secret identity or future payoff on-page unless the author explicitly asks. A deliberate cameo is not an accidental continuity violation.";
+        revealMaxStoryOrder = point.storyOrder;
+        revealTimelineId = point.timelineId;
+      }
+    } else {
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);
     source = filtered.bundle;
     revealMaxStoryOrder = filtered.maxStoryOrder;
@@ -234,6 +265,7 @@ export function buildApprovedCanonContext(
       revealNotice = "STORY OUTPUT CONTINUITY GUARD: The requested chapter/timeline does not map to one approved story point. Character identities, appearance facts, and reveal-sensitive canon are withheld. Ask for the chapter/timeline mapping rather than inventing which characters or designs belong in this scene.";
     } else if (filtered.hiddenCount) {
       revealNotice = "STORY OUTPUT REVEAL GUARD: Preloaded or not-yet-eligible cast and any facts identifying them have been withheld. Do not name, describe, count, hint at, or otherwise expose withheld characters before their approved reveal point.";
+    }
     }
   }
 

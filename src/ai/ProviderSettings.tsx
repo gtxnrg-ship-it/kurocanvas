@@ -50,7 +50,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
     const controller = new AbortController();
     localModelAbortController.current = controller;
     setLocalModelPreparing(true);
-    setBusy(true); setError(""); setStatus("Preparing Kuro Tiny model…"); setModelProgress(0);
+    setBusy(true); setError(""); setStatus("Preparing Kuro Local model…"); setModelProgress(0);
     try {
       const found = await prepareLocalTinyModel(progress => {
         setModelProgress(progress.percent);
@@ -63,7 +63,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
       setLocalModelPrepared(true);
       setSupportsVision(false);
       onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false, supportsVision: false });
-      setStatus("Kuro Tiny is prepared and connected. You can now measure its warm generation speed on this device.");
+      setStatus("Kuro Local is prepared and connected. You can now measure its warm generation speed on this device.");
     } catch (e) {
       if (controller.signal.aborted) {
         setStatus("Local model download/preparation cancelled. The canvas remains available; prepare the model again when ready.");
@@ -87,7 +87,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
 
   async function benchmarkLocalModel() {
     if (!localModelPrepared) {
-      setError("Download and prepare Kuro Tiny first. Benchmarking never starts a model download by itself.");
+      setError("Download and prepare Kuro Local first. Benchmarking never starts a model download by itself.");
       return;
     }
     setBusy(true); setError(""); setStatus("Warming up local inference before the measured run…");
@@ -96,7 +96,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
         baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false,
       });
       const model = (await provider.listModels()).find(item => item.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
-      if (!model) throw new Error("Kuro Tiny is not registered with the local provider.");
+      if (!model) throw new Error("Kuro Local is not registered with the local provider.");
       // Exclude one warm-up request so initial worker/model setup does not distort the speed figure.
       await provider.generate({
         role: "fast-helper",
@@ -180,26 +180,26 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
     <ModelAdvisor benchmark={localBenchmark} />
     <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
     <div className="provider-recommended-model">
-      <strong>Recommended local model: SmolLM2 135M Instruct</strong>
-      <p>A compact, text-only instruction model for Kuro's first on-device harness. The browser-ready quantized ONNX weights are about 137 MB; runtime memory is higher and varies by device. The first download needs internet, then Transformers.js caches the files in this browser. Browser cache can be evicted, so this is not a guarantee of permanent offline storage. This model is small and general-purpose—not a vision model or a fine-tuned Kuro expert—so every drawing plan must still pass the app's validation and approval flow.</p>
-      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~137 MB model & connect"}</button>
+      <strong>Recommended local model: Qwen3-0.6B</strong>
+      <p>A compact, text-only instruction model for Kuro's first on-device harness. The browser-ready quantized ONNX weights are approximately 450 MB (estimate; actual first download depends on the selected ONNX files); runtime memory is higher and varies by device. The first download needs internet, then Transformers.js caches the files in this browser. Browser cache can be evicted, so this is not a guarantee of permanent offline storage. This model is small and general-purpose—not a vision model or a fine-tuned Kuro expert—so every drawing plan must still pass the app's validation and approval flow.</p>
+      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~450 MB model & connect"}</button>
       {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel download / preparation</button>}
       <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark warm generation on this device"}</button>
       <p className="provider-muted">The benchmark uses a short local text prompt after a warm-up. It sends no benchmark prompt to a hosted provider and does not measure drawing quality or guarantee smooth performance in every task.</p>
-      <a href="https://huggingface.co/onnx-community/SmolLM2-135M-Instruct-ONNX-MHA" target="_blank" rel="noreferrer">Model files and license ↗</a>
+      <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
       {status && baseUrl === LOCAL_TINY_BASE_URL && <p className="provider-status" role="status">{status}</p>}
     </div>
     <label>API base URL<input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" autoComplete="url" /></label>
     <label>API key <span className="provider-muted">(kept in memory only; re-enter after refresh)</span><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="new-password" placeholder="Optional for local endpoints" /></label>
     <label className="provider-check"><input type="checkbox" checked={allowInsecureLocalhost} onChange={e=>setAllowInsecureLocalhost(e.target.checked)} /> Allow HTTP only for a localhost model endpoint</label>
     <label className="provider-check"><input type="checkbox" checked={supportsVision && baseUrl !== LOCAL_TINY_BASE_URL} disabled={baseUrl === LOCAL_TINY_BASE_URL} onChange={e=>setSupportsVision(e.target.checked)} /> My selected model supports image input (vision)</label>
-    <p className="provider-muted">This capability cannot be verified from most compatible model lists. Enable it only when the selected model and server support image_url inputs. When enabled, Kuro may send the current canvas preview with drawing requests. Kuro Tiny is text-only, so this option is disabled for it.</p>
+    <p className="provider-muted">This capability cannot be verified from most compatible model lists. Enable it only when the selected model and server support image_url inputs. When enabled, Kuro may send the current canvas preview with drawing requests. Kuro Local is text-only, so this option is disabled for it.</p>
     <div className="provider-actions"><button onClick={discoverModels} disabled={busy}>{busy ? "Checking…" : "Test connection and list models"}</button></div>
     {models.length > 0 && <label>Model<select value={modelUri} onChange={e=>setModelUri(e.target.value)}>{models.map(m=><option key={m.id} value={m.modelUri || m.name}>{m.name}</option>)}</select></label>}
     {!models.length && <label>Model ID<input value={modelUri} onChange={e=>setModelUri(e.target.value)} placeholder="e.g. gpt-4.1-mini or local model ID" /></label>}
     {status && <p className="provider-status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">Local model requests run in this browser after the model files are cached. Kuro Tiny is text-only; canvas-image understanding is not supported by this model. You can still connect another OpenAI-compatible provider manually. Privacy note: requests are sent to the provider you configure. In a browser app, hosted API keys are exposed to the client while in use; use a trusted provider and avoid shared devices. Kuro does not save the key to local storage or project files.</p>
+    <p className="provider-warning">Local model requests run in this browser after the model files are cached. Kuro Local is text-only; canvas-image understanding is not supported by this model. You can still connect another OpenAI-compatible provider manually. Privacy note: requests are sent to the provider you configure. In a browser app, hosted API keys are exposed to the client while in use; use a trusted provider and avoid shared devices. Kuro does not save the key to local storage or project files.</p>
     <div className="provider-actions"><button className="provider-secondary" onClick={onClose}>Cancel</button><button onClick={save}>Connect model</button></div>
   </section>;
 }

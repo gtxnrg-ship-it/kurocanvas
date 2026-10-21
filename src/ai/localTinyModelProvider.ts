@@ -12,7 +12,7 @@ type WorkerResponse =
   | { id: number; type: "ready" }
   | { id: number; type: "result"; text: string; finishReason: "stop" | "length" }
   | { id: number; type: "error"; message: string };
-type ModelWorker = {
+export type ModelWorker = {
   postMessage: (message: WorkerRequest) => void;
   terminate: () => void;
   onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null;
@@ -54,9 +54,10 @@ export class LocalTinyModelProvider implements ModelProvider {
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
 
-  constructor(private readonly workerFactory: () => ModelWorker = () => new Worker(
-    new URL("./localTinyModel.worker.ts", import.meta.url), { type: "module" },
-  ) as unknown as ModelWorker) {}
+  constructor(private readonly workerFactory: () => ModelWorker = () => {
+    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Tiny will not fall back to blocking the canvas thread.");
+    return new Worker(new URL("./localTinyModel.worker.ts", import.meta.url), { type: "module" }) as unknown as ModelWorker;
+  }) {}
 
   setProgressListener(listener?: ProgressListener): void {
     this.progressListener = listener;
@@ -124,7 +125,6 @@ export class LocalTinyModelProvider implements ModelProvider {
 
   private getWorker(): ModelWorker {
     if (this.worker) return this.worker;
-    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Tiny will not fall back to blocking the canvas thread.");
     const worker = this.workerFactory();
     worker.onmessage = event => {
       const response = event.data;

@@ -63,7 +63,7 @@ export default function App(){
  useEffect(()=>{if(!activeUniverseId||!activeConversationId||historyLoading)return;const start=persistedMessageCount.current;if(messages.length<start){persistedMessageCount.current=messages.length;return;}const pending=messages.slice(start);if(!pending.length)return;persistedMessageCount.current=messages.length;void (async()=>{try{for(const item of pending){await chatMessageStorage.save({id:crypto.randomUUID(),universeId:activeUniverseId,conversationId:activeConversationId,role:item.role,content:item.text,createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],metadata:item.tool?{tool:item.tool}:{}});}const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);if(conversation){const updated={...conversation,updatedAt:new Date().toISOString()};await conversationStorage.save(updated);}const universe=await universeStorage.load(activeUniverseId);if(universe){await universeStorage.save({...universe,updatedAt:new Date().toISOString()});}const all=await universeStorage.list();setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));}catch(error){setHistoryNotice('A message could not be saved locally: '+(error instanceof Error?error.message:'storage error'));}})();},[messages,activeUniverseId,activeConversationId,historyLoading]);
  async function startNewUniverse(){
   try{
-   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setActiveDrawingId('');
+   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');
    const count=recentUniverses.length+1;const title=count===1?'My first universe':'Universe '+count;
    const project=createProject(title);await projectStorage.save(project);setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
    const bundle=createChatUniverse(title,project.id);await universeStorage.create(bundle);
@@ -77,7 +77,7 @@ export default function App(){
  }
  async function resumeUniverse(item:RecentUniverse,conversationId?:string){
   try{
-   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setCanvasRequest(null);setPlanNotice('');
+   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setCanvasRequest(null);setPlanNotice('');setRequestedDrawingId('');
    const conversation=await conversationStorage.load(conversationId||item.homeConversationId,item.id);
    if(!conversation)throw new Error('The saved conversation could not be found in its universe.');
    const [records,conversations]=await Promise.all([chatMessageStorage.list(item.id,conversation.id),conversationStorage.list(item.id)]);setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));

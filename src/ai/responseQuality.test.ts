@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKuroChatResponse, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
+import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
 
 describe("Kuro request-aware response quality", () => {
   it("does not expand greetings and explicit brevity requests into essays", () => {
@@ -78,5 +78,13 @@ describe("conversation continuation harness", () => {
     expect(getKuroResponseQualityGuidance("go on with the explanation")).toContain("CONTINUATION REQUEST");
     expect(getKuroResponseQualityGuidance("finish that")).toContain("CONTINUATION REQUEST");
     expect(getKuroResponseQualityGuidance("Explain how a world economy could work.")).not.toContain("CONTINUATION REQUEST");
+  });
+});
+
+
+describe("truncated reply continuation affordance", () => {
+  it("shows continuation only when the output-limit notice exists", () => {
+    expect(isKuroChatResponseTruncated("A normal answer.")).toBe(false);
+    expect(isKuroChatResponseTruncated(formatKuroChatResponse("Partial answer", "length"))).toBe(true);
   });
 });

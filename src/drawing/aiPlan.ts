@@ -1,4 +1,5 @@
 import { parseDrawingPlan, type DrawingDocumentBounds, type NativeDrawingCommand } from "./commands";
+import { parseModelJson } from "../ai/structuredOutput";
 
 export interface AIStrokePlan {
   summary: string;
@@ -25,9 +26,9 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
   }
   let value: unknown;
   try {
-    value = JSON.parse(raw);
+    value = parseModelJson(raw, AI_MAX_PLAN_CHARS);
   } catch {
-    throw new Error("Kuro did not return valid JSON for the drawing plan.");
+    throw new Error("Kuro did not return valid structured JSON for the drawing plan.");
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("The drawing plan must be a JSON object.");

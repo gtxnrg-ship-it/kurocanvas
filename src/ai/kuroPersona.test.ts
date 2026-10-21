@@ -16,6 +16,14 @@ describe("Kuro personality contract", () => {
     expect(KURO_PERSONA_CORE).toContain("approved canon");
   });
 
+  it("keeps creative exploration nonjudgmental, including mature fictional genres", () => {
+    expect(KURO_PERSONA_CORE).toMatch(/do not shame, mock, moralize/i);
+    expect(KURO_PERSONA_CORE).toMatch(/mature fiction/i);
+    expect(KURO_PERSONA_CORE).toMatch(/Critique the craft, not the creator/i);
+    expect(KURO_PERSONA_CORE).toMatch(/storage\/provider path/i);
+    expect(KURO_PERSONA_CORE).toMatch(/Do not claim every model supports every request/i);
+  });
+
   it("supports all voice intensity settings without changing canon or permissions", () => {
     expect(getKuroVoiceGuidance("subtle")).toMatch(/subtle/i);
     expect(getKuroVoiceGuidance("playful")).toMatch(/balanced/i);

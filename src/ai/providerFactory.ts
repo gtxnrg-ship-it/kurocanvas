@@ -17,6 +17,14 @@ export function isLocalTinyConfig(config: Pick<ProviderFactoryConfig, "baseUrl">
   return config.baseUrl === LOCAL_TINY_BASE_URL;
 }
 
+/** True when Qwen's weights are loaded in the current browser worker session. */
+export function isLocalTinyModelPrepared(): boolean {
+  const provider = getKuroModelAdapter();
+  return "isPrepared" in provider && typeof provider.isPrepared === "function"
+    ? provider.isPrepared()
+    : false;
+}
+
 /**
  * Resolve the single model adapter used by every Kuro harness.
  * Legacy remote-provider settings intentionally fail closed rather than silently

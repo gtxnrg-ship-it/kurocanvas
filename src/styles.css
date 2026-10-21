@@ -375,3 +375,26 @@
 .story-thread-record p{margin:7px 0!important;color:#d2c7e3!important}
 .story-thread-record p strong{color:#f0e5ff}
 
+
+
+/* Saved artwork preview and gentle, reduced-motion-aware cosmic movement. */
+.workspace-preview-status{display:flex;align-items:center;gap:10px;width:100%}
+.workspace-preview-label{font-size:8px;letter-spacing:.14em;font-weight:800;color:#bba3e5}
+.workspace-preview .placeholder-icon{flex-shrink:0}
+.workspace-preview-image{display:block;width:100%;max-height:190px;min-height:90px;object-fit:contain;border:1px solid rgba(192,163,255,.12);border-radius:10px;background:radial-gradient(ellipse at 50% 50%,rgba(104,76,141,.14),rgba(8,7,12,.6));}
+.workspace-preview-empty{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:100px;padding:12px;border:1px dashed rgba(192,163,255,.16);border-radius:10px;background:rgba(8,7,12,.3);font-size:11px;line-height:1.6;color:var(--muted,#9e94b0)}
+.workspace-preview-empty svg{flex-shrink:0;color:#b69aff}
+.workspace-preview-spin{animation:kuro-preview-spin 1.2s linear infinite}
+@keyframes kuro-preview-spin{to{transform:rotate(360deg)}}
+.home-hero-art .ring-one{animation:kuro-orbit-drift 34s linear infinite}
+.home-hero-art .ring-two{animation:kuro-orbit-drift-reverse 27s linear infinite}
+.home-hero-art .hero-core{animation:kuro-core-breathe 6s ease-in-out infinite}
+.home-hero-art .orbit-a{animation:kuro-orbit-float-a 7s ease-in-out infinite}
+.home-hero-art .orbit-b{animation:kuro-orbit-float-b 9s ease-in-out infinite}
+.home-hero-art .orbit-c{animation:kuro-orbit-float-a 8s ease-in-out infinite reverse}
+@keyframes kuro-orbit-drift{from{transform:rotate(-28deg)}to{transform:rotate(332deg)}}
+@keyframes kuro-orbit-drift-reverse{from{transform:rotate(42deg)}to{transform:rotate(-318deg)}}
+@keyframes kuro-core-breathe{0%,100%{box-shadow:0 0 55px rgba(146,101,214,.17),inset 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 0 78px rgba(146,101,214,.32),inset 0 1px rgba(255,255,255,.12)}}
+@keyframes kuro-orbit-float-a{0%,100%{translate:0 0}50%{translate:0 -9px}}
+@keyframes kuro-orbit-float-b{0%,100%{translate:0 0;rotate:0deg}50%{translate:6px 7px;rotate:18deg}}
+@media(prefers-reduced-motion:reduce){.workspace-preview-spin,.home-hero-art .ring-one,.home-hero-art .ring-two,.home-hero-art .hero-core,.home-hero-art .orbit-a,.home-hero-art .orbit-b,.home-hero-art .orbit-c{animation:none!important}.home-hero-art .ring-one{transform:rotate(-28deg)}.home-hero-art .ring-two{transform:rotate(42deg)}}

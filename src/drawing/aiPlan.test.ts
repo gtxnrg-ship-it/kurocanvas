@@ -51,6 +51,29 @@ describe("parseAIStrokePlan", () => {
       .toThrow(/locked layer/i);
   });
 
+  it("proposes native layer creation followed by editable strokes", () => {
+    const bounds = { width: 800, height: 600, layerIds: ["ink"], lockedLayerIds: [], strokeLayerById: {} };
+    const plan = parseAIStrokePlan(JSON.stringify({
+      summary: "Separate the foreground ink on a new layer",
+      commands: [
+        { version: 1, id: "create-details", type: "layer.add", layerId: "detail-ink", name: "Detail ink", index: 1 },
+        { version: 1, id: "face-line", type: "stroke.add", layerId: "detail-ink", tool: "brush", color: "#112233", size: 3, points: [{ x: 40, y: 45, pressure: 0.7 }] },
+        { version: 1, id: "rename-details", type: "layer.rename", layerId: "detail-ink", name: "Face details" },
+      ],
+    }), bounds);
+    expect(plan.commands.map(command => command.type)).toEqual(["layer.add", "stroke.add", "layer.rename"]);
+  });
+
+  it("does not let the model fabricate internal layer-restoration commands", () => {
+    expect(() => parseAIStrokePlan(JSON.stringify({
+      summary: "Fabricate a layer",
+      commands: [{
+        version: 1, id: "restore-layer", type: "layer.restore", index: 1,
+        layer: { id: "invented", name: "Invented", visible: true, locked: false, opacity: 1, blendMode: "normal" },
+      }],
+    }))).toThrow(/approved native/i);
+  });
+
   it("rejects out-of-bounds points and unknown layers", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, points: [{ x: 2000, y: 40 }] }] }))).toThrow(/rejected/i);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, layerId: "missing" }] }))).toThrow(/rejected/i);

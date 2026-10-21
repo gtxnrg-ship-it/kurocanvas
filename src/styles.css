@@ -218,3 +218,13 @@
 .selection-transform-tools{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid rgba(182,154,255,.25);border-radius:9px;background:rgba(25,21,34,.72)}
 .selection-transform-tools button{padding:6px 9px;border:1px solid #3b324d;border-radius:7px;background:#171421;color:#e4d9f7;font-size:10px;white-space:nowrap}
 .selection-transform-tools button:hover{border-color:#9b80e6;background:#272039}
+
+.selection-transform-tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:5px 8px;border:1px solid rgba(182,154,255,.25);border-radius:10px;background:rgba(25,21,34,.78)}
+.selection-inspector-title{font-size:10px;font-weight:700;color:#cbb8f2;letter-spacing:.04em;text-transform:uppercase}
+.selection-transform-tools .selection-color-control,.selection-transform-tools .selection-opacity-control{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:#cfc4e2}
+.selection-color-control input[type=color]{width:27px;height:25px;padding:2px;border:1px solid #3b324d;border-radius:6px;background:#171421}
+.selection-opacity-control input[type=range]{width:78px;accent-color:#b69aff}
+.selection-opacity-control span{min-width:29px;color:#e6dcf5;font-variant-numeric:tabular-nums}
+.selection-transform-tools button{padding:6px 9px;border:1px solid #3b324d;border-radius:7px;background:#171421;color:#e4d9f7;font-size:10px;white-space:nowrap}
+.selection-transform-tools button:hover:not(:disabled){border-color:#9b80e6;background:#272039}
+.selection-transform-tools button:disabled,.selection-transform-tools input:disabled{opacity:.4;cursor:not-allowed}

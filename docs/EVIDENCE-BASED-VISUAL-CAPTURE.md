@@ -14,3 +14,6 @@ This is a conservative proposal pipeline, not a guarantee that a connected langu
 
 
 For factual recall, the application also checks whether an explicit chapter-recall request has matching approved memory. If not, it stops before calling the model and asks the user to add or approve the missing recap.
+
+
+Capture is triggered only for messages that match the existing story-memory capture intent filter; ordinary chat that does not describe story history does not create vault proposals.

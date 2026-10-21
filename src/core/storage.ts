@@ -1,5 +1,6 @@
 import { buildProjectDeletionManifest } from "./projectDeletion";
 import { isValidCanvasDimensions } from "../drawing/canvasDimensions";
+import { validateLocalDrawingDocument } from "./drawingDocument";
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
@@ -242,8 +243,7 @@ export interface DrawingRevision {
 export const drawingRevisionStorage = {
   async create(drawingId: string, title: string, document: LocalDrawingDocument): Promise<DrawingRevision> {
     if (!drawingId.trim() || !title.trim() || document.id !== drawingId
-      || !document.projectId?.trim() || document.version !== 1
-      || !isValidCanvasDimensions(document.width, document.height) || !Array.isArray(document.strokes)) {
+      || !document.projectId?.trim() || validateLocalDrawingDocument(document, document.projectId).length) {
       throw new Error("A version checkpoint needs its owning drawing, project, title, and valid canvas document.");
     }
     const createdAt = new Date().toISOString();
@@ -266,8 +266,9 @@ export const drawingRevisionStorage = {
   async load(revisionId: string, drawingId: string): Promise<DrawingRevision | undefined> {
     const revision = await requestValue<DrawingRevision | undefined>(DRAWING_REVISIONS, "readonly", store => store.get(revisionId));
     if (!revision || revision.drawingId !== drawingId) return undefined;
-    if (revision.document.version !== 1 || !isValidCanvasDimensions(revision.document.width, revision.document.height)
-      || !Array.isArray(revision.document.strokes)) throw new Error("This drawing version is damaged or unsupported.");
+    if (revision.document.id !== drawingId || validateLocalDrawingDocument(revision.document).length) {
+      throw new Error("This drawing version is damaged or unsupported.");
+    }
     return revision;
   },
   async removeDrawing(drawingId: string): Promise<void> {
@@ -279,9 +280,9 @@ export const drawingRevisionStorage = {
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
 export const drawingStorage = {
   async save(document: LocalDrawingDocument): Promise<void> {
-    if (!document.id || !document.projectId?.trim() || document.version !== 1
-      || !isValidCanvasDimensions(document.width, document.height) || !Array.isArray(document.strokes)) {
-      throw new Error("A drawing must have a valid ID, owning project, and supported canvas dimensions before it can be saved.");
+    const validationErrors = validateLocalDrawingDocument(document, document.projectId);
+    if (!document.projectId?.trim() || validationErrors.length) {
+      throw new Error("Drawing validation failed: " + validationErrors.join(" "));
     }
     const existing = await this.load(document.id);
     if (existing?.projectId && existing.projectId !== document.projectId) {
@@ -294,11 +295,11 @@ export const drawingStorage = {
   },
   async load(id: string, projectId?: string): Promise<LocalDrawingDocument | undefined> {
     const result = await requestValue<LocalDrawingDocument | undefined>(DRAWINGS, "readonly", store => store.get(id));
-    if (result && (result.version !== 1 || !Array.isArray(result.strokes)
-      || !isValidCanvasDimensions(result.width, result.height))) {
-      throw new Error("This saved drawing is damaged or uses unsupported canvas dimensions/version.");
-    }
     if (result && projectId && result.projectId !== projectId) throw new Error("Universe isolation violation: drawing is not part of the active project.");
+    if (result) {
+      const validationErrors = validateLocalDrawingDocument(result);
+      if (validationErrors.length) throw new Error("This saved drawing is damaged or unsupported: " + validationErrors.join(" "));
+    }
     return result;
   },
   async list(projectId?: string): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
@@ -888,9 +889,7 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
   for (const reference of bundle.references) errors.push(...validateReferenceSource(reference, projectId));
   for (const model of bundle.characterModels) errors.push(...validateCharacterModel(model, projectId));
   for (const drawing of bundle.drawings) {
-    if (!drawing || typeof drawing.id !== "string" || !drawing.id.trim() || drawing.projectId !== projectId
-      || drawing.version !== 1 || !isValidCanvasDimensions(drawing.width, drawing.height)
-      || !Array.isArray(drawing.strokes)) {
+    if (validateLocalDrawingDocument(drawing, projectId).length) {
       errors.push("Imported drawing is invalid or belongs to a different project.");
     }
   }
@@ -900,10 +899,7 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
       || typeof revision.title !== "string" || !revision.title.trim()
       || !drawingIds.has(revision.drawingId)
       || revision.document?.id !== revision.drawingId
-      || revision.document?.projectId !== projectId
-      || revision.document?.version !== 1
-      || !isValidCanvasDimensions(revision.document?.width as number, revision.document?.height as number)
-      || !Array.isArray(revision.document?.strokes)) {
+      || validateLocalDrawingDocument(revision.document, projectId).length) {
       errors.push("Imported drawing revision is invalid or references a missing drawing.");
     }
   }

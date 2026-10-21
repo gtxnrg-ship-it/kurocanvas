@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStoryMemoryContext, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
+import { buildStoryMemoryContext, filterStoryMemoryAtPoint, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
 describe("story memory capture triggers", () => {
   it.each([
     "A new character named Mira joins the team.",
@@ -32,6 +32,28 @@ describe("durable story memory", () => {
   it("retrieves chapter flashback and exact reusable panel/template refs", () => {
     const result = retrieveStoryMemory([record()], { projectId: "series-a", chapterNumber: 12, text: "silver oath flashback" });
     expect(result.records[0].id).toBe("chapter-12"); expect(result.assetRefs).toEqual(["panel-bridge-03", "template-flashback-blue"]);
+  });
+
+  it("prevents future chapter recaps from entering an earlier chapter prompt", () => {
+    const earlier = record({ id: "chapter-2", chapterNumber: 2, storyOrder: 20, title: "Old bridge", summary: "Mira visits the bridge." });
+    const current = record({ id: "chapter-3", chapterNumber: 3, storyOrder: 30, title: "Oath", summary: "Mira makes the oath." });
+    const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800, title: "Final emperor reveal", summary: "The Secret Emperor is defeated." });
+    const result = filterStoryMemoryAtPoint([earlier, current, future], "series-a", { productionRequest: true, chapterNumber: 3 });
+    expect(result.map(item => item.id)).toEqual(["chapter-2", "chapter-3"]);
+    expect(result.some(item => item.summary.includes("Secret Emperor"))).toBe(false);
+  });
+  it("requires explicit chronology for production prompts and filters by story order", () => {
+    const first = record({ id: "s10", chapterNumber: 1, storyOrder: 10 });
+    const second = record({ id: "s20", chapterNumber: 2, storyOrder: 20 });
+    const future = record({ id: "s30", chapterNumber: 3, storyOrder: 30 });
+    const unknown = record({ id: "unknown-order", chapterNumber: undefined, storyOrder: undefined });
+    expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true }).map(item=>item.id)).toEqual([]);
+    expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true, storyOrder: 20 }).map(item=>item.id)).toEqual(["s10", "s20"]);
+  });
+  it("leaves private brainstorming unrestricted while staying project-scoped", () => {
+    const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800 });
+    const otherProject = record({ id: "foreign", projectId: "series-b", chapterNumber: 1 });
+    expect(filterStoryMemoryAtPoint([future, otherProject], "series-a", { productionRequest: false }).map(item=>item.id)).toEqual(["chapter-80"]);
   });
   it("never leaks memory across projects", () => expect(retrieveStoryMemory([record()], { projectId: "series-b", text: "Mira" }).records).toHaveLength(0));
   it("treats missing history as unknown and warns instead of fabricating it", () => {

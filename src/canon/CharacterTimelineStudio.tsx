@@ -35,7 +35,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
   const [characterId, setCharacterId] = useState("");
   const [timelineId, setTimelineId] = useState("main");
   const [storyOrder, setStoryOrder] = useState("10");
-  const [chapterNumber, setChapterNumber] = useState("1");
+  const [chapterNumber, setChapterNumber] = useState("");
   const [sceneNumber, setSceneNumber] = useState("");
   const [revealAtStoryOrder, setRevealAtStoryOrder] = useState("");
   const [ageYears, setAgeYears] = useState("");
@@ -143,6 +143,8 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     setPreviousBodyInstanceId(blank(a?.bodyIdentity?.previousBodyInstanceId)); setAgeAtIncarnation(a?.bodyIdentity?.ageAtIncarnation === undefined ? "" : String(a.bodyIdentity.ageAtIncarnation));
     setRevealAtStoryOrder(baseState?.revealAtStoryOrder === undefined ? "" : String(baseState.revealAtStoryOrder));
     setUnknownFields(a?.unknownFields ?? []); setConditions(a?.physicalConditions ?? []); setChangeSummary("");
+    setChapterNumber(baseState?.chapterNumber === undefined ? "" : String(baseState.chapterNumber));
+    setSceneNumber(baseState?.sceneNumber === undefined ? "" : String(baseState.sceneNumber));
     setConditionsTouched(false); setClearConditions(false);
   }, [baseState?.id, characterId, timelineId]);
 

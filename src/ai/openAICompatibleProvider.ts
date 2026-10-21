@@ -49,7 +49,7 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
 /** Conservative model-name hints; the connected provider may still reject image input. */
 export function inferModelCapabilities(modelName: string): ModelCapability[] {
   const name = modelName.toLocaleLowerCase();
-  const vision = /gpt-4o|gpt-4\\.1|gpt-5|gpt-6|gemini|claude-3|claude-(?:sonnet|opus|haiku)-4|llava|qwen.*vl|pixtral|internvl|minicpm-v|molmo|vision|multimodal/.test(name);
+  const vision = /gpt-4o|gpt-4\.1|gpt-5|gpt-6|gemini|claude-3|claude-(?:sonnet|opus|haiku)-4|llava|qwen.*vl|pixtral|internvl|minicpm-v|molmo|vision|multimodal/.test(name);
   return vision ? ["chat", "vision"] : ["chat"];
 }
 

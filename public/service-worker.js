@@ -131,40 +131,52 @@ async function collectSources(task) {
   }).slice(0, MAX_SOURCES[depth]);
 }
 async function processQueue() {
-  // Claiming each record in a read/write transaction prevents the app page and
+  // Claiming each record in a read/write transaction prevents the page and
   // service worker from deliberately claiming the same queued item at once.
   let processed = 0;
   while (processed < 3) {
     const task = await claimNextTask();
     if (!task) return;
     processed += 1;
+    let sources;
     try {
-      const sources = await collectSources(task);
-      await updateTask(task.id, {
-        status: "completed", progress: 100,
-        stage: sources.length ? "Research sources collected in background" : "Finished — no matching pages",
-        sources, completedAt: new Date().toISOString(), leaseUntil: undefined, error: undefined,
-      });
-      await self.registration.showNotification("Kuro's research is ready", {
-        body: sources.length
-          ? task.query + " · collected " + sources.length + " source summaries."
-          : "Research finished, but no matching Wikipedia pages were found.",
-        tag: task.id,
-        icon: "./kuro-icon.webp",
-        data: { url: new URL("./", self.registration.scope).href, taskId: task.id },
-      });
+      sources = await collectSources(task);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Background research failed.";
-      await updateTask(task.id, {
+      const saved = await updateTask(task.id, {
         status: "failed", stage: "Background research failed", error: message,
         leaseUntil: undefined, completedAt: new Date().toISOString(),
       });
-      await self.registration.showNotification("Kuro's research needs attention", {
-        body: task.query + " · " + message.slice(0, 160),
-        tag: task.id,
-        icon: "./kuro-icon.webp",
-        data: { url: new URL("./", self.registration.scope).href, taskId: task.id },
-      });
+      if (saved) {
+        try {
+          await self.registration.showNotification("Kuro's research needs attention", {
+            body: task.query + " · " + message.slice(0, 160),
+            tag: task.id,
+            icon: "./kuro-icon.webp",
+            data: { url: new URL("./", self.registration.scope).href, taskId: task.id },
+          });
+        } catch (_) { /* Notification permission is independent from task success/failure. */ }
+      }
+      continue;
+    }
+    const saved = await updateTask(task.id, {
+      status: "completed", progress: 100,
+      stage: sources.length ? "Research sources collected in background" : "Finished — no matching pages",
+      sources, completedAt: new Date().toISOString(), leaseUntil: undefined, error: undefined,
+    });
+    // The page may have cancelled the job while the service worker was fetching.
+    if (saved) {
+      try {
+        await self.registration.showNotification("Kuro's research is ready", {
+          body: sources.length
+            ? task.query + " · collected " + sources.length + " source summaries."
+            : "Research finished, but no matching Wikipedia pages were found.",
+          tag: task.id,
+          icon: "./kuro-icon.webp",
+          data: { url: new URL("./", self.registration.scope).href, taskId: task.id },
+        });
+      } catch (_) { /* Do not turn completed work into failure if notifications are denied. */ }
     }
   }
+  await registerResearchSync();
 }

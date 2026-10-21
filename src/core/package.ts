@@ -79,12 +79,19 @@ const ARCHIVE_MANIFEST = "manifest.json";
 /** Package into a portable ZIP with a manifest and independently checksummed asset files. */
 export function serializeKuroArchive(pkg: KuroPackage): Uint8Array {
   validateKuroPackage(pkg);
-  const assetFiles: Record<string, string> = {};
-  const entries = Object.entries(pkg.assets).sort(([a], [b]) => a.localeCompare(b)).map(([key, value], index) => {
+  const assetFiles: Record<string, string> = Object.create(null) as Record<string, string>;
+  const entries: Array<{ name: string; data: Uint8Array }> = [];
+  let assetBytes = 0;
+  for (const [index, [key, value]] of Object.entries(pkg.assets).sort(([a], [b]) => a.localeCompare(b)).entries()) {
+    // Reject clearly oversized strings before allocating their UTF-8 buffers.
+    if (value.length > 50 * 1024 * 1024) throw new Error("Archive exceeds the 50 MB safety limit.");
+    const data = new TextEncoder().encode(value);
+    assetBytes += data.byteLength;
+    if (assetBytes > 50 * 1024 * 1024) throw new Error("Archive exceeds the 50 MB safety limit.");
     const path = "assets/" + String(index).padStart(5, "0") + ".utf8";
     assetFiles[key] = path;
-    return { name: path, data: new TextEncoder().encode(value) };
-  });
+    entries.push({ name: path, data });
+  }
   const manifest = {
     format: pkg.format,
     packageVersion: pkg.packageVersion,
@@ -111,7 +118,7 @@ export function parseKuroArchive(bytes: Uint8Array): KuroPackage {
     throw new Error("The Kuro archive manifest has no valid asset index.");
   }
   const assetFiles = manifest.assetFiles as Record<string, unknown>;
-  const assets: Record<string, string> = {};
+  const assets: Record<string, string> = Object.create(null) as Record<string, string>;
   const expectedPaths = new Set([ARCHIVE_MANIFEST]);
   const decoder = new TextDecoder("utf-8", { fatal: true });
   for (const [key, path] of Object.entries(assetFiles)) {

@@ -116,6 +116,27 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   };
 }
 
+/**
+ * Post-generation spoiler check. Prompt rules are advisory; production output that names
+ * an unrevealed character is withheld by the application rather than shown to the user.
+ */
+export function hasUnrevealedCharacterMention(
+  output: string,
+  bundle: CanonBundle | undefined,
+  gate: CanonRevealGateOptions,
+): boolean {
+  if (!bundle || !gate.enabled || !output.trim()) return false;
+  const hiddenTokens = filterUnrevealedCanon(bundle, gate).hiddenTokens;
+  if (!hiddenTokens.length) return false;
+  const normalizePhrase = (value: string) =>
+    value.normalize("NFKC").toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+  const haystack = " " + normalizePhrase(output) + " ";
+  return hiddenTokens.some(token => {
+    const phrase = normalizePhrase(token);
+    return phrase.length >= 3 && haystack.includes(" " + phrase + " ");
+  });
+}
+
 /** Remove recent dialogue turns that directly mention a still-hidden character before producing story output. */
 export function filterConversationTurnsForRevealGate<T extends { content: unknown }>(
   turns: readonly T[],

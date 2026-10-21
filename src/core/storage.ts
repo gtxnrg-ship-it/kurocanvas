@@ -126,26 +126,50 @@ export const projectStorage = {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
   async remove(id: string): Promise<void> {
-    const memoryRecords = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll());
-    const referenceRecords = await requestValue<ReferenceSourceRecord[]>(REFERENCE_SOURCES, "readonly", store => store.getAll());
-    const characterModels = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll());
+    if (!id.trim()) throw new Error("Choose a project before removing it.");
+    const [memoryRecords, referenceRecords, characterModels, drawings, revisions, universes, conversations, messages, relationships, characterStates] = await Promise.all([
+      requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll()),
+      requestValue<ReferenceSourceRecord[]>(REFERENCE_SOURCES, "readonly", store => store.getAll()),
+      requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll()),
+      requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll()),
+      requestValue<DrawingRevision[]>(DRAWING_REVISIONS, "readonly", store => store.getAll()),
+      requestValue<UniverseRecord[]>(UNIVERSES, "readonly", store => store.getAll()),
+      requestValue<ConversationRecord[]>(CONVERSATIONS, "readonly", store => store.getAll()),
+      requestValue<ChatMessageRecord[]>(CHAT_MESSAGES, "readonly", store => store.getAll()),
+      requestValue<RelationshipRecord[]>(RELATIONSHIPS, "readonly", store => store.getAll()),
+      requestValue<CharacterEvolutionState[]>(CHARACTER_EVOLUTION, "readonly", store => store.getAll()),
+    ]);
+
+    // A project's universe is its owner boundary. Deleting a project must also delete
+    // its canvas revisions and every chat/relationship/timeline record in those universes,
+    // while leaving unrelated universes and legacy unassigned drawings untouched.
+    const universeIds = new Set(universes.filter(universe => universe.projectId === id).map(universe => universe.id));
+    const conversationIds = new Set(conversations.filter(conversation => universeIds.has(conversation.universeId)).map(conversation => conversation.id));
+    const drawingIds = new Set(drawings.filter(drawing => drawing.projectId === id).map(drawing => drawing.id));
+    const stores = [PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE,
+      REFERENCE_SOURCES, CHARACTER_MODELS, DRAWINGS, DRAWING_REVISIONS, UNIVERSES,
+      CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION];
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE, REFERENCE_SOURCES, CHARACTER_MODELS], "readwrite");
+        const tx = db.transaction(stores, "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
         tx.objectStore(CANON).delete(id);
         tx.objectStore(ART_DIRECTION).delete(id);
         tx.objectStore(STYLE_BIBLE).delete(id);
-        const referenceStore = tx.objectStore(REFERENCE_SOURCES);
-        for (const record of referenceRecords) if (record.projectId === id) referenceStore.delete(record.id);
-        const characterModelStore = tx.objectStore(CHARACTER_MODELS);
-        for (const record of characterModels) if (record.projectId === id) characterModelStore.delete(record.id);
-        const memoryStore = tx.objectStore(STORY_MEMORY);
-        for (const record of memoryRecords) if (record.projectId === id) memoryStore.delete(record.id);
+        for (const record of referenceRecords) if (record.projectId === id) tx.objectStore(REFERENCE_SOURCES).delete(record.id);
+        for (const record of characterModels) if (record.projectId === id) tx.objectStore(CHARACTER_MODELS).delete(record.id);
+        for (const record of memoryRecords) if (record.projectId === id) tx.objectStore(STORY_MEMORY).delete(record.id);
+        for (const drawing of drawings) if (drawing.projectId === id) tx.objectStore(DRAWINGS).delete(drawing.id);
+        for (const revision of revisions) if (drawingIds.has(revision.drawingId)) tx.objectStore(DRAWING_REVISIONS).delete(revision.id);
+        for (const universe of universes) if (universeIds.has(universe.id)) tx.objectStore(UNIVERSES).delete(universe.id);
+        for (const conversation of conversations) if (universeIds.has(conversation.universeId)) tx.objectStore(CONVERSATIONS).delete(conversation.id);
+        for (const message of messages) if (universeIds.has(message.universeId) || conversationIds.has(message.conversationId)) tx.objectStore(CHAT_MESSAGES).delete(message.id);
+        for (const relationship of relationships) if (universeIds.has(relationship.universeId)) tx.objectStore(RELATIONSHIPS).delete(relationship.id);
+        for (const state of characterStates) if (universeIds.has(state.universeId)) tx.objectStore(CHARACTER_EVOLUTION).delete(state.id);
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error("Could not remove project."));
+        tx.onerror = () => reject(tx.error ?? new Error("Could not remove project and its owned creative data."));
         tx.onabort = () => reject(tx.error ?? new Error("Project removal was cancelled."));
       });
     } finally {

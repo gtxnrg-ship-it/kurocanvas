@@ -7,6 +7,7 @@ describe("portable Kuro packages", () => {
     const project = createProject("The Silver Oath");
     const assets = {
       "kuro/story-memory.v1.json": JSON.stringify([{ id: "chapter-12", status: "approved" }]),
+      "kuro/art-direction.v1.json": JSON.stringify({ schemaVersion: 1, projectId: project.id, title: "Locked style", influences: [] }),
       "kuro/canon.v1.json": JSON.stringify({ schemaVersion: 1, projectId: project.id, entities: [], facts: [] }),
       "kuro/drawings/drawing-1.json": JSON.stringify({ id: "drawing-1", version: 1, strokes: [] }),
     };

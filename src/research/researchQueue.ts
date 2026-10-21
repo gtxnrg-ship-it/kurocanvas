@@ -34,6 +34,36 @@ export const RESEARCH_QUEUE_CHANGED = "kuro-research-queue-changed";
 const SEARCH_LIMIT: Record<ResearchDepth, number> = { quick: 3, balanced: 5, deep: 8, exhaustive: 12 };
 const EXTRACT_CHARS: Record<ResearchDepth, number> = { quick: 1000, balanced: 1700, deep: 2300, exhaustive: 3000 };
 
+export interface ResearchTaskIntent {
+  query: string;
+  depth: ResearchDepth;
+  sourceProvider: ResearchSourceProvider;
+}
+
+/** Classify explicit research commands before the chat model answers from memory alone. */
+export function extractResearchTaskIntent(message: string): ResearchTaskIntent | undefined {
+  const text = message.normalize("NFKC").trim();
+  const command = text.match(/^\\s*(?:please\\s+)?(?:(?:can|could|would) you\\s+)?(research|investigate|fact[- ]check|look up|search(?:\\s+(wikipedia|crossref))?|find\\s+(?:credible\\s+|scholarly\\s+)?sources)\\b/i);
+  if (!command) return undefined;
+  const commandLength = command[0].length;
+  let query = text.slice(commandLength)
+    .replace(/^\\s*(?:about|for|on|into|regarding)\\s+/i, "")
+    .replace(/\\s*(?:,?\\s*and)?\\s*(?:cite|include|provide)\\s+(?:credible\\s+|reliable\\s+)?(?:sources?|citations?|references?)\\b[\\s\\S]*$/i, "")
+    .replace(/\\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+  if (query.length < 3) return undefined;
+  const lower = text.toLocaleLowerCase();
+  const depth: ResearchDepth = /\\b(?:exhaustive|comprehensive|as many as possible|deep dive)\\b/i.test(lower)
+    ? "exhaustive"
+    : /\\b(?:quick|brief|short)\\b/i.test(lower) ? "quick"
+    : /\\bbalanced\\b/i.test(lower) ? "balanced" : "deep";
+  const sourceProvider: ResearchSourceProvider = command[2]?.toLowerCase() === "crossref"
+    || /\\b(?:scholarly papers?|academic papers?|journal articles?)\\b/i.test(lower)
+    ? "crossref" : "wikipedia";
+  return { query, depth, sourceProvider };
+}
+
 type TaskEventListener = () => void;
 let paused = false;
 let runnerStarted = false;

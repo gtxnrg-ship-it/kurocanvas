@@ -72,7 +72,7 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
   }
   for (const warning of result.warnings) lines.push("CONTINUITY WARNING: " + warning);
   const output = lines.join("\n");
-  return output.length > cap ? output.slice(0, cap - 24).trimEnd() + "\n[Memory context truncated.]" : output;
+  return output.length > cap ? output.slice(0, cap - 32).trimEnd() + "\n[Memory context truncated.]" : output;
 }
 export function proposeChapterMemory(input: Omit<StoryMemoryRecord, "kind" | "status" | "source" | "createdAt" | "updatedAt">, now = new Date().toISOString()): StoryMemoryRecord {
   const record: StoryMemoryRecord = { ...input, kind: "chapter", status: "proposed", source: "user", createdAt: now, updatedAt: now };

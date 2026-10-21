@@ -30,3 +30,7 @@
 .style-bible-conflict p{margin:5px 0 0;font-size:12px;line-height:1.5}
 .style-bible-footnote{margin:18px 0 0;padding:12px 14px;border-left:2px solid #86a9e7;background:rgba(71,99,149,.12);color:#b7c5dc;font-size:11px;line-height:1.65}
 @media(max-width:720px){.style-bible-head,.style-bible-section-head{flex-direction:column}.style-bible-base,.style-bible-card-grid{grid-template-columns:minmax(0,1fr)}.style-bible-wide{grid-column:1}.style-bible-head>button,.style-bible-section-head>button{width:100%}}
+
+.style-bible-research{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:3px}
+.style-bible-research a{font-size:11px;color:#c6b2ff;text-decoration:none;border:1px solid rgba(167,139,250,.24);border-radius:7px;padding:6px 8px;background:rgba(167,139,250,.06)}
+.style-bible-research a:hover{border-color:#a78bfa;background:rgba(167,139,250,.12)}

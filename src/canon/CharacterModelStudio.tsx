@@ -453,6 +453,10 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     const existingVariant = models.find(model => normalizeName(model.characterName) === normalizeName(name) && model.characterStateId === targetStateId);
     if (existingVariant) {
       if (traits && existingVariant.sourceType === "procedural") {
+        if (!targetState) {
+          const currentlyVisible = selectCharacterModelVariant(models, name, selectedState?.storyOrder);
+          if (currentlyVisible && currentlyVisible.id !== existingVariant.id) throw new Error("A chapter-specific variant is active for " + name + ". Specify its approved characterStateId so I update the visible timeline design rather than a hidden base.");
+        }
         const updated: CharacterModelRecord = { ...existingVariant, proceduralTraits: traits, updatedAt: timestamp() };
         await persistModel(updated, "Updated the native procedural model for " + name + (targetState ? " at " + targetState.chapterLabel : "") + ".");
         const readback = await characterModelStorage.list(projectId);

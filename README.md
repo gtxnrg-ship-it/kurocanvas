@@ -2,123 +2,201 @@
 
 **Create · Draw · Tell · Together.**
 
-Kuro Canvas is planned as a chat-first, AI-assisted creative studio for manga, manhua, and Webtoon creation. Kuro should operate real, inspectable drawing tools; one-shot image generation is not the core workflow.
+Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and Webtoon creation. Kuro's defining job is to help develop a story universe and then operate the application's **real, editable drawing tools**—not silently replace the drawing workflow with a flattened, one-shot generated image.
 
-## Current status
+> **Project status: active development · early alpha · not a production release**
+>
+> **Rough completion estimate:** approximately **45% of the full product vision is implemented in some form**. This is an engineering estimate, not a test-coverage metric. Core foundations exist, but several of the hardest end-to-end workflows and release requirements remain incomplete. **Release readiness is substantially lower than feature-foundation progress.**
+>
+> **Latest confirmed verification:** on commit [`b82299b`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/b82299b74b4a909182a91b08254dd1b4979ea2da), the automated regression tests, TypeScript checks, and production build passed. The Pages publish job failed because the repository's GitHub Pages site is not enabled/configured yet, so a live hosted preview is **not confirmed**. New commits trigger fresh checks; see [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions) for current results. Build output also warns about large JavaScript/model-runtime assets; performance on low-end phones still needs measurement. Passing automated checks does **not** prove every user journey works or that the app is ready for release.
 
-This foundation commit establishes a responsive React + TypeScript + Vite interface prototype. Navigation, chat flow, workspace panels, reader view, and creative-vault view are UI scaffolding. Tool activity and scene art are illustrative; a production drawing engine, persistent project storage, real AI tool execution, and export pipeline are not implemented yet.
+- **Development branch:** `feat/universe-per-chat-foundation`
+- **Pull request:** [#127 — universe-first workspace, continuity memory, and native art-agent harness](https://github.com/gtxnrg-ship-it/kurocanvas/pull/127)
+- **CI runs:** [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions)
+- **Source code:** [GitHub repository](https://github.com/gtxnrg-ship-it/kurocanvas)
+
+## At a glance: what exists today?
+
+| Area | Current status | Important limitation |
+|---|---|---|
+| React + TypeScript application shell | Implemented | Needs broader real-device and end-to-end verification |
+| Home, chat, canvas, reader, Vault and settings areas | Implemented in the app | Feature completeness and edge cases vary by area |
+| Native editable 2D drawing | Implemented | Not all drawing capabilities are available to Kuro through a unified action registry |
+| Layers, strokes, drawing revisions and local storage | Implemented | Recovery, migration and cross-device portability need more verification |
+| Universe/conversation separation and resume flows | Implemented on this branch | Isolation needs continued regression and end-to-end testing |
+| Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed |
+| Native drawing-agent execution | Partial | Broader action coverage, real-document read-back, iterative visual QA and robust rollback/cancellation remain |
+| Local browser model | Experimental | Text-only small model; quality and device performance are unverified |
+| Hosted OpenAI-compatible provider | Integration implemented | Requires a compatible endpoint and valid configuration |
+| Portable project/export workflows | Partial | Round-trip, corruption handling and full asset portability require more testing |
+| Android APK | **Not available yet** | No verified installable APK release is published |
+| Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
+
+Statuses describe the code and current development scope; they are not a promise that every row is fully verified.
+
+## Try Kuro Canvas now
+
+### Option 1 — Open the development workspace
+
+**[Open Kuro Canvas in StackBlitz](https://stackblitz.com/github/gtxnrg-ship-it/kurocanvas/tree/feat/universe-per-chat-foundation?startScript=dev)**
+
+This opens a browser-based development environment. It may take time to install dependencies and start the app. It is a development workspace, not a stable hosted release, and it may not work if the repository or branch is inaccessible to StackBlitz.
+
+### Option 2 — Open the hosted preview
+
+**[Try the GitHub Pages preview](https://gtxnrg-ship-it.github.io/kurocanvas/)**
+
+This is the intended development-preview URL. Availability depends on GitHub Pages being enabled and a successful deployment having completed. A repository maintainer must enable Pages once in **Settings → Pages → Build and deployment → Source: GitHub Actions**; the CI integration cannot create the Pages site because it lacks repository administration permission. Then check the [deployment workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/deploy-pages-preview.yml). A successful CI run alone does not prove that Pages has been enabled or that a deployment is live.
+
+### Option 3 — Run it locally
+
+Requirements: **Node.js 20+** and npm.
+
+```bash
+git clone https://github.com/gtxnrg-ship-it/kurocanvas.git
+cd kurocanvas
+git switch feat/universe-per-chat-foundation
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite (usually `http://localhost:5173`). Keep the terminal running while you use the app.
+
+Run the project's checks before submitting changes:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run preview
+```
+
+`npm run preview` serves the already-built production bundle; run `npm run build` first.
+
+### Quick manual smoke test
+
+After the app opens, use this checklist to test the most important paths rather than judging only the home screen:
+
+- [ ] Create a new universe and confirm its first conversation opens.
+- [ ] Send a message. If a model is not connected, confirm the app reports that state instead of pretending a response was generated.
+- [ ] Open the canvas, draw a few strokes, change tools/layers, and wait for the save indicator.
+- [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.
+- [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.
+- [ ] Create a second universe and confirm its conversation and saved drawings are separate.
+- [ ] In the first universe, ask Kuro for a drawing plan if a provider is connected. Inspect the proposed actions and approve only if the preview looks right.
+- [ ] Export a project if available, then test the exported file before relying on it as a backup.
+
+This is a practical smoke test, not a substitute for the full release test suite. Report failures with the browser/device, exact steps, and any visible error message.
+
+## Android APK download
+
+**There is no verified, installable Kuro Canvas APK published yet.** The current project is a web application built with React, TypeScript and Vite. A web app running in an Android browser is not the same thing as a packaged Android application, and we should not label an unverified build as an APK.
+
+- **[Check official Kuro Canvas releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases/latest)** — if a release later includes an APK, download it only from the official release assets.
+- **[Browse all releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases)**.
+- **Download a temporary web build:** once the latest [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/kuro-canvas-checks.yml) finish successfully, open that run and download the `kuro-canvas-web-build` artifact. It is a short-lived static web build (retained for 7 days), **not an APK**; you must host/serve its files to run it.
+- **Current way to test on Android:** open the hosted preview above in Chrome if it is available, or run the app locally and access it from the phone on the same network. The local development server must be reachable from the device.
+- **Home-screen shortcut:** you may be able to use Chrome's **Add to Home screen** menu, but this is only a browser shortcut—not a packaged or verified installable app. No offline guarantee is made, and browser storage can be cleared by the user or operating system.
+
+Before an APK can be advertised as downloadable, the project needs a verified Android packaging path, a reproducible build, application ID/versioning, appropriate permissions and storage behavior, installation testing on real devices, and a release artifact attached to an official GitHub release. Signing and update/distribution instructions must also be documented. **The links above are release destinations, not a claim that an APK is currently available.**
+
+
+## What Kuro is designed to become
+
+Kuro is intended to be a persistent creative partner for long-running manga, manhua and Webtoon projects. A user should be able to explore a fictional universe for as long as needed, establish and approve its canon, and then develop chapters without repeatedly explaining the world.
+
+The target workflow is:
+
+1. **Develop the universe.** Discuss themes, world rules, characters, relationships, arcs, reveals, foreshadowing and visual style.
+2. **Build reliable canon.** Preserve source conversations, evidence, temporal history and explicit approved/proposed/inferred/contradicted/superseded states.
+3. **Plan a chapter.** Turn an approved brief into an outline, scene breakdown, dialogue and panel-by-panel composition.
+4. **Draw natively.** Build editable rough thumbnails, poses, forms, backgrounds, linework, colors, effects and lettering on the actual canvas.
+5. **Observe and intervene.** Let the user pause, cancel, approve, revise and undo meaningful operations.
+6. **Protect continuity.** Reuse approved characters, outfits, props, environments and reference views; flag conflicts instead of silently inventing canon.
+7. **Save and resume.** Preserve the universe, conversations, plans, editable artwork, assets, approvals and history.
+8. **Export reliably.** Validate the project, include required assets, preserve editability where supported, and verify that exported projects can be reopened.
+
+**Defining requirement:** the model is the planner and operator; the native drawing engine creates the editable artwork. A generated image must never silently substitute for the promised drawing process.
 
 ## Product principles
 
-- **Chat-first, tool-driven:** Kuro plans work and invokes typed creative tools; users can observe, review, undo, and approve changes.
-- **Editable artwork:** strokes, layers, text, panels, and scene assets remain editable.
-- **Adaptive UI:** phone, stylus tablet, desktop, and large-screen layouts adapt to available space and input capabilities.
-- **Reusable creative memory:** approved character sheets, environments, camera views, templates, and visual references are versioned and searchable.
-- **Continuity-aware:** story facts, temporal states, and approvals are separate from AI suggestions.
-- **Local-first core:** core editing and project access should not require an account or server.
-- **Honest status:** illustrative previews are never presented as completed tool execution.
+- **Chat-first and tool-driven:** Kuro plans and invokes typed creative actions.
+- **Editable artwork:** strokes, layers, lettering, panels and supported scene assets remain editable.
+- **Local-first core:** drawing and access to saved work should not require an account or hosted model.
+- **Continuity with evidence:** approved canon is separate from suggestions and inference.
+- **Universe isolation:** a new chat starts a new universe by default; joining an existing universe is an explicit action.
+- **Safe execution:** validate model-proposed commands, checkpoint changes and preserve undo/recovery.
+- **Honest status:** no fake research, fake tool activity, invented completion, or claims that unverified behavior works.
 
-## Development
+## Model and provider status
 
-Node.js 20+ recommended.
+Kuro has an optional OpenAI-compatible provider interface and an experimental browser-local model provider.
 
-    npm install
-    npm run dev
-    npm run typecheck
-    npm run build
-    npm run preview
+The current local baseline is **SmolLM2-135M-Instruct**, using a quantized ONNX model through Transformers.js. The download is roughly 137 MB, depending on the model artifacts. It is **text-only**, has not been fine-tuned for Kuro, and has not been validated for the full creative-agent workflow. Its availability does not imply strong reasoning, reliable tool use, vision, or high-quality manga planning. Browser caching can be evicted; this is not a permanent native model installation.
 
-## Engineering decisions
+The optional endpoint smoke test checks model discovery, text generation and an image-input response against a running OpenAI-compatible endpoint. By default it targets `http://127.0.0.1:8000/v1`.
 
-- [Cross-platform and low-end performance strategy](docs/CROSS-PLATFORM-PERFORMANCE.md) — current framework decision, optimization order, device targets, and release gates.
+```bash
+npm run model:smoke
+```
 
-## Planned architecture
+Optional environment variables:
 
-1. Responsive application shell and design system
-2. Real 2D drawing engine, editable action history, layers, and stylus/touch input
-3. Versioned local project model, autosave, recovery, and .kuro package format
-4. Typed Kuro tool registry with preview/approval/undo semantics
-5. Creative vault, template versions, asset provenance, and dependency tracking
-6. Infinite/virtualized Webtoon workspace and comic-specific editing tools
-7. 3D reference studio with lazy asset loading and resource cleanup
-8. Export pipeline: raster images, layered interchange evaluation, PDF, and Webtoon export presets
-9. Canon and continuity engine, research provenance, optional model providers
-10. Automated tests, device benchmarks, accessibility, and release pipeline
+- `KURO_MODEL_BASE_URL` — compatible endpoint base URL.
+- `KURO_MODEL_ID` — model ID served by that endpoint.
+- `KURO_MODEL_API_KEY` — API key, if the endpoint requires one.
 
-## Official Kuro icon
+The smoke test uses a small synthetic test image rather than project artwork and does not measure creative quality. See [Local intelligence model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md) and [Model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md).
 
-The supplied official Kuro Canvas icon is the source of truth and must be used unchanged. Add the original image at public/kuro-icon.png when available in the build workspace. Do not replace it with a generated alternative. The current logo mark is a temporary placeholder.
+## What remains before a serious release
+
+The work is ordered by dependency, not visual novelty:
+
+1. **Close the user journey:** verify first launch, create universe, create/resume conversation, chat, switch workspace, save, reopen and recover on mobile and desktop.
+2. **Enforce data ownership:** scope transcripts, canon, relationship events, drawings, revisions, tasks and assets to the correct universe. Deny cross-universe access by default.
+3. **Unify native actions:** route manual and agent operations through a shared typed registry with strict validation, checkpoints, cancellation, undo/rollback and provenance.
+4. **Complete the feedback loop:** read back the actual document, render the result, detect measurable defects and revise through supported tools.
+5. **Strengthen continuity:** track character knowledge, relationship changes, emotional history, appearance states, timeline and source evidence. Keep approved canon separate from proposals.
+6. **Finish portable projects:** validate archive paths and schemas, handle missing assets, preserve editable layers and test import/export round-trips.
+7. **Harden the UI:** consistent loading, empty, error and recovery states; responsive layouts; keyboard/touch accessibility; reduced-motion support.
+8. **Validate models and devices:** benchmark latency, memory and quality on representative phones/tablets/desktops; disclose unsupported capabilities; keep hosted providers optional.
+9. **Package Android:** create and verify a reproducible Android build, test installation and upgrades on real devices, and publish the APK through an official release.
+10. **Release only on evidence:** pass typecheck, tests, production build, end-to-end workflows, security checks, accessibility checks and device testing. Report every remaining limitation.
+
+## Engineering and contributor guidance
+
+Before changing code, read the relevant product and architecture documents, inspect the current branch and CI, and identify the earliest incomplete dependency. Make coherent changes with regression tests. Update the roadmap alongside implementation. Mark a feature **Verified** only when a relevant automated check or reproducible end-to-end test actually passed.
+
+Treat model output and imported files as untrusted. Never execute arbitrary model-authored code. Keep provider secrets out of project files and logs. Require explicit approval for destructive operations and canon retcons. Preserve user data during migrations and never guess which universe legacy content belongs to.
+
+### Status vocabulary
+
+- **Planned:** not implemented.
+- **In progress:** implementation is underway.
+- **Implemented:** code exists; end-to-end behavior may not be verified.
+- **Verified:** a relevant check or reproducible test passed.
+- **Blocked:** a known dependency or failure prevents progress.
+
+## Key project documents
+
+- [Universe architecture and UI](docs/UNIVERSE-ARCHITECTURE-AND-UI.md)
+- [Canon and memory contract](docs/CANON-MEMORY.md)
+- [Native art-agent execution contract](docs/KURO-ART-AGENT-NATIVE-EXECUTION.md)
+- [Kuro personality and conversation harness](docs/KURO-PERSONALITY-AND-CONVERSATION-HARNESS.md)
+- [Local intelligence model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md)
+- [Model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md)
+- [Cross-platform and low-end performance strategy](docs/CROSS-PLATFORM-PERFORMANCE.md)
+- [Open pull request](https://github.com/gtxnrg-ship-it/kurocanvas/pull/127)
+- [Build and test status](https://github.com/gtxnrg-ship-it/kurocanvas/actions)
+
+## Official icon
+
+The supplied official Kuro Canvas icon is the source of truth and must be used unchanged. Do not replace it with a generated alternative. If the original icon asset is missing from the build, restore the official source asset rather than improvising a substitute.
 
 ## License
 
-No license has been selected yet. Do not assume this repository is open-source until a license is explicitly chosen.
+No license has been selected yet. Do not assume this repository is open source until a license is explicitly chosen.
 
+---
 
-## Kuro's future: product vision and long-term contract
-
-This section is the quick-start context for any future contributor, coding agent, or separate ChatGPT conversation. Read this README, `ROADMAP.md`, `ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/CANON-MEMORY.md`, and `docs/DRAWING-ACTIONS.md` before proposing changes. The repository—not a single chat transcript—is the durable project source of truth.
-
-### What Kuro Canvas is meant to become
-
-Kuro is a persistent creative partner for building long-running manga, manhua, and Webtoon series. The user should be able to talk through an entire fictional universe, establish and approve its canon, and then ask Kuro to plan and create chapters without repeatedly re-explaining the world.
-
-Kuro should:
-1. Help develop the series foundation: world rules, themes, characters, relationships, arcs, reveals, foreshadowing, visual style, and chapter goals.
-2. Maintain a searchable, project-scoped canon with sources, temporal history, and explicit approved/proposed/inferred/contradicted/superseded states.
-3. Turn an approved chapter brief into an outline, scene plan, and editable panel-by-panel plan.
-4. Draw on the actual native canvas: start with visible rough stick-figure thumbnails and composition, then progressively refine poses, shapes, backgrounds, linework, lighting, lettering, and detail.
-5. Make every meaningful AI operation observable. The user can inspect, pause, cancel, approve, revise, and undo work; completion messages must correspond to actual successful operations.
-6. Reuse approved characters, costumes, props, environments, panel templates, and 3D reference setups while warning about continuity and dependency impacts.
-7. Save the universe, plans, editable artwork, assets, approvals, and history into a portable project that can be reopened on another device.
-8. Work local-first for core drawing and project access. Online models and research are optional integrations, and their data-sharing implications must be clear.
-
-**The defining requirement:** the AI is the planner and operator; the native drawing engine is what creates the editable artwork. A generated image must never silently substitute for the promised panel-by-panel drawing process.
-
-### The intended end-to-end experience
-
-1. **Create a series:** discuss the universe and approve a structured series bible.
-2. **Remember accurately:** store canon as durable records, distinguish unknown from false, separate world truth from what each character knows, and retain provenance.
-3. **Plan:** propose a chapter outline, scene breakdown, dialogue and panel composition.
-4. **Thumbnail:** create rough stick figures and panel layouts as real canvas operations the user can watch.
-5. **Refine:** progressively draw and revise each panel using safe, typed native tools.
-6. **Review:** validate continuity, visual consistency, pacing and lettering; show conflicts instead of silently inventing canon.
-7. **Package:** save and export the complete project, close the app, reopen it, and continue without losing the universe or artwork.
-
-### Product boundaries and safety
-
-- Do not fake model activity, tool execution, approval, continuity checks, research, or export success.
-- Do not execute arbitrary code produced by a model. Model output must be schema-validated and routed through an allowlisted tool registry.
-- Use explicit approvals for destructive operations and canon retcons; preserve undo/checkpoint recovery where feasible.
-- Keep project memory private and project-scoped by default. Never store provider secrets in project files or logs.
-- Be honest about provider capabilities, local-model requirements, platform support, and any unverified behavior.
-- Treat imported files and model output as untrusted input.
-- Prefer small, reviewable PRs that preserve working features and include tests or documented verification.
-
-### Persistent handoff rules for every contributor or coding agent
-
-Before changing code:
-1. Read this section and the roadmap/architecture documents listed above.
-2. Inspect the current `main`, open PRs, CI status, and relevant source files; do not rely only on prior chat summaries.
-3. Find the earliest incomplete dependency in `ROADMAP.md`. Do not skip foundations to build disconnected UI.
-4. Make the smallest coherent change that moves a real user workflow forward.
-5. Update `ROADMAP.md` in the same PR as the implementation: mark items **In progress**, **Implemented**, **Verified**, or **Blocked** accurately, add the PR link, and record any newly discovered work.
-6. Update `docs/DECISIONS.md` if an architectural or product decision changes. Update the relevant design document when contracts change.
-7. Run available checks and report exactly what passed or failed. Never claim a build or device test passed without evidence.
-8. After merge, verify the PR is merged and update the roadmap's current status before starting dependent work.
-
-### Progress status meanings
-
-- **Planned:** not implemented.
-- **In progress:** work is underway.
-- **Implemented:** code exists, but end-to-end behavior may not be verified.
-- **Verified:** a relevant CI run or reproducible end-to-end test passed.
-- **Blocked:** a known dependency or failure prevents progress.
-
-Keep the roadmap concise enough to use as a working checklist, but detailed enough that a new coding tool can resume without needing access to previous conversations. Do not mark the whole product "done" merely because a foundation or placeholder exists.
-
-
-## Complete product specification
-
-The exhaustive, tool-independent requirements and acceptance contract lives in **[docs/PRODUCT-SPEC.md](docs/PRODUCT-SPEC.md)**. It covers the full target experience: series/world planning, up-to-500-character canon memory, temporal continuity, native drawing-action execution, panel-by-panel rough-to-finished artwork, Creative Vault, optional 3D references, research/licensing, local-first storage, the portable .kuro package, provider/security requirements, device support, export/publishing, testing, and ordered milestones.
-
-**For any new chat or coding tool:** start with this README, then read [the product specification](docs/PRODUCT-SPEC.md) and [the master roadmap](ROADMAP.md). The specification is the target; the roadmap is the live implementation status. Never infer a feature is finished merely because it is described here.
+**Current release decision: not ready for production or APK distribution.** The last confirmed automated code-check run passed, but the current head must pass its own checks. The Pages preview is still blocked until a repository maintainer enables GitHub Pages. The complete creative-agent loop, Android packaging and full end-to-end validation are still required.

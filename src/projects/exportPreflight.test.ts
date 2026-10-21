@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMissingDrawingReferences } from "./exportPreflight";
+import { collectProjectExportDrawingIds, findMissingDrawingReferences } from "./exportPreflight";
 
 describe("project export drawing preflight", () => {
   it("does not report drawing references that exist", () => {
@@ -28,5 +28,11 @@ describe("project export drawing preflight", () => {
     expect(findMissingDrawingReferences([
       { id: "m1", title: "Notes", assetRefs: ["https://example.com/reference", "drawing:"] },
     ], [])).toEqual([{ drawingId: "(empty ID)", memoryTitles: ["Notes"] }]);
+  });
+
+  it("exports every saved drawing, including pages not linked from Story Vault", () => {
+    expect(collectProjectExportDrawingIds([
+      { id: "m1", title: "Opening panel", assetRefs: ["drawing:linked", "drawing:missing"] },
+    ], ["unlinked-page", "linked"])).toEqual(["linked", "missing", "unlinked-page"]);
   });
 });

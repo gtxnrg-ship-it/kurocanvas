@@ -50,6 +50,16 @@ describe("local drawing command bridge", () => {
       .toThrow(/visible, unlocked layer/i);
   });
 
+  it("persists editable shape and text metadata without rasterizing", () => {
+    const result = applyCommandsToLocalDrawing(document, [
+      { ...stroke, id: "panel-1", shape: "panel", filled: false, points: [{x:20,y:20},{x:800,y:600}] },
+      { ...stroke, id: "lettering-1", shape: "text", text: "A new beginning", fontFamily: "comic", points: [{x:80,y:90}] },
+    ]);
+    expect(result.document.strokes[0].shape).toBe("panel");
+    expect(result.document.strokes[1].shape).toBe("text");
+    expect(result.document.strokes[1].text).toBe("A new beginning");
+    expect(result.document.strokes[1].fontFamily).toBe("comic");
+  });
   it("rejects out-of-bounds model output", () => {
     expect(() => applyCommandsToLocalDrawing(document, [{ ...stroke, points: [{ x: 99999, y: 1 }] }])).toThrow(/rejected/);
   });

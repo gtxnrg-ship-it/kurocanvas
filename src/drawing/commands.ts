@@ -22,6 +22,14 @@ export interface AddStrokeCommand {
   color: string;
   size: number;
   points: DrawingPoint[];
+  /** Optional native canvas primitive metadata; these remain editable strokes. */
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble";
+  text?: string;
+  fontFamily?: "comic" | "sans" | "serif";
+  filled?: boolean;
+  fillColor?: string;
+  rotation?: number;
+  brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
 }
 
 export interface RemoveStrokeCommand {
@@ -29,6 +37,14 @@ export interface RemoveStrokeCommand {
   id: string;
   type: "stroke.remove";
   strokeId: string;
+}
+
+export interface UpdateStrokeCommand {
+  version: typeof DRAWING_COMMAND_VERSION;
+  id: string;
+  type: "stroke.update";
+  strokeId: string;
+  patch: { tool?: "brush" | "eraser"; color?: string; size?: number };
 }
 
 /** Internal reversible command used by undo; restores the exact stroke ID and stack position. */
@@ -43,6 +59,16 @@ export interface RestoreStrokeCommand {
     color: string;
     size: number;
     points: DrawingPoint[];
+  /** Optional native canvas primitive metadata; these remain editable strokes. */
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+  imageDataUrl?: string;
+  imageName?: string;
+  text?: string;
+  fontFamily?: "comic" | "sans" | "serif";
+  filled?: boolean;
+  fillColor?: string;
+  rotation?: number;
+  brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
   };
   index: number;
 }
@@ -74,6 +100,7 @@ export interface SetLayerLockCommand {
 export type NativeDrawingCommand =
   | AddStrokeCommand
   | RemoveStrokeCommand
+  | UpdateStrokeCommand
   | RestoreStrokeCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand
@@ -84,6 +111,8 @@ export interface DrawingDocumentBounds {
   height: number;
   layerIds: readonly string[];
   lockedLayerIds?: readonly string[];
+  /** When supplied, remove commands must target an existing stroke and cannot modify locked layers. */
+  strokeLayerById?: Readonly<Record<string, string>>;
 }
 
 export interface CommandValidationResult {
@@ -132,11 +161,34 @@ export function validateDrawingCommand(
       } else if (!value.points.every(point => validPoint(point, bounds))) {
         errors.push("Stroke contains an invalid point or a point outside the document bounds.");
       }
+      if (value.shape !== undefined && !["line","rectangle","ellipse","text","panel","bubble"].includes(String(value.shape))) errors.push("Unsupported native shape.");
+      if (value.text !== undefined && (typeof value.text !== "string" || value.text.length > 5000)) errors.push("Text content is invalid or too long.");
+      if (value.shape === "text" && (typeof value.text !== "string" || !value.text.trim())) errors.push("Text strokes need non-empty text content.");
+      if (value.fontFamily !== undefined && !["comic","sans","serif"].includes(String(value.fontFamily))) errors.push("Unsupported text font family.");
+      if (value.filled !== undefined && typeof value.filled !== "boolean") errors.push("Filled must be a boolean.");
+      if (value.fillColor !== undefined && (typeof value.fillColor !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.fillColor))) errors.push("Fill color must be a six-digit hex color.");
+      if (value.rotation !== undefined && (!finite(value.rotation) || value.rotation < -360 || value.rotation > 360)) errors.push("Rotation must be between -360 and 360 degrees.");
+      if (value.brushPreset !== undefined && !["ink","pencil","marker","airbrush","watercolor","dry-brush","calligraphy"].includes(String(value.brushPreset))) errors.push("Unsupported brush preset.");
       break;
     }
     case "stroke.remove":
       if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot remove a stroke that is not in the active document.");
+      else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot remove a stroke from a locked layer.");
       break;
+    case "stroke.update": {
+      if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot update a stroke that is not in the active document.");
+      else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot update a stroke on a locked layer.");
+      if (!record(value.patch)) { errors.push("Stroke update patch must be an object."); break; }
+      const keys = Object.keys(value.patch);
+      if (!keys.length) errors.push("Stroke update patch cannot be empty.");
+      if (keys.some(key => !["tool", "color", "size"].includes(key))) errors.push("Stroke update supports only tool, color, and size changes.");
+      if (value.patch.tool !== undefined && value.patch.tool !== "brush" && value.patch.tool !== "eraser") errors.push("Unsupported updated stroke tool.");
+      if (value.patch.color !== undefined && (typeof value.patch.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.patch.color))) errors.push("Updated stroke color must be a six-digit hex color.");
+      if (value.patch.size !== undefined && (!finite(value.patch.size) || value.patch.size <= 0 || value.patch.size > MAX_STROKE_SIZE)) errors.push("Updated stroke size is outside the supported range.");
+      break;
+    }
     case "stroke.restore": {
       if (!record(value.stroke)) {
         errors.push("Restored stroke must be an object.");
@@ -154,6 +206,17 @@ export function validateDrawingCommand(
       } else if (!stroke.points.every(point => validPoint(point, bounds))) {
         errors.push("Restored stroke contains an invalid point or a point outside the document bounds.");
       }
+      if (stroke.shape !== undefined && !["line","rectangle","ellipse","text","panel","bubble","image"].includes(String(stroke.shape))) errors.push("Unsupported restored native shape.");
+      if (stroke.imageName !== undefined && (typeof stroke.imageName !== "string" || stroke.imageName.length > 240)) errors.push("Restored image name is invalid or too long.");
+      if (stroke.imageDataUrl !== undefined && (typeof stroke.imageDataUrl !== "string" || stroke.imageDataUrl.length > 12000000 || !/^data:image\/(png|jpeg|webp|gif);base64,/i.test(stroke.imageDataUrl))) errors.push("Restored image data must be a supported bounded image data URL.");
+      if (stroke.shape === "image" && typeof stroke.imageDataUrl !== "string") errors.push("Restored image strokes need image data.");
+      if (stroke.text !== undefined && (typeof stroke.text !== "string" || stroke.text.length > 5000)) errors.push("Restored text content is invalid or too long.");
+      if (stroke.shape === "text" && (typeof stroke.text !== "string" || !stroke.text.trim())) errors.push("Restored text strokes need non-empty text content.");
+      if (stroke.fontFamily !== undefined && !["comic","sans","serif"].includes(String(stroke.fontFamily))) errors.push("Unsupported restored font family.");
+      if (stroke.filled !== undefined && typeof stroke.filled !== "boolean") errors.push("Restored filled flag must be a boolean.");
+      if (stroke.fillColor !== undefined && (typeof stroke.fillColor !== "string" || !/^#[0-9a-fA-F]{6}$/.test(stroke.fillColor))) errors.push("Restored fill color must be a six-digit hex color.");
+      if (stroke.rotation !== undefined && (!finite(stroke.rotation) || stroke.rotation < -360 || stroke.rotation > 360)) errors.push("Restored rotation must be between -360 and 360 degrees.");
+      if (stroke.brushPreset !== undefined && !["ink","pencil","marker","airbrush","watercolor","dry-brush","calligraphy"].includes(String(stroke.brushPreset))) errors.push("Unsupported restored brush preset.");
       if (!Number.isInteger(value.index) || (value.index as number) < 0 || (value.index as number) > 10000000) errors.push("Restored stroke index is invalid.");
       break;
     }

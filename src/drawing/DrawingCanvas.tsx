@@ -174,7 +174,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 }
 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
-export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: () => void }) {
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
@@ -304,7 +304,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!title?.trim()) return;
     try {
       const document: LocalDrawingDocument = {
-        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
+        id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background, strokes: JSON.parse(JSON.stringify(strokes)), layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
       };
       await drawingStorage.save(document);
@@ -322,13 +322,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       const revision = await drawingRevisionStorage.load(revisionId, drawingId);
       if (!revision) throw new Error('That version no longer exists for this drawing.');
       const current: LocalDrawingDocument = {
-        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
+        id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background, strokes: JSON.parse(JSON.stringify(strokes)), layers: layers.map(layer => ({ ...layer })), updatedAt: new Date().toISOString(),
       };
       await drawingStorage.save(current);
       await drawingRevisionStorage.create(drawingId, 'Before restore · ' + new Date().toLocaleString(), current);
       await preloadDrawingImages(revision.document.strokes as Stroke[]);
-      const restored = { ...revision.document, id: drawingId, name: drawingName, updatedAt: new Date().toISOString() };
+      const restored = { ...revision.document, id: drawingId, projectId, name: drawingName, updatedAt: new Date().toISOString() };
       await drawingStorage.save(restored);
       const restoredStrokes = restored.strokes as Stroke[];
       const restoredLayers = (restored.layers?.length ? restored.layers : [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
@@ -344,7 +344,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   };
 
   const refreshDocuments = useCallback(async () => {
-    try { setDocuments(await drawingStorage.list()); }
+    try { setDocuments(await drawingStorage.list(projectId)); }
     catch (error) { setNotice('Could not list local drawings: ' + (error instanceof Error ? error.message : 'unknown error')); }
   }, []);
   useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
@@ -354,7 +354,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     // History belongs to one document only; never replay another drawing's snapshots here.
     setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
     setLoaded(false); setLoadError(false); setSaveState('loading');
-    drawingStorage.load(drawingId).then(async saved => {
+    drawingStorage.load(drawingId, projectId).then(async saved => {
       if (saved) await preloadDrawingImages(saved.strokes as Stroke[]);
       if (cancelled) return;
       if (saved) {
@@ -373,14 +373,18 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
       }
-      setLoaded(true); setSaveState('saved');
+      setLoaded(true); setSaveState('saved'); onDrawingOpened?.(drawingId);
     }).catch(error => {
       if (cancelled) return;
+      if (drawingId === 'default-canvas-v1' && !requestedDrawingId && error instanceof Error && error.message.includes('Universe isolation violation')) {
+        setDrawingId(crypto.randomUUID());
+        return;
+      }
       setLoaded(true); setLoadError(true); setSaveState('error');
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
-  }, [drawingId]);
+  }, [drawingId, projectId]);
 
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
@@ -389,7 +393,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setSaveState('saving');
     const timer = globalThis.setTimeout(() => {
       drawingStorage.save({
-        id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
+        id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height,
         background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString(),
       }).then(() => {
         setSaveState(current => current === 'saving' ? 'saved' : current);
@@ -414,15 +418,18 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       try {
         const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background, activeLayerId };
         const current: LocalDrawingDocument = {
-          id: drawingId, name: drawingName, version: 1, width: docRef.current.width,
+          id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width,
           height: docRef.current.height, background: docRef.current.background,
           strokes: docRef.current.strokes, layers: layers.map(layer => ({ ...layer })),
           updatedAt: new Date().toISOString(),
         };
+        await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
+        if (cancelled) return;
         const applied = applyCommandsToLocalDrawing(current, pendingPlan.commands);
         if (!applied.changed) throw new Error('The plan contained no applicable changes.');
-        await drawingStorage.save(applied.document);
         if (cancelled) return;
+        await drawingStorage.save(applied.document);
+        if (cancelled) { await drawingStorage.save(current); return; }
         const nextStrokes = applied.document.strokes as Stroke[];
         const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
         docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
@@ -804,7 +811,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setSaveState('saving');
     try {
       const now = new Date().toISOString();
-      await drawingStorage.save({ id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height, background, strokes, layers, updatedAt: now });
+      await drawingStorage.save({ id: drawingId, projectId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height, background, strokes, layers, updatedAt: now });
       await storyMemoryStorage.save({
         id: crypto.randomUUID(), projectId, kind: 'panel-template', title: title.trim(),
         summary: 'Reusable drawing asset linked to the exact saved canvas "' + drawingName + '". Open the linked drawing from Story Vault to reuse this composition.',
@@ -936,10 +943,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (name?.trim() && name.trim() !== current.name) { checkpointLayerEdit('rename layer'); setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); }
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
+  useEffect(() => { if (!projectId || requestedDrawingId) return; const scopedDefaultId = 'default-canvas-' + projectId; if (drawingId !== scopedDefaultId) switchDrawing(scopedDefaultId); }, [projectId]);
   useEffect(() => {
     if (!requestedDrawingId) return;
     if (requestedDrawingId !== drawingId) switchDrawing(requestedDrawingId);
-    onDrawingOpened?.();
+    // The load effect reports the selected ID after the document has been restored.
   }, [requestedDrawingId]);
   const resetView = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); setNotice('Canvas view centered at 100%'); };
   const createDrawing = () => {
@@ -976,7 +984,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!name?.trim()) return;
     setDrawingName(name.trim());
     try {
-      await drawingStorage.save({ id: drawingId, name: name.trim(), version: 1, width: docRef.current.width, height: docRef.current.height, background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString() });
+      await drawingStorage.save({ id: drawingId, projectId, name: name.trim(), version: 1, width: docRef.current.width, height: docRef.current.height, background: docRef.current.background, strokes: docRef.current.strokes, layers, updatedAt: new Date().toISOString() });
       await refreshDocuments(); setSaveState('saved'); setNotice('Drawing renamed');
     } catch (error) { setSaveState('error'); setNotice('Rename failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };
@@ -984,7 +992,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!globalThis.confirm('Delete "' + drawingName + '" from this device? This cannot be undone.')) return;
     try {
       await drawingStorage.remove(drawingId);
-      const remaining = await drawingStorage.list(); setDocuments(remaining);
+      const remaining = await drawingStorage.list(projectId); setDocuments(remaining);
       const next = remaining[0];
       if (next) switchDrawing(next.id);
       else {

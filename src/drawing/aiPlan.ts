@@ -1,15 +1,19 @@
-import { parseDrawingPlan, type NativeDrawingCommand } from "./commands";
+import { parseDrawingPlan, type DrawingDocumentBounds, type NativeDrawingCommand } from "./commands";
 
 export interface AIStrokePlan {
   summary: string;
   commands: NativeDrawingCommand[];
 }
 
+const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
+const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
+
 /**
- * Parse and tightly bound model output before it reaches the approval UI.
- * This first AI drawing workflow intentionally supports stroke additions only.
+ * Parse bounded, allowlisted model output against the active document.
+ * Kuro may propose additions, removals, and safe layer-property changes only;
+ * structural/destructive actions outside this allowlist remain unavailable.
  */
-export function parseAIStrokePlan(raw: string): AIStrokePlan {
+export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = DEFAULT_BOUNDS): AIStrokePlan {
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -27,24 +31,19 @@ export function parseAIStrokePlan(raw: string): AIStrokePlan {
     throw new Error("The drawing plan commands must be an array.");
   }
   if (candidate.commands.length > 12) {
-    throw new Error("This first drawing workflow is limited to 12 strokes per plan.");
-  }
-  if (candidate.commands.some(command =>
-    !command || typeof command !== "object" || (command as { type?: unknown }).type !== "stroke.add"
-  )) {
-    throw new Error("This workflow currently supports native stroke additions only.");
+    throw new Error("This drawing workflow is limited to 12 native actions per plan.");
   }
   for (const command of candidate.commands) {
-    const points = (command as { points?: unknown }).points;
-    if (!Array.isArray(points) || points.length < 1 || points.length > 20) {
+    if (!command || typeof command !== "object" || Array.isArray(command)
+      || !AI_ALLOWED_TYPES.has(String((command as { type?: unknown }).type))) {
+      throw new Error("This workflow only accepts approved native stroke and layer-property actions.");
+    }
+    const item = command as { type: string; points?: unknown };
+    if ((item.type === "stroke.remove" || item.type === "stroke.update") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");
+    if (item.type === "stroke.add" && (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > 20)) {
       throw new Error("Each proposed stroke must contain between 1 and 20 points.");
     }
   }
-  const commands = parseDrawingPlan(JSON.stringify(candidate.commands), {
-    width: 1600,
-    height: 1200,
-    layerIds: ["layer-default"],
-    lockedLayerIds: [],
-  });
+  const commands = parseDrawingPlan(JSON.stringify(candidate.commands), bounds);
   return { summary: candidate.summary.trim(), commands };
 }

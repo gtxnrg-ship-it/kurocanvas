@@ -1,0 +1,29 @@
+/* Kuro's living-universe atmosphere: environmental movement, not a starfield wallpaper. */
+:root {
+  --cosmos-night: #09080f;
+  --cosmos-violet: rgba(101, 58, 157, .22);
+  --cosmos-blue: rgba(40, 99, 139, .17);
+  --cosmos-rose: rgba(155, 71, 130, .12);
+}
+body {
+  background-color: var(--cosmos-night);
+  background-image:
+    radial-gradient(ellipse 72% 58% at 12% 18%, var(--cosmos-violet), transparent 72%),
+    radial-gradient(ellipse 65% 72% at 88% 76%, var(--cosmos-blue), transparent 74%),
+    radial-gradient(ellipse 58% 48% at 66% 4%, var(--cosmos-rose), transparent 76%),
+    linear-gradient(135deg, #09080f 0%, #100b1c 48%, #080d16 100%);
+  background-size: 145% 145%, 165% 165%, 175% 175%, 100% 100%;
+  background-position: 0% 10%, 100% 90%, 55% 0%, center;
+  animation: kuro-cosmos-drift 64s ease-in-out infinite alternate;
+  background-attachment: fixed;
+}
+@keyframes kuro-cosmos-drift {
+  0% { background-position: 0% 10%, 100% 90%, 55% 0%, center; }
+  33% { background-position: 42% 35%, 65% 25%, 100% 38%, center; }
+  68% { background-position: 100% 72%, 12% 65%, 25% 100%, center; }
+  100% { background-position: 68% 100%, 0% 5%, 0% 12%, center; }
+}
+/* Keep the environment calm behind text and precise drawing work. */
+@media (prefers-reduced-motion: reduce) {
+  body { animation: none; }
+}

@@ -77,18 +77,24 @@ export class OpenAICompatibleProvider implements ModelProvider {
     });
     if (!response.ok) throw new Error("Provider model list failed (HTTP " + response.status + ").");
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
-    return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => ({
-      id: this.id + ":" + item.id,
-      name: item.id!,
-      providerId: this.id,
-      location: new URL(this.baseUrl).hostname === "localhost" || new URL(this.baseUrl).hostname === "127.0.0.1" ? "local" : "remote",
-      roles: ["reasoning", "planning", "tool-calling", "coding", "story-writing", "continuity", "research", "fast-helper"],
-      capabilities: ["chat"],
-      modelUri: item.id,
-      installed: true,
-      enabled: true,
-      metadata: item.owned_by ? { ownedBy: item.owned_by } : undefined,
-    }));
+    return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
+      const modelName = item.id!;
+      const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
+      const capabilities = ["chat"] as const;
+      const hostname = new URL(this.baseUrl).hostname;
+      return {
+        id: this.id + ":" + modelName,
+        name: modelName,
+        providerId: this.id,
+        location: ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ? "local" as const : "remote" as const,
+        roles: [...roles],
+        capabilities: [...capabilities],
+        modelUri: modelName,
+        installed: true,
+        enabled: true,
+        metadata: item.owned_by ? { ownedBy: item.owned_by } : undefined,
+      };
+    });
   }
 
   async isAvailable(): Promise<boolean> {

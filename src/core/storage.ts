@@ -5,9 +5,20 @@ import { validateArtDirection, type ArtDirectionBible } from "../canon/artDirect
 import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible";
 import { validateReferenceSource, type ReferenceSourceRecord } from "../canon/referenceScout";
 import { validateCharacterModel, type CharacterModelRecord } from "../canon/characterModels";
+import { validateRelationshipRecord, type RelationshipRecord } from "../canon/relationshipMemory";
+import { validateCharacterEvolutionState, type CharacterEvolutionState } from "../canon/characterEvolution";
+import {
+  validateUniverseRecord,
+  validateConversationRecord,
+  validateChatMessageRecord,
+  type UniverseRecord,
+  type ConversationRecord,
+  type ChatMessageRecord,
+  type ChatUniverseBundle,
+} from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 9;
+const DB_VERSION = 13;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -19,6 +30,11 @@ const ART_DIRECTION = "artDirection";
 const STYLE_BIBLE = "styleBible";
 const REFERENCE_SOURCES = "referenceSources";
 const CHARACTER_MODELS = "characterModels";
+const UNIVERSES = "universes";
+const CONVERSATIONS = "conversations";
+const CHAT_MESSAGES = "chatMessages";
+const RELATIONSHIPS = "relationships";
+const CHARACTER_EVOLUTION = "characterEvolution";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -38,6 +54,32 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STYLE_BIBLE)) db.createObjectStore(STYLE_BIBLE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(REFERENCE_SOURCES)) db.createObjectStore(REFERENCE_SOURCES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CHARACTER_MODELS)) db.createObjectStore(CHARACTER_MODELS, { keyPath: "id" });
+      const characterModels = request.transaction?.objectStore(CHARACTER_MODELS);
+      if (characterModels && !characterModels.indexNames.contains("byProjectId")) {
+        characterModels.createIndex("byProjectId", "projectId", { unique: false });
+      }
+      if (characterModels && !characterModels.indexNames.contains("byProjectAndName")) {
+        characterModels.createIndex("byProjectAndName", ["projectId", "characterName"], { unique: false });
+      }
+      if (!db.objectStoreNames.contains(UNIVERSES)) db.createObjectStore(UNIVERSES, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(CONVERSATIONS)) {
+        const conversations = db.createObjectStore(CONVERSATIONS, { keyPath: "id" });
+        conversations.createIndex("byUniverseId", "universeId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(CHAT_MESSAGES)) {
+        const messages = db.createObjectStore(CHAT_MESSAGES, { keyPath: "id" });
+        messages.createIndex("byUniverseId", "universeId", { unique: false });
+        messages.createIndex("byConversationId", "conversationId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RELATIONSHIPS)) {
+        const relationships = db.createObjectStore(RELATIONSHIPS, { keyPath: "id" });
+        relationships.createIndex("byUniverseId", "universeId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(CHARACTER_EVOLUTION)) {
+        const evolution = db.createObjectStore(CHARACTER_EVOLUTION, { keyPath: "id" });
+        evolution.createIndex("byUniverseId", "universeId", { unique: false });
+        evolution.createIndex("byCharacterTimelineOrder", ["characterId", "timelineId", "storyOrder"], { unique: false });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -126,6 +168,8 @@ export const projectStorage = {
 
 export interface LocalDrawingDocument {
   id: string;
+  /** Required for new documents; older documents without a projectId are legacy and must be explicitly migrated before universe use. */
+  projectId?: string;
   name?: string;
   version: 1;
   width: number;
@@ -198,22 +242,46 @@ export const drawingRevisionStorage = {
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
 export const drawingStorage = {
   async save(document: LocalDrawingDocument): Promise<void> {
-    if (!document.id || document.version !== 1 || !Number.isFinite(document.width) || !Number.isFinite(document.height) || !Array.isArray(document.strokes)) {
-      throw new Error("Refusing to save an invalid drawing document.");
+    if (!document.id || !document.projectId?.trim() || document.version !== 1 || !Number.isFinite(document.width) || !Number.isFinite(document.height) || !Array.isArray(document.strokes)) {
+      throw new Error("A drawing must have a valid ID and owning project before it can be saved.");
+    }
+    const existing = await this.load(document.id);
+    if (existing?.projectId && existing.projectId !== document.projectId) {
+      throw new Error("Universe isolation violation: a drawing cannot be reassigned to another project.");
+    }
+    if (existing && !existing.projectId) {
+      throw new Error("This legacy drawing has no owning project. Explicitly migrate it into a universe before editing.");
     }
     await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({ ...document, updatedAt: new Date().toISOString() }));
   },
-  async load(id: string): Promise<LocalDrawingDocument | undefined> {
+  async load(id: string, projectId?: string): Promise<LocalDrawingDocument | undefined> {
     const result = await requestValue<LocalDrawingDocument | undefined>(DRAWINGS, "readonly", store => store.get(id));
     if (result && (result.version !== 1 || !Array.isArray(result.strokes) || !Number.isFinite(result.width) || !Number.isFinite(result.height))) {
       throw new Error("This saved drawing is damaged or uses an unsupported version.");
     }
+    if (result && projectId && result.projectId !== projectId) throw new Error("Universe isolation violation: drawing is not part of the active project.");
     return result;
   },
-  async list(): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
+  async list(projectId?: string): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
     const documents = await requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll());
-    return documents.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
+    const scoped = projectId ? documents.filter(document => document.projectId === projectId) : documents;
+    return scoped.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+  async listUnassigned(): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
+    const documents = await requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll());
+    return documents.filter(document => !document.projectId).map(({id,name,updatedAt})=>({id,name,updatedAt}))
+      .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+  },
+  async migrateLegacyToProject(id: string, projectId: string): Promise<void> {
+    if (!id.trim() || !projectId.trim()) throw new Error("Choose a legacy drawing and a destination project.");
+    const document = await this.load(id);
+    if (!document) throw new Error("The legacy drawing no longer exists.");
+    if (document.projectId) {
+      if (document.projectId !== projectId) throw new Error("Universe isolation violation: this drawing already belongs to another project.");
+      return;
+    }
+    await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({...document,projectId,updatedAt:new Date().toISOString()}));
   },
   async remove(id: string): Promise<void> {
     await requestValue<undefined>(DRAWINGS, "readwrite", store => store.delete(id));
@@ -282,15 +350,70 @@ export const canonStorage = {
 /** Temporal visual canon: approved character states and inspirations are chapter-aware. */
 /** Source-linked visual references with license and attribution metadata. */
 /** Local GLB models and chapter-linked scar overlays. */
+export interface CharacterModelPage {
+  records: CharacterModelRecord[];
+  nextOffset: number | null;
+}
+
+/**
+ * Indexed, project-scoped model catalogue access. Page reads bound the number
+ * of records returned to the UI; list() remains for existing compatibility
+ * callers until they are migrated to incremental browsing.
+ */
 export const characterModelStorage = {
   async save(record: CharacterModelRecord): Promise<void> {
     const errors = validateCharacterModel(record, record.projectId);
     if (errors.length) throw new Error("Character model validation failed: " + errors.join(" "));
     await requestValue<IDBValidKey>(CHARACTER_MODELS, "readwrite", store => store.put({ ...record, updatedAt: new Date().toISOString() }));
   },
+  async listPage(projectId: string, offset = 0, limit = 48): Promise<CharacterModelPage> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Model page offset must be a non-negative integer.");
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Model page size must be between 1 and 200.");
+    const db = await openDatabase();
+    try {
+      return await new Promise<CharacterModelPage>((resolve, reject) => {
+        const tx = db.transaction(CHARACTER_MODELS, "readonly");
+        const store = tx.objectStore(CHARACTER_MODELS);
+        if (!store.indexNames.contains("byProjectAndName")) {
+          reject(new Error("Character model index is missing; reload to finish the local database upgrade."));
+          return;
+        }
+        const index = store.index("byProjectAndName");
+        const range = IDBKeyRange.bound([projectId, ""], [projectId, "\\uffff"]);
+        const request = index.openCursor(range);
+        const page: CharacterModelRecord[] = [];
+        let seen = 0;
+        let hasMore = false;
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          if (seen++ < offset) { cursor.continue(); return; }
+          if (page.length >= limit) { hasMore = true; return; }
+          page.push(cursor.value as CharacterModelRecord);
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not read the character model page."));
+        tx.oncomplete = () => {
+          for (const record of page) {
+            const errors = validateCharacterModel(record, projectId);
+            if (errors.length) { reject(new Error("Saved character model is invalid: " + errors.join(" "))); return; }
+          }
+          resolve({ records: page, nextOffset: hasMore ? offset + page.length : null });
+        };
+        tx.onerror = () => reject(tx.error ?? new Error("Character model page read failed."));
+        tx.onabort = () => reject(tx.error ?? new Error("Character model page read was cancelled."));
+      });
+    } finally {
+      db.close();
+    }
+  },
   async list(projectId: string): Promise<CharacterModelRecord[]> {
     if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
-    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll());
+    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => {
+      if (store.indexNames.contains("byProjectId")) return store.index("byProjectId").getAll(IDBKeyRange.only(projectId));
+      return store.getAll();
+    });
     const scoped = records.filter(record => record.projectId === projectId);
     for (const record of scoped) {
       const errors = validateCharacterModel(record, projectId);
@@ -412,5 +535,190 @@ export const storyMemoryStorage = {
         tx.onabort = () => reject(tx.error ?? new Error("Project story memory removal was cancelled."));
       });
     } finally { db.close(); }
+  },
+};
+
+/**
+ * Strictly scoped chat storage. Message history is stored separately so long
+ * conversations do not require rewriting a growing conversation record on every send.
+ */
+export const universeStorage = {
+  /** Persist a new universe and its first conversation atomically. */
+  async create(bundle: ChatUniverseBundle): Promise<void> {
+    if (!validateUniverseRecord(bundle.universe)
+      || !validateConversationRecord(bundle.homeConversation, bundle.universe.id)
+      || bundle.universe.homeConversationId !== bundle.homeConversation.id) {
+      throw new Error("Refusing to create an invalid chat universe bundle.");
+    }
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([UNIVERSES, CONVERSATIONS], "readwrite");
+        tx.objectStore(UNIVERSES).add(bundle.universe);
+        tx.objectStore(CONVERSATIONS).add(bundle.homeConversation);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not create chat universe."));
+        tx.onabort = () => reject(tx.error ?? new Error("Chat universe creation was cancelled."));
+      });
+    } finally { db.close(); }
+  },
+  /** Explicitly attach an additional conversation to an existing universe. */
+  async createConversation(universeId: string, title = "New conversation"): Promise<ConversationRecord> {
+    const current = await this.load(universeId);
+    if (!current) throw new Error("Choose an existing universe before creating an attached conversation.");
+    const now = new Date().toISOString();
+    const conversation: ConversationRecord = {
+      schemaVersion: 1,
+      id: crypto.randomUUID(),
+      universeId,
+      title: title.trim() || "New conversation",
+      createdAt: now,
+      updatedAt: now,
+      lifecycle: "active",
+      metadata: { explicitlyAttached: true },
+    };
+    const updatedUniverse = { ...current, updatedAt: now };
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([UNIVERSES, CONVERSATIONS], "readwrite");
+        tx.objectStore(UNIVERSES).put(updatedUniverse);
+        tx.objectStore(CONVERSATIONS).add(conversation);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not create conversation."));
+        tx.onabort = () => reject(tx.error ?? new Error("Conversation creation was cancelled."));
+      });
+    } finally { db.close(); }
+    return conversation;
+  },
+  async save(universe: UniverseRecord): Promise<void> {
+    if (!validateUniverseRecord(universe)) throw new Error("Refusing to save an invalid universe.");
+    await requestValue<IDBValidKey>(UNIVERSES, "readwrite", store => store.put(universe));
+  },
+  async load(id: string): Promise<UniverseRecord | undefined> {
+    const value = await requestValue<UniverseRecord | undefined>(UNIVERSES, "readonly", store => store.get(id));
+    if (value && !validateUniverseRecord(value)) throw new Error("Saved universe is invalid.");
+    return value;
+  },
+  async list(): Promise<UniverseRecord[]> {
+    const values = await requestValue<UniverseRecord[]>(UNIVERSES, "readonly", store => store.getAll());
+    if (values.some(value => !validateUniverseRecord(value))) throw new Error("Saved universe collection contains invalid records.");
+    return values.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+};
+
+export const conversationStorage = {
+  async save(conversation: ConversationRecord): Promise<void> {
+    if (!validateConversationRecord(conversation)) throw new Error("Refusing to save an invalid conversation.");
+    const universe = await universeStorage.load(conversation.universeId);
+    if (!universe) throw new Error("Cannot save a conversation without its owning universe.");
+    await requestValue<IDBValidKey>(CONVERSATIONS, "readwrite", store => store.put(conversation));
+  },
+  async load(id: string, universeId: string): Promise<ConversationRecord | undefined> {
+    if (!universeId.trim()) throw new Error("Choose a universe before loading a conversation.");
+    const value = await requestValue<ConversationRecord | undefined>(CONVERSATIONS, "readonly", store => store.get(id));
+    if (value && value.universeId !== universeId) throw new Error("Universe isolation violation: conversation belongs to another universe.");
+    if (value && !validateConversationRecord(value, universeId)) throw new Error("Saved conversation is invalid.");
+    return value;
+  },
+  async list(universeId: string): Promise<ConversationRecord[]> {
+    if (!universeId.trim()) throw new Error("Choose a universe before listing conversations.");
+    const values = await requestValue<ConversationRecord[]>(CONVERSATIONS, "readonly", store =>
+      store.index("byUniverseId").getAll(universeId));
+    if (values.some(value => !validateConversationRecord(value, universeId))) {
+      throw new Error("Saved conversations contain invalid or cross-universe records.");
+    }
+    return values.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+  async remove(id: string, universeId: string): Promise<void> {
+    const existing = await this.load(id, universeId);
+    if (!existing) return;
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([CONVERSATIONS, CHAT_MESSAGES], "readwrite");
+        const messages = tx.objectStore(CHAT_MESSAGES).index("byConversationId");
+        const request = messages.openKeyCursor(IDBKeyRange.only(id));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) { tx.objectStore(CHAT_MESSAGES).delete(cursor.primaryKey); cursor.continue(); }
+        };
+        tx.objectStore(CONVERSATIONS).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not remove conversation."));
+        tx.onabort = () => reject(tx.error ?? new Error("Conversation removal was cancelled."));
+      });
+    } finally { db.close(); }
+  },
+};
+
+export const chatMessageStorage = {
+  async save(message: ChatMessageRecord): Promise<void> {
+    if (!validateChatMessageRecord(message)) throw new Error("Refusing to save an invalid chat message.");
+    const conversation = await conversationStorage.load(message.conversationId, message.universeId);
+    if (!conversation) throw new Error("Cannot save a message without its owning conversation.");
+    await requestValue<IDBValidKey>(CHAT_MESSAGES, "readwrite", store => store.put(message));
+  },
+  async list(universeId: string, conversationId: string): Promise<ChatMessageRecord[]> {
+    if (!universeId.trim() || !conversationId.trim()) throw new Error("Choose a universe and conversation before loading messages.");
+    const conversation = await conversationStorage.load(conversationId, universeId);
+    if (!conversation) throw new Error("Conversation does not exist in this universe.");
+    const values = await requestValue<ChatMessageRecord[]>(CHAT_MESSAGES, "readonly", store =>
+      store.index("byConversationId").getAll(conversationId));
+    const scoped = values.filter(value => value.universeId === universeId);
+    if (scoped.some(value => !validateChatMessageRecord(value, conversationId, universeId))) {
+      throw new Error("Saved messages contain invalid or cross-universe records.");
+    }
+    if (scoped.length !== values.length) throw new Error("Universe isolation violation: foreign messages were found in this conversation.");
+    return scoped.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+};
+
+
+/** Durable, temporal character states. Every read/write is scoped to the owning universe. */
+export const characterEvolutionStorage = {
+  async save(record: CharacterEvolutionState): Promise<void> {
+    const errors = validateCharacterEvolutionState(record);
+    if (errors.length) throw new Error("Refusing to save an invalid character evolution state: " + errors.join(" "));
+    const universe = await universeStorage.load(record.universeId);
+    if (!universe) throw new Error("Cannot save character evolution without its owning universe.");
+    await requestValue<IDBValidKey>(CHARACTER_EVOLUTION, "readwrite", store => store.put(record));
+  },
+  async load(id: string, universeId: string): Promise<CharacterEvolutionState | undefined> {
+    if (!universeId.trim()) throw new Error("Choose a universe before loading character evolution.");
+    const record = await requestValue<CharacterEvolutionState | undefined>(CHARACTER_EVOLUTION, "readonly", store => store.get(id));
+    if (record && record.universeId !== universeId) throw new Error("Universe isolation violation: character evolution belongs to another universe.");
+    if (record && validateCharacterEvolutionState(record, universeId).length) throw new Error("Saved character evolution state is invalid.");
+    return record;
+  },
+  async list(universeId: string, characterId?: string, timelineId?: string): Promise<CharacterEvolutionState[]> {
+    if (!universeId.trim()) throw new Error("Choose a universe before listing character evolution.");
+    const records = await requestValue<CharacterEvolutionState[]>(CHARACTER_EVOLUTION, "readonly", store => store.index("byUniverseId").getAll(universeId));
+    if (records.some(record => validateCharacterEvolutionState(record, universeId).length)) throw new Error("Saved character evolution contains invalid or cross-universe records.");
+    return records.filter(record => (!characterId || record.characterId === characterId) && (!timelineId || record.timelineId === timelineId))
+      .sort((a, b) => a.timelineId.localeCompare(b.timelineId) || a.characterId.localeCompare(b.characterId) || a.storyOrder - b.storyOrder);
+  },
+};
+
+/** Durable relationship canon, indexed and validated within one universe. */
+export const relationshipStorage = {
+  async save(record: RelationshipRecord): Promise<void> {
+    if (!validateRelationshipRecord(record)) throw new Error("Refusing to save an invalid relationship record.");
+    const universe = await universeStorage.load(record.universeId);
+    if (!universe) throw new Error("Cannot save relationship memory without its owning universe.");
+    await requestValue<IDBValidKey>(RELATIONSHIPS, "readwrite", store => store.put(record));
+  },
+  async load(id: string, universeId: string): Promise<RelationshipRecord | undefined> {
+    if (!universeId.trim()) throw new Error("Choose a universe before loading relationship memory.");
+    const record = await requestValue<RelationshipRecord | undefined>(RELATIONSHIPS, "readonly", store => store.get(id));
+    if (record && record.universeId !== universeId) throw new Error("Universe isolation violation: relationship belongs to another universe.");
+    if (record && !validateRelationshipRecord(record, universeId)) throw new Error("Saved relationship record is invalid.");
+    return record;
+  },
+  async list(universeId: string): Promise<RelationshipRecord[]> {
+    if (!universeId.trim()) throw new Error("Choose a universe before listing relationship memory.");
+    const records = await requestValue<RelationshipRecord[]>(RELATIONSHIPS, "readonly", store => store.index("byUniverseId").getAll(universeId));
+    if (records.some(record => !validateRelationshipRecord(record, universeId))) throw new Error("Saved relationships contain invalid or cross-universe records.");
+    return records.sort((a,b) => a.updatedAt.localeCompare(b.updatedAt));
   },
 };

@@ -75,6 +75,7 @@ export function applyCommandsToLocalDrawing(
     height: document.height,
     layerIds: layers.map(layer => layer.id),
     lockedLayerIds: layers.filter(layer => layer.locked).map(layer => layer.id),
+    strokeLayerById: Object.fromEntries(normalizedDocument.strokes.map(stroke => [stroke.id, stroke.layerId || layers[0].id])),
   });
 
   const state: NativeDrawingState = {
@@ -98,6 +99,15 @@ export function applyCommandsToLocalDrawing(
       strokes: result.state.strokes.map(stroke => ({
         id: stroke.id, layerId: stroke.layerId, tool: stroke.tool, color: stroke.color,
         size: stroke.size, points: stroke.points.map(point => ({ ...point })),
+        ...(stroke.shape ? { shape: stroke.shape } : {}),
+        ...(stroke.imageDataUrl ? { imageDataUrl: stroke.imageDataUrl } : {}),
+        ...(stroke.imageName ? { imageName: stroke.imageName } : {}),
+        ...(stroke.text !== undefined ? { text: stroke.text } : {}),
+        ...(stroke.fontFamily ? { fontFamily: stroke.fontFamily } : {}),
+        ...(stroke.filled !== undefined ? { filled: stroke.filled } : {}),
+        ...(stroke.fillColor ? { fillColor: stroke.fillColor } : {}),
+        ...(stroke.rotation !== undefined ? { rotation: stroke.rotation } : {}),
+        ...(stroke.brushPreset ? { brushPreset: stroke.brushPreset } : {}),
       })),
       updatedAt: new Date().toISOString(),
     },

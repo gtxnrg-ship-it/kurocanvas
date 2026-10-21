@@ -15,6 +15,28 @@ describe("drawing command validation", () => {
   it("rejects duplicate command IDs in one plan", () => {
     expect(validateDrawingPlan([validStroke, { ...validStroke }], bounds).errors.some(e => e.includes("Duplicate command ID"))).toBe(true);
   });
+  it("rejects removal of unknown strokes and strokes on locked layers", () => {
+    const remove = { version: 1, id: "remove-1", type: "stroke.remove", strokeId: "stroke-existing" };
+    const documentBounds = { ...bounds, strokeLayerById: { "stroke-existing": "ink" } };
+    expect(validateDrawingCommand(remove, documentBounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...remove, strokeId: "missing" }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand(remove, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
+  });
+  it("validates reversible style edits only for existing unlocked strokes", () => {
+    const update = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "stroke-existing", patch: { color: "#abcdef", size: 8 } };
+    const documentBounds = { ...bounds, strokeLayerById: { "stroke-existing": "ink" } };
+    expect(validateDrawingCommand(update, documentBounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...update, strokeId: "missing" }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand(update, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
+    expect(validateDrawingCommand({ ...update, patch: {} }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...update, patch: { points: [{ x: 1, y: 1 }] } }, documentBounds).valid).toBe(false);
+  });
+  it("parses editable shape and lettering metadata", () => {
+    const bubble = { ...validStroke, shape: "bubble", fillColor: "#fffdfb", points: [{x:20,y:30},{x:220,y:140}] };
+    expect(validateDrawingCommand(bubble, bounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...validStroke, shape: "text" }, bounds).errors.join(" ")).toMatch(/non-empty text/);
+    expect(validateDrawingCommand({ ...validStroke, shape: "text", text: "Hello", fontFamily: "comic" }, bounds).valid).toBe(true);
+  });
   it("parses valid JSON and rejects malformed JSON", () => {
     expect(parseDrawingPlan(JSON.stringify([validStroke]), bounds)).toHaveLength(1);
     expect(() => parseDrawingPlan("{", bounds)).toThrow(/valid JSON/);

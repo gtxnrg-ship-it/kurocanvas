@@ -8,6 +8,15 @@ export interface NativeStroke {
   color: string;
   size: number;
   points: Array<{ x: number; y: number; pressure: number }>;
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+  imageDataUrl?: string;
+  imageName?: string;
+  text?: string;
+  fontFamily?: "comic" | "sans" | "serif";
+  filled?: boolean;
+  fillColor?: string;
+  rotation?: number;
+  brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
 }
 
 export interface NativeDrawingState {
@@ -45,6 +54,13 @@ export function applyNativeDrawingCommand(
       color: command.color,
       size: command.size,
       points: command.points.map(point => ({ x: point.x, y: point.y, pressure: point.pressure ?? 0.5 })),
+      ...(command.shape ? { shape: command.shape } : {}),
+      ...(command.text !== undefined ? { text: command.text } : {}),
+      ...(command.fontFamily ? { fontFamily: command.fontFamily } : {}),
+      ...(command.filled !== undefined ? { filled: command.filled } : {}),
+      ...(command.fillColor ? { fillColor: command.fillColor } : {}),
+      ...(command.rotation !== undefined ? { rotation: command.rotation } : {}),
+      ...(command.brushPreset ? { brushPreset: command.brushPreset } : {}),
     };
     return {
       state: { ...state, layers, strokes: [...strokes, stroke] },
@@ -57,6 +73,9 @@ export function applyNativeDrawingCommand(
     const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
     if (index < 0) throw new Error("Cannot remove stroke: stroke does not exist.");
     const removed = strokes[index];
+    const layer = layers.find(item => item.id === (removed.layerId || layers[0]?.id));
+    if (!layer) throw new Error("Cannot remove stroke: its layer does not exist.");
+    if (layer.locked) throw new Error("Cannot remove stroke: its layer is locked.");
     strokes.splice(index, 1);
     return {
       state: { ...state, layers, strokes },
@@ -71,10 +90,39 @@ export function applyNativeDrawingCommand(
           color: removed.color,
           size: removed.size,
           points: removed.points,
+          ...(removed.shape ? { shape: removed.shape } : {}),
+          ...(removed.imageDataUrl ? { imageDataUrl: removed.imageDataUrl } : {}),
+          ...(removed.imageName ? { imageName: removed.imageName } : {}),
+          ...(removed.text !== undefined ? { text: removed.text } : {}),
+          ...(removed.fontFamily ? { fontFamily: removed.fontFamily } : {}),
+          ...(removed.filled !== undefined ? { filled: removed.filled } : {}),
+          ...(removed.fillColor ? { fillColor: removed.fillColor } : {}),
+          ...(removed.rotation !== undefined ? { rotation: removed.rotation } : {}),
+          ...(removed.brushPreset ? { brushPreset: removed.brushPreset } : {}),
         },
         index,
       }],
       changed: true,
+    };
+  }
+
+  if (command.type === "stroke.update") {
+    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
+    if (index < 0) throw new Error("Cannot update stroke: stroke does not exist.");
+    const current = strokes[index];
+    const layer = layers.find(item => item.id === (current.layerId || layers[0]?.id));
+    if (!layer) throw new Error("Cannot update stroke: its layer does not exist.");
+    if (layer.locked) throw new Error("Cannot update stroke: its layer is locked.");
+    const previousPatch: { tool?: NativeStroke["tool"]; color?: string; size?: number } = {};
+    if (command.patch.tool !== undefined) previousPatch.tool = current.tool;
+    if (command.patch.color !== undefined) previousPatch.color = current.color;
+    if (command.patch.size !== undefined) previousPatch.size = current.size;
+    const updated = { ...current, ...command.patch };
+    strokes[index] = updated;
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.update", strokeId: current.id, patch: previousPatch }],
+      changed: (command.patch.tool !== undefined && current.tool !== command.patch.tool) || (command.patch.color !== undefined && current.color !== command.patch.color) || (command.patch.size !== undefined && current.size !== command.patch.size),
     };
   }
 

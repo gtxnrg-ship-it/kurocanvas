@@ -17,10 +17,12 @@ python -m venv .venv
 # Activate the environment for your OS, then:
 python -m pip install --upgrade pip
 python -m pip install vllm
-vllm serve Qwen/Qwen3.8-27B --host 127.0.0.1 --port 8000
+vllm serve Qwen/Qwen3.8-27B --host 127.0.0.1 --port 8000 --reasoning-parser qwen3
 ```
 
-The first launch downloads model weights and can take substantial time and bandwidth. Do not run this on a low-memory phone. When the server is ready, open Kuro Canvas → Settings → Connect a model → **Use local Qwen3.8 endpoint** → **Test connection and list models** → choose the returned model ID → **Connect model**. Keep the server running while Kuro uses it.
+The first launch downloads model weights and can take substantial time and bandwidth. Do not run this on a low-memory phone. The full BF16 checkpoint needs more than its on-disk size in runtime memory; the vLLM recipe estimates about 67 GB minimum VRAM for that variant. Official quantized variants exist, including FP8 (about 38 GB minimum VRAM) and hardware-specific NVFP4 (about 32 GB minimum VRAM on supported Blackwell GPUs); use the exact official recipe for your GPU instead of assuming every quantization runs everywhere. See the [official vLLM Qwen3.8 recipe](https://recipes.vllm.ai/Qwen/Qwen3.8-27B) for current hardware and launch requirements.
+
+When the server is ready, open Kuro Canvas → Settings → Connect a model → **Use local Qwen3.8 endpoint** → **Test connection and list models** → choose the returned model ID → **Connect model**. Keep the server running while Kuro uses it.
 
 Official references:
 - Model card and runtime instructions: https://huggingface.co/Qwen/Qwen3.8-27B

@@ -278,11 +278,15 @@ export function buildApprovedCanonContext(
     }
   }
 
-  const maxFacts = Math.max(1, Math.min(80, Math.floor(options.maxFacts ?? 24)));
-  const maxCharacters = Math.max(500, Math.min(12000, Math.floor(options.maxCharacters ?? 5000)));
+  const authorPlanning = options.revealGate?.enabled === true
+    && options.revealGate.allowAuthorDirectedForeshadowing === true;
+  const maxFacts = Math.max(1, Math.min(80, Math.floor(options.maxFacts ?? (authorPlanning ? 80 : 24))));
+  const maxCharacters = Math.max(500, Math.min(12000, Math.floor(options.maxCharacters ?? (authorPlanning ? 12000 : 5000))));
   const retrieved = retrieveCanon(source, {
     projectId: options.projectId,
-    text: options.userMessage,
+    // Intentional foreshadowing needs a broad look at the selected timeline so Kuro
+    // can suggest a fitting cameo, not only facts lexically named in the request.
+    text: authorPlanning ? "" : options.userMessage,
     statuses: ["approved"],
     ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder, ...(revealTimelineId ? { timelineId: revealTimelineId } : {}) }),
     limit: maxFacts,
@@ -306,7 +310,9 @@ export function buildApprovedCanonContext(
     lines.push(`- ${subject} — ${fact.predicate}: ${value ?? "null"}${fact.storyOrder === undefined ? "" : ` (story order ${fact.storyOrder})`}`);
   }
   if (retrieved.entities.length === 0 && retrieved.facts.length === 0 && revealNotice) {
-    lines.push("No reveal-safe World Bible fact matched this request. Proceed only with details already established in the visible scene.");
+    lines.push(authorPlanning
+      ? "No approved World Bible facts are available for this selected project/timeline. Do not invent a secret connection; ask the author for the intended character or clue."
+      : "No reveal-safe World Bible fact matched this request. Proceed only with details already established in the visible scene.");
   }
   let output = lines.join("\n");
   if (output.length > maxCharacters) {

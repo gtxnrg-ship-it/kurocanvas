@@ -1,12 +1,25 @@
 # Kuro Canvas
 
+> 📱 **[⬇️ Download the latest Kuro Canvas Android test APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)**  
+> This direct link is populated by the Android build workflow after its tests and APK build succeed. If the first build has not finished yet, [open Android APK build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) and download the **kuro-canvas-debug-apk** artifact from the newest successful run. This is a debug-signed test build, not a production release.
+
+**Create · Draw · Tell · Together.**
+
+## What Kuro is — and what she is not
+
+**Kuro is a tool-using creative agent, not a generative-image chatbot.** Her drawing path is to reason about a request, propose structured native actions, validate them against the active document, then operate the application's real editable tools. The canvas renders and stores real editable strokes, shapes, text, layers, and revisions. Kuro's drawings are not flattened pictures returned by an image-generation endpoint. The agent must report success only after the application executes the actions and verifies the saved document.
+
+Kuro is intended to be the creator's research and worldbuilding partner as well: research references, help design fictional cultures, neighborhoods, homes, history, institutions, economies, power systems and relationships, and preserve approved decisions in a project-scoped World/Vault. Character ages, injuries, healing, scars, outfits, relationships, knowledge and locations should evolve with story time; earlier chapters should remain revisitable, and planned cameos/Easter eggs should be tracked without accidentally revealing their payoffs to readers.
+
+**Important implementation boundary:** the architecture has real native drawing commands, editable-document execution, a 3D viewport, model import/blockout support, research, and story-memory foundations. It is not yet a finished professional drawing agent or a complete 3D modeling/rigging engine. A model can propose actions; only implemented tools can execute them. Unbounded context does not literally exist—the application has to retrieve relevant long-term records under model context limits. This README distinguishes implemented code from end-to-end capabilities that still need verification.
+
 **Create · Draw · Tell · Together.**
 
 Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and Webtoon creation. Kuro's defining job is to help develop a story universe and then operate the application's **real, editable drawing tools**—not silently replace the drawing workflow with a flattened, one-shot generated image.
 
 > **Project status: active development · early alpha · not a production release**
 >
-> **Rough completion estimate:** approximately **45% of the full product vision is implemented in some form**. This is an engineering estimate, not a test-coverage metric. Core foundations exist, but several of the hardest end-to-end workflows and release requirements remain incomplete. **Release readiness is substantially lower than feature-foundation progress.**
+> **Completion percentage:** no single repository-wide percentage is currently defensible. Individual feature areas have different levels of implementation and verification; see the roadmap below. Do not treat a green build or existing component as proof of a complete user journey.
 >
 > **Verification status:** Every push to `main` triggers automated regression tests and a TypeScript/Vite production build. See [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions) for the latest commit’s exact result. A green build is necessary, not sufficient: browser-level package round trips, low-end Android performance, accessibility, and complete end-to-end journeys still need real-device validation. The Pages workflow now follows `main`, but a live hosted preview is **not confirmed** until the repository’s Pages site is enabled and deployment succeeds.
 
@@ -29,7 +42,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Local browser model | Experimental | Optional text-only model runs in a worker, supports cancellation and reports a local speed benchmark; real-device quality/performance remain unverified |
 | Hosted OpenAI-compatible provider | Integration implemented | Requires a compatible endpoint and valid configuration |
 | Portable project/export workflows | Partial | Packages include universe transcripts, relationship/timeline canon, drawings and revision checkpoints; browser round-trip and corruption-recovery testing remain |
-| Android APK | **Not available yet** | No verified installable APK release is published |
+| Android APK | Packaging workflow added | Await a successful workflow run and inspect the generated artifact on a real device |
 | Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
 
 Statuses describe the code and current development scope; they are not a promise that every row is fully verified.
@@ -90,15 +103,16 @@ This is a practical smoke test, not a substitute for the full release test suite
 
 ## Android APK download
 
-**There is no verified, installable Kuro Canvas APK published yet.** The current project is a web application built with React, TypeScript and Vite. A web app running in an Android browser is not the same thing as a packaged Android application, and we should not label an unverified build as an APK.
+**[Download the latest Android test APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk)**
 
-- **[Check official Kuro Canvas releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases/latest)** — if a release later includes an APK, download it only from the official release assets.
-- **[Browse all releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases)**.
-- **Download a temporary web build:** once the latest [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/kuro-canvas-checks.yml) finish successfully, open that run and download the `kuro-canvas-web-build` artifact. It is a short-lived static web build (retained for 7 days), **not an APK**; you must host/serve its files to run it.
-- **Current way to test on Android:** open the hosted preview above in Chrome if it is available, or run the app locally and access it from the phone on the same network. The local development server must be reachable from the device.
-- **Home-screen shortcut:** you may be able to use Chrome's **Add to Home screen** menu, but this is only a browser shortcut—not a packaged or verified installable app. No offline guarantee is made, and browser storage can be cleared by the user or operating system.
+The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml) runs regression tests, type-checks and builds the web app, packages it into a Capacitor Android project, and assembles an installable debug APK. A successful run publishes a rolling development release at the direct link above and also attaches a **kuro-canvas-debug-apk** workflow artifact.
 
-Before an APK can be advertised as downloadable, the project needs a verified Android packaging path, a reproducible build, application ID/versioning, appropriate permissions and storage behavior, installation testing on real devices, and a release artifact attached to an official GitHub release. Signing and update/distribution instructions must also be documented. **The links above are release destinations, not a claim that an APK is currently available.**
+- If the direct link is not populated yet, open the [Android build runs](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/android-apk.yml), select the newest successful run, and download its **kuro-canvas-debug-apk** artifact.
+- The APK is **debug-signed for testing**, not signed for Play Store or production distribution. Review the build's source commit and SHA-256 file in the release/artifact.
+- Each CI run can use a new debug signing key. If Android refuses to install an update over an older test build, uninstall the previous test APK first, then install the new one.
+- This packages the current web application in an Android WebView; it does **not** prove offline model inference, background jobs after Android kills the app, native notifications on every device, or polished low-end performance. Those need device-specific validation.
+
+For local Android development, install dependencies, build the app, and create the native project once with `npx cap add android`. Then use `npm run android:sync` after changes and `npm run android:open` to open Android Studio. The CI workflow creates the native project from scratch so its APK build does not depend on an untracked generated directory.
 
 
 ## What Kuro is designed to become
@@ -163,7 +177,7 @@ The work is ordered by dependency, not visual novelty:
 6. **Finish portable projects:** validate archive paths and schemas, handle missing assets, preserve editable layers and test import/export round-trips.
 7. **Harden the UI:** consistent loading, empty, error and recovery states; responsive layouts; keyboard/touch accessibility; reduced-motion support.
 8. **Validate models and devices:** benchmark latency, memory and quality on representative phones/tablets/desktops; disclose unsupported capabilities; keep hosted providers optional.
-9. **Package Android:** create and verify a reproducible Android build, test installation and upgrades on real devices, and publish the APK through an official release.
+9. **Validate Android:** the Capacitor APK workflow now exists; install the generated APK on representative phones, verify input/storage/export/provider networking, and test upgrades and low-memory behavior before calling it production-ready.
 10. **Release only on evidence:** pass typecheck, tests, production build, end-to-end workflows, security checks, accessibility checks and device testing. Report every remaining limitation.
 
 ## Engineering and contributor guidance
@@ -202,4 +216,4 @@ No license has been selected yet. Do not assume this repository is open source u
 
 ---
 
-**Current release decision: not ready for production or APK distribution.** The last confirmed automated code-check run passed, but the current head must pass its own checks. The Pages preview is still blocked until a repository maintainer enables GitHub Pages. The complete creative-agent loop, Android packaging and full end-to-end validation are still required.
+**Current release decision: early-alpha test APK only; not production-ready.** The APK link is a release destination that becomes valid after the first successful Android APK workflow. Check the current main-branch Actions status before testing. Full tool coverage, iterative visual QA, story-memory reliability, real-device Android testing, and the remaining end-to-end acceptance tests are still required.

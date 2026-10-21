@@ -40,12 +40,27 @@ jobs:
         run: npm run build -- --mode pages
       # Pages must be enabled once by a repository maintainer in Settings → Pages.
       # The GitHub Actions integration does not have permission to create the Pages site.
-      - name: Configure GitHub Pages
+      - name: Configure GitHub Pages when the repository site is enabled
+        id: pages-configure
         uses: actions/configure-pages@v5
-      - name: Upload website artifact
+        continue-on-error: true
+      - name: Upload the Pages deployment artifact
+        if: steps.pages-configure.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+      - name: Keep a downloadable web preview when Pages is not enabled
+        if: steps.pages-configure.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kurocanvas-web-preview-run-${{ github.run_number }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 14
+      - name: Report the Pages setting requirement
+        if: steps.pages-configure.outcome != 'success'
+        run: echo "GitHub Pages is not enabled for this repository. The verified website build is available as this run's kurocanvas-web-preview artifact."
       - name: Deploy preview
         id: deployment
+        if: steps.pages-configure.outcome == 'success'
         uses: actions/deploy-pages@v4

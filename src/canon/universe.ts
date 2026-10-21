@@ -1,9 +1,9 @@
 export type CanonStatus = "approved" | "proposed" | "inferred" | "contradicted" | "superseded";
 export interface CanonEntity { id: string; projectId: string; kind: string; name: string; aliases: string[]; status: CanonStatus }
-export interface CanonFact { id: string; projectId: string; subjectId: string; predicate: string; value: unknown; status: CanonStatus; storyOrder?: number; dependsOn?: string[]; supersedesFactId?: string }
+export interface CanonFact { id: string; projectId: string; subjectId: string; predicate: string; value: unknown; status: CanonStatus; storyOrder?: number; timelineId?: string; dependsOn?: string[]; supersedesFactId?: string }
 export interface CanonBundle { schemaVersion: 1; projectId: string; entities: CanonEntity[]; facts: CanonFact[] }
-export interface CanonIssue { code: "duplicate-id" | "cross-project-reference" | "missing-reference" | "possible-contradiction"; message: string; recordIds: string[]; severity: "warning" | "error" }
-export interface CanonQuery { projectId: string; text?: string; kinds?: string[]; entityIds?: string[]; statuses?: CanonStatus[]; maxStoryOrder?: number; limit?: number }
+export interface CanonIssue { code: "duplicate-id" | "cross-project-reference" | "missing-reference" | "possible-contradiction" | "invalid-field"; message: string; recordIds: string[]; severity: "warning" | "error" }
+export interface CanonQuery { projectId: string; text?: string; kinds?: string[]; entityIds?: string[]; statuses?: CanonStatus[]; maxStoryOrder?: number; timelineId?: string; limit?: number }
 
 const norm = (s: string) => s.normalize("NFKC").toLocaleLowerCase().trim();
 const words = (s: string) => norm(s).split(/[^a-z0-9]+/).filter(x => x.length > 1);
@@ -15,7 +15,7 @@ export function findCanonContradictions(bundle: CanonBundle): CanonIssue[] {
   const facts = bundle.facts.filter(f => f.status === "approved"), issues: CanonIssue[] = [];
   for (let i = 0; i < facts.length; i++) for (let j = i + 1; j < facts.length; j++) {
     const a = facts[i], b = facts[j];
-    if (a.projectId !== b.projectId || a.subjectId !== b.subjectId || norm(a.predicate) !== norm(b.predicate)) continue;
+    if (a.projectId !== b.projectId || a.subjectId !== b.subjectId || norm(a.predicate) !== norm(b.predicate) || a.timelineId !== b.timelineId) continue;
     if (JSON.stringify(a.value) === JSON.stringify(b.value)) continue;
     if (a.storyOrder !== undefined && b.storyOrder !== undefined && a.storyOrder !== b.storyOrder) continue;
     issues.push({ code: "possible-contradiction", message: "Approved facts may conflict for " + a.subjectId + " / " + a.predicate + ".", recordIds: [a.id, b.id], severity: "warning" });
@@ -32,6 +32,15 @@ export function validateCanon(bundle: CanonBundle): CanonIssue[] {
   const entities = new Set(bundle.entities.filter(e => e.projectId === bundle.projectId).map(e => e.id));
   const facts = new Set(bundle.facts.filter(f => f.projectId === bundle.projectId).map(f => f.id));
   for (const f of bundle.facts) {
+    if (typeof f.predicate !== "string" || !f.predicate.trim()) {
+      issues.push({ code: "invalid-field", message: "Canon fact needs a non-empty predicate.", recordIds: [f.id], severity: "error" });
+    }
+    if (f.storyOrder !== undefined && (!Number.isFinite(f.storyOrder) || f.storyOrder < 0)) {
+      issues.push({ code: "invalid-field", message: "Canon story order must be a non-negative finite number.", recordIds: [f.id], severity: "error" });
+    }
+    if (f.timelineId !== undefined && (typeof f.timelineId !== "string" || !f.timelineId.trim())) {
+      issues.push({ code: "invalid-field", message: "A timeline ID must be a non-empty string when supplied.", recordIds: [f.id], severity: "error" });
+    }
     if (!entities.has(f.subjectId)) issues.push({ code: "missing-reference", message: "Fact subject is missing.", recordIds: [f.id, f.subjectId], severity: "error" });
     for (const dep of f.dependsOn ?? []) if (!entities.has(dep) && !facts.has(dep)) issues.push({ code: "missing-reference", message: "Fact dependency is missing.", recordIds: [f.id, dep], severity: "error" });
   }
@@ -39,12 +48,26 @@ export function validateCanon(bundle: CanonBundle): CanonIssue[] {
 }
 export function retrieveCanon(bundle: CanonBundle, q: CanonQuery) {
   if (q.projectId !== bundle.projectId) throw new Error("Canon retrieval is restricted to the active project.");
+  if (q.timelineId !== undefined && !q.timelineId.trim()) throw new Error("Canon retrieval timeline ID cannot be empty.");
+  if (q.maxStoryOrder !== undefined && (!Number.isFinite(q.maxStoryOrder) || q.maxStoryOrder < 0)) {
+    throw new Error("Canon retrieval story order must be a non-negative finite number.");
+  }
+  const factEligibleAtPoint = (fact: CanonFact): boolean => {
+    if (q.statuses && !q.statuses.includes(fact.status)) return false;
+    if (q.maxStoryOrder !== undefined && fact.storyOrder !== undefined && fact.storyOrder > q.maxStoryOrder) return false;
+    if (q.timelineId !== undefined) {
+      // Facts with explicit timeline ownership must match. Timed facts with no timeline
+      // are ambiguous and fail closed; timeless unscoped facts remain world-wide canon.
+      if (fact.timelineId !== undefined && fact.timelineId !== q.timelineId) return false;
+      if (fact.storyOrder !== undefined && fact.timelineId === undefined) return false;
+    }
+    return true;
+  };
   const limit = Math.max(1, Math.min(500, Math.floor(q.limit ?? 80))), query = new Set(words(q.text ?? ""));
   const matchingFactSubjects = new Map<string, number>();
   if (query.size) {
     for (const fact of bundle.facts) {
-      if (fact.projectId !== q.projectId || (q.statuses && !q.statuses.includes(fact.status))) continue;
-      if (q.maxStoryOrder !== undefined && fact.storyOrder !== undefined && fact.storyOrder > q.maxStoryOrder) continue;
+      if (fact.projectId !== q.projectId || !factEligibleAtPoint(fact)) continue;
       const haystack = words([fact.predicate, typeof fact.value === "string" ? fact.value : JSON.stringify(fact.value ?? "")].join(" "));
       const score = [...query].filter(token => haystack.includes(token)).length;
       if (score) matchingFactSubjects.set(fact.subjectId, Math.max(matchingFactSubjects.get(fact.subjectId) ?? 0, score));
@@ -60,7 +83,7 @@ export function retrieveCanon(bundle: CanonBundle, q: CanonQuery) {
     }).filter(x => x.score > 0).sort((a,b) => b.score-a.score || a.entity.name.localeCompare(b.entity.name)).slice(0,limit).map(x => x.entity);
   const selected = new Set([...entities.map(e => e.id), ...(q.entityIds ?? [])]);
   const rank: Record<CanonStatus, number> = { approved: 0, proposed: 1, inferred: 2, contradicted: 3, superseded: 4 };
-  const facts = bundle.facts.filter(f => f.projectId === q.projectId && selected.has(f.subjectId) && (!q.statuses || q.statuses.includes(f.status)) && (q.maxStoryOrder === undefined || f.storyOrder === undefined || f.storyOrder <= q.maxStoryOrder))
+  const facts = bundle.facts.filter(f => f.projectId === q.projectId && selected.has(f.subjectId) && factEligibleAtPoint(f))
     .sort((a,b) => rank[a.status]-rank[b.status] || (b.storyOrder ?? -Infinity)-(a.storyOrder ?? -Infinity)).slice(0,limit);
   return { entities, facts };
 }

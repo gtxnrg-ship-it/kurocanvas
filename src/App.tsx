@@ -8,6 +8,7 @@ import { parseAIStrokePlan } from './drawing/aiPlan';
 import ProjectManager from './projects/ProjectManager';
 import { artDirectionStorage, canonStorage, drawingStorage, projectStorage, storyMemoryStorage, styleBibleStorage } from './core/storage';
 import { buildApprovedCanonContext } from './canon/aiContext';
+import { createEmptyCanon } from './canon/universe';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
@@ -55,10 +56,10 @@ const captureStory = shouldCaptureStoryMemory(text)
 if(activeProjectId && captureStory){
   try {
     const extraction=await provider.generate({role:'planning',messages:[
-      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}],"visualStates":[{"characterName":"exact character name","evidence":"exact contiguous quote copied from the user message","chapterNumber":12,"storyOrder":12,"age":"exact substring or empty","hair":"exact substring or empty","eyes":"exact substring or empty","scars":"exact substring or empty","outfit":"exact substring or empty","body":"exact substring or empty","accessories":"exact substring or empty","injuries":"exact substring or empty","other":"exact substring or empty"}]}. Only create visualStates for explicit appearance changes or a clearly described first visual design, and only when the evidence explicitly names a chapter number. Every non-empty appearance field must be an exact substring of evidence, and characterName must appear verbatim in evidence. chapterNumber must be explicitly stated in evidence. storyOrder may default to chapterNumber but is only a proposal for user correction, especially for flashbacks. Never infer a scar, age, hair, outfit, injury, or other visual detail. If there are no supported details, return empty arrays. Never approve canon; every result is only a proposal for human review.'},
+      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}],"visualStates":[{"characterName":"exact character name","evidence":"exact contiguous quote copied from the user message","chapterNumber":12,"storyOrder":12,"age":"exact substring or empty","hair":"exact substring or empty","eyes":"exact substring or empty","scars":"exact substring or empty","outfit":"exact substring or empty","body":"exact substring or empty","accessories":"exact substring or empty","injuries":"exact substring or empty","other":"exact substring or empty"}]}. Only create visualStates for explicit appearance changes or a clearly described first visual design, and only when the evidence explicitly names a chapter number. Every non-empty appearance field must be an exact substring of evidence, and characterName must appear verbatim in evidence. chapterNumber must be explicitly stated in evidence. storyOrder may default to chapterNumber but is only a proposal for user correction, especially for flashbacks. Never infer a scar, age, hair, outfit, injury, or other visual detail. If there are no supported details, return empty arrays. Also return newCharacters:[{"name":"exact character name","evidence":"exact contiguous quote copied from the user message","aliases":["only explicitly stated alternate names"]}] only for a clearly introduced or first-appearing named character. Every name and alias must appear verbatim in evidence. If introduction is ambiguous, omit it. Never approve canon; every result is only a proposal for human review.'},
       {role:'user',content:text}
     ],temperature:0,maxOutputTokens:1000,responseFormat:'json'},model);
-    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>;visualStates?:Array<{characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>};
+    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>;newCharacters?:Array<{name?:string;evidence?:string;aliases?:string[]}>;visualStates?:Array<{characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>};
     const candidates=Array.isArray(parsed.memories)?parsed.memories:[];
     let saved=0;
     for(const item of candidates.slice(0,8)){
@@ -73,6 +74,25 @@ if(activeProjectId && captureStory){
       saved++;
     }
     let visualSaved=0;
+    let characterSaved=0;
+    const characterCandidates=Array.isArray(parsed.newCharacters)?parsed.newCharacters:[];
+    if(characterCandidates.length){
+      const bundle=await canonStorage.load(activeProjectId) ?? createEmptyCanon(activeProjectId);
+      const additions=[];
+      for(const item of characterCandidates.slice(0,8)){
+        const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
+        const name=typeof item.name==='string'?item.name.trim():'';
+        if(!evidence||!text.includes(evidence)||!name||!evidence.includes(name))continue;
+        const duplicate=[...bundle.entities,...additions].some(entity=>entity.kind.toLocaleLowerCase()==='character'&&(entity.name.toLocaleLowerCase()===name.toLocaleLowerCase()||entity.aliases.some(alias=>alias.toLocaleLowerCase()===name.toLocaleLowerCase())));
+        if(duplicate)continue;
+        const aliases=(Array.isArray(item.aliases)?item.aliases:[]).filter((alias):alias is string=>typeof alias==='string'&&alias.trim()&&evidence.includes(alias.trim())).map(alias=>alias.trim()).slice(0,8);
+        additions.push({id:crypto.randomUUID(),projectId:activeProjectId,kind:'character',name,aliases,status:'proposed' as const});
+      }
+      if(additions.length){
+        await canonStorage.save({...bundle,entities:[...bundle.entities,...additions]});
+        characterSaved=additions.length;
+      }
+    }
     const visualCandidates=Array.isArray(parsed.visualStates)?parsed.visualStates:[];
     if(visualCandidates.length){
       const bible=await styleBibleStorage.load(activeProjectId) ?? createEmptyStyleBible(activeProjectId);
@@ -82,8 +102,8 @@ if(activeProjectId && captureStory){
         visualSaved=additions.length;
       }
     }
-    if(saved||visualSaved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+' and '+visualSaved+' character-visual proposal'+(visualSaved===1?'':'s')+' from exact quotes in your message. They are all unapproved proposals in Creative Vault, not canon. Check the chapter number and chronological story order—especially for flashbacks—before approving them.'}]);
-    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail or chapter-specific visual change to capture. Nothing was added to the Story Vault or Style Bible.'}]);
+    if(saved||visualSaved||characterSaved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+', '+characterSaved+' new-character proposal'+(characterSaved===1?'':'s')+', and '+visualSaved+' character-visual proposal'+(visualSaved===1?'':'s')+' from exact quotes in your message. They are unapproved proposals in Creative Vault, not canon. Check each character identity and the chronological story order—especially for flashbacks—before approving them.'}]);
+    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail, first-appearance candidate, or chapter-specific visual change to capture. Nothing was added to the Story Vault, World Bible, or Style Bible.'}]);
   } catch { setMessages(m=>[...m,{role:'kuro',text:'I could not safely draft story-memory proposals from that message. Nothing was added; you can still record it directly in Creative Vault.'}]); }
 }
 }}catch(e){setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the provider settings and connection, then try again.'}]);}finally{setWorking(false);}}

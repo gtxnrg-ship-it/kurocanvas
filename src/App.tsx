@@ -40,7 +40,7 @@ type ProposedDrawingPlan={id:string;drawingId:string;summary:string;commands:Nat
 type LocalProjectChoice={id:string;name:string};
 type RecentUniverse={id:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
 function readProviderConfig(): SafeProviderConfig { try { const raw=localStorage.getItem('kuro-model-provider'); if(raw){const value=JSON.parse(raw) as Partial<SafeProviderConfig>; if(typeof value.baseUrl==='string'&&typeof value.modelUri==='string'){if(/qwen3[.]8-27b/i.test(value.modelUri))return {baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false};return {baseUrl:value.baseUrl,modelUri:value.modelUri,allowInsecureLocalhost:value.allowInsecureLocalhost===true};}} } catch {} return {baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false}; }
-function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={`${import.meta.env.BASE_URL}kuro-icon.webp`} alt=""/></div>}
+function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 async function canvasDocumentPreviewDataUrl(drawing: LocalDrawingDocument): Promise<string> {
  const layers=drawing.layers?.length?drawing.layers.map(layer=>({id:layer.id,name:layer.name,visible:layer.visible,opacity:layer.opacity??1,blendMode:layer.blendMode??'normal'})):[{id:'layer-default',name:'Sketch',visible:true,opacity:1,blendMode:'normal'}];
  const svg=buildSvgDocument({width:drawing.width,height:drawing.height,background:drawing.background,strokes:drawing.strokes,layers});

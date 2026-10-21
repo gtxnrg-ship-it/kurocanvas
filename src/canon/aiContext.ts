@@ -73,8 +73,6 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   const hiddenNames = new Set<string>();
 
   for (const entity of characterEntities) {
-    const history = states.filter(state => state.characterId === entity.id
-      && (!point.timelineId || state.timelineId === point.timelineId));
     const allHistory = states.filter(state => state.characterId === entity.id);
     let hidden = false;
     if (point.storyOrder !== undefined && point.timelineId && !point.ambiguous) {
@@ -143,7 +141,7 @@ export function buildApprovedCanonContext(
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);
     source = filtered.bundle;
-    if (filtered.hiddenCount) {
+    if (filtered.hiddenCount || filtered.unresolvedTarget) {
       revealNotice = "STORY OUTPUT REVEAL GUARD: Preloaded cast not yet safe to reveal and any facts identifying them have been withheld. Do not name, describe, count, hint at, or otherwise expose withheld characters. If the requested chapter/timeline cannot be mapped to approved story order, ask for that mapping instead of guessing.";
     }
   }

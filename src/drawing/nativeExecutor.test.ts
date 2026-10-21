@@ -18,6 +18,15 @@ describe("native drawing executor", () => {
     expect(result.inverse[0]).toMatchObject({ type: "stroke.remove", strokeId: "stroke-1" });
     expect(initial.strokes).toHaveLength(0);
   });
+  it("updates stroke style immutably and can restore the previous values", () => {
+    const drawn = applyNativeDrawingCommand(initial, add).state;
+    const edit: NativeDrawingCommand = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "stroke-1", patch: { color: "#abcdef", size: 9 } };
+    const updated = applyNativeDrawingCommand(drawn, edit);
+    expect(updated.state.strokes[0]).toMatchObject({ color: "#abcdef", size: 9 });
+    expect(drawn.strokes[0]).toMatchObject({ color: "#112233", size: 4 });
+    const restored = applyNativeDrawingCommand(updated.state, updated.inverse[0]);
+    expect(restored.state.strokes[0]).toMatchObject({ color: "#112233", size: 4 });
+  });
   it("rejects drawing on a locked layer without mutating input", () => {
     const locked = { ...initial, layers: initial.layers.map(layer => ({ ...layer, locked: true })) };
     expect(() => applyNativeDrawingCommand(locked, add)).toThrow(/locked/);

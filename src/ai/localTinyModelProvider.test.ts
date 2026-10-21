@@ -15,7 +15,7 @@ describe("LocalTinyModelProvider", () => {
       capabilities: ["chat"],
       metadata: { modelId: KURO_TINY_MODEL_ID, vision: false },
     });
-    expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(137_000_000);
+    expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(370_000_000);
   });
 
   it("uses the Qwen3-0.6B ONNX model", async () => {

@@ -180,6 +180,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const selectionDragRef = useRef<SelectionDrag | null>(null);
   const moveSnapshotRef = useRef<Stroke[] | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
+  const pendingNewDocRef = useRef<{ id: string; doc: Doc } | null>(null);
   const [documents, setDocuments] = useState<Array<{id:string;name?:string;updatedAt:string}>>([]);
   const [revisions, setRevisions] = useState<Array<{id:string;title:string;createdAt:string}>>([]);
   const [drawingId, setDrawingId] = useState('default-canvas-v1');
@@ -355,7 +356,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         setBackground(doc.background); setDrawingName(doc.name || 'Untitled drawing');
         setNotice('Opened ' + (doc.name || 'saved drawing'));
       } else {
-        docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
+        const pending = pendingNewDocRef.current?.id === drawingId ? pendingNewDocRef.current.doc : null;
+        if (pendingNewDocRef.current?.id === drawingId) pendingNewDocRef.current = null;
+        docRef.current = pending ?? { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
         setStrokes([]); setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
         setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
@@ -854,7 +857,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id); setSelectedStrokeId(null);
     setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setPlanUndoStack([]); setPlanRedoStack([]);
     setBackground('#fffdfb'); setZoom(1); setPanOffset({x:0,y:0});
-    docRef.current = { version: 1, width, height, background: '#fffdfb', strokes: [] };
+    const newDoc: Doc = { version: 1, width, height, background: '#fffdfb', strokes: [] };
+    docRef.current = newDoc; pendingNewDocRef.current = { id, doc: newDoc };
     setNotice('Creating ' + name.trim() + ' · ' + width + ' × ' + height);
   };
   const renameDrawing = async () => {

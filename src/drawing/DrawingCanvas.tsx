@@ -476,6 +476,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       await loadStoredCanvasIntoView(restored);
     };
 
+    let activeStepIndex = -1;
     (async () => {
       try {
         const beforePlan: PlanSnapshot = {
@@ -534,7 +535,6 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         if (cancelled) { await restoreOriginal(); return; }
 
         let anyChanged = false;
-        let activeStepIndex = -1;
         for (let index = 0; index < pendingPlan.commands.length; index++) {
           if (cancelled) break;
           const command = pendingPlan.commands[index];

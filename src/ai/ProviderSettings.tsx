@@ -57,7 +57,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
       const response = await provider.generate({
         role: "reasoning",
         messages: [
-          { role: "system", content: KURO_PERSONA_CORE + "\\n\\n" + getKuroVoiceGuidance(voiceIntensity) },
+          { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance(voiceIntensity) },
           { role: "user", content: "Give me a natural, short reply to this: \\"I want to draw a whole manga scene, but I'm overwhelmed and don't know where to start.\\" Be playfully tsundere if it fits, then offer one genuinely useful first step. Keep it to 2–4 sentences." },
         ],
         temperature: 0.75,

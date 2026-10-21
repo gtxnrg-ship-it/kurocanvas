@@ -34,3 +34,7 @@
 .style-bible-research{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:3px}
 .style-bible-research a{font-size:11px;color:#c6b2ff;text-decoration:none;border:1px solid rgba(167,139,250,.24);border-radius:7px;padding:6px 8px;background:rgba(167,139,250,.06)}
 .style-bible-research a:hover{border-color:#a78bfa;background:rgba(167,139,250,.12)}
+
+.style-bible-evidence{display:grid;gap:5px;margin:10px 0 0;padding:9px 11px;border-left:2px solid #8f76cf;background:rgba(143,118,207,.08);color:#c5bdd5;font-size:11px;line-height:1.5}
+.style-bible-evidence b{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#bda7f5}
+.style-bible-evidence span{overflow-wrap:anywhere}

@@ -22,6 +22,24 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+      - name: Dependency security audit (diagnostic)
+        shell: bash
+        run: |
+          npm audit --json > /tmp/kuro-npm-audit.json || true
+          node --input-type=commonjs -e '
+            const fs = require("node:fs");
+            const report = JSON.parse(fs.readFileSync("/tmp/kuro-npm-audit.json", "utf8"));
+            const vulns = report.vulnerabilities || {};
+            const items = Object.entries(vulns).map(([name, value]) => ({
+              name, severity: value.severity, range: value.range,
+              direct: value.isDirect, fixAvailable: value.fixAvailable,
+              via: (value.via || []).map(issue => typeof issue === "string" ? issue : issue.title || issue.name || issue.url)
+            }));
+            console.log(JSON.stringify({
+              metadata: report.metadata?.vulnerabilities,
+              vulnerabilities: items
+            }, null, 2));
+          '
       - name: Automated regression tests
         run: npm test
       - name: TypeScript checks and production build

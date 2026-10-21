@@ -97,7 +97,13 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
         .map(entity => ({ id: entity.id, name: entity.name, status: entity.status, aliases: entity.aliases }));
       setCharacters(nextCharacters);
       setRecords(states);
-      setCharacterId(current => nextCharacters.some(item => item.id === current) ? current : nextCharacters[0]?.id ?? "");
+      const nextCharacterId = nextCharacters.some(item => item.id === characterId) ? characterId : nextCharacters[0]?.id ?? "";
+      setCharacterId(nextCharacterId);
+      if (nextCharacterId !== characterId) {
+        const maxOrder = states.filter(item => item.characterId === nextCharacterId && item.timelineId === timelineId)
+          .reduce((max, item) => Math.max(max, item.storyOrder), -1);
+        setStoryOrder(String(Math.max(10, maxOrder + 10)));
+      }
       setMessage("Loaded " + states.length + " saved character-state snapshots from this universe.");
     } catch (error) {
       if (requestId === refreshGeneration.current) setMessage(error instanceof Error ? error.message : "Could not load character continuity.");
@@ -153,7 +159,13 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     setConditions(current => current.map(condition => {
       if (condition.id !== id) return condition;
       const next = { ...condition, ...patch };
-      if (next.stage === "healed") { next.healingProgressPercent = 100; next.painLevel = 0; }
+      if (next.stage === "healed") {
+        next.healingProgressPercent = 100; next.painLevel = 0;
+        if (patch.stage === "healed" && next.kind !== "scar" && !next.permanentMark) {
+          next.visibleDescription = "No visible active injury remains; record any persistent scar or residual mark.";
+        }
+      }
+      if (next.stage === "permanent") next.permanentMark = true;
       if (patch.stage && patch.stage !== "healed" && next.healingProgressPercent === 100) next.healingProgressPercent = 75;
       return next;
     }));
@@ -217,6 +229,9 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
       ...(previousBody?.notes ? { notes: previousBody.notes } : {}),
     } : undefined;
     const appearance = { ...(baseState?.appearance ?? {}) } as CharacterEvolutionState["appearance"];
+    const explicitUnknowns = new Set<CharacterAppearanceField>(unknownFields);
+    if (hairLength === "unknown") explicitUnknowns.add("hairLength");
+    else explicitUnknowns.delete("hairLength");
     const scalarUpdates: Array<[CharacterAppearanceField, string, (value: string) => unknown]> = [
       ["height", height, value => value.trim() || undefined],
       ["build", build, value => value.trim() || undefined],
@@ -229,27 +244,27 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
       ["outfitDescription", outfitDescription, value => value.trim() || undefined],
     ];
     for (const [field, fieldValue, parse] of scalarUpdates) {
-      if (unknownFields.includes(field)) { delete appearance[field as keyof typeof appearance]; continue; }
+      if (explicitUnknowns.has(field)) { delete appearance[field as keyof typeof appearance]; continue; }
       if (fieldValue.trim()) Object.assign(appearance, { [field]: parse(fieldValue) });
     }
-    if (unknownFields.includes("ageYears")) delete appearance.ageYears;
+    if (explicitUnknowns.has("ageYears")) delete appearance.ageYears;
     else if (ageYears.trim()) appearance.ageYears = Number(ageYears);
-    if (hairLength !== "unknown" || !appearance.hairLength) appearance.hairLength = hairLength;
-    if (unknownFields.includes("scarsAndMarks")) delete appearance.scarsAndMarks;
+    if (explicitUnknowns.has("hairLength")) delete appearance.hairLength; else appearance.hairLength = hairLength;
+    if (explicitUnknowns.has("scarsAndMarks")) delete appearance.scarsAndMarks;
     else if (scarsAndMarks.trim()) appearance.scarsAndMarks = parseList(scarsAndMarks);
-    if (unknownFields.includes("voiceAndMannerisms")) delete appearance.voiceAndMannerisms;
+    if (explicitUnknowns.has("voiceAndMannerisms")) delete appearance.voiceAndMannerisms;
     else if (voiceAndMannerisms.trim()) appearance.voiceAndMannerisms = parseList(voiceAndMannerisms);
-    if (unknownFields.includes("abilitiesAndSkills")) delete appearance.abilitiesAndSkills;
+    if (explicitUnknowns.has("abilitiesAndSkills")) delete appearance.abilitiesAndSkills;
     else if (abilitiesAndSkills.trim()) appearance.abilitiesAndSkills = parseList(abilitiesAndSkills);
-    if (unknownFields.includes("personalityChanges")) delete appearance.personalityChanges;
+    if (explicitUnknowns.has("personalityChanges")) delete appearance.personalityChanges;
     else if (personalityChanges.trim()) appearance.personalityChanges = parseList(personalityChanges);
-    if (unknownFields.includes("visualNotes")) delete appearance.visualNotes;
+    if (explicitUnknowns.has("visualNotes")) delete appearance.visualNotes;
     else if (visualNotes.trim()) appearance.visualNotes = parseList(visualNotes);
-    if (unknownFields.includes("bodyIdentity")) delete appearance.bodyIdentity;
+    if (explicitUnknowns.has("bodyIdentity")) delete appearance.bodyIdentity;
     else if (bodyIdentity) appearance.bodyIdentity = bodyIdentity;
-    if (unknownFields.includes("physicalConditions")) delete appearance.physicalConditions;
+    if (explicitUnknowns.has("physicalConditions")) delete appearance.physicalConditions;
     else if (conditionsTouched) appearance.physicalConditions = clearConditions ? [] : conditions.map(item => ({ ...item }));
-    appearance.unknownFields = unknownFields.filter(field => appearance[field] === undefined);
+    appearance.unknownFields = [...explicitUnknowns].filter(field => appearance[field] === undefined);
     if (!appearance.unknownFields.length) delete appearance.unknownFields;
     const previousState = baseState;
     const record: CharacterEvolutionState = {
@@ -363,7 +378,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
             <label>Previous body ID <input value={previousBodyInstanceId} onChange={event=>setPreviousBodyInstanceId(event.target.value)} placeholder="Auto-links when body changes"/></label>
             <label>Age of new body <input type="number" min="0" max="10000" value={ageAtIncarnation} onChange={event=>setAgeAtIncarnation(event.target.value)} placeholder="At reincarnation"/></label>
           </div>
-          <label className="timeline-unknown"><input type="checkbox" checked={unknownFields.includes("bodyIdentity")} onChange={event=>toggleUnknown("bodyIdentity",event.target.checked)}/> Body identity is explicitly unknown; do not assume this is the same body.</label>
+          <label className="timeline-unknown"><input type="checkbox" checked={explicitUnknowns.has("bodyIdentity")} onChange={event=>toggleUnknown("bodyIdentity",event.target.checked)}/> Body identity is explicitly unknown; do not assume this is the same body.</label>
         </div>
         <div className="timeline-fieldset"><h3><Activity size={16}/> Physical condition lifecycle</h3><p>Each condition keeps a stable ID across snapshots. Mark it healing or healed deliberately; omission does not mean the injury disappeared.</p>
           {conditions.length === 0 ? <p className="timeline-muted">No structured conditions in this draft. If there are no active injuries, use “Explicitly none”; otherwise leave unchanged to inherit the previous roster.</p> :
@@ -389,7 +404,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
           </div>
           <div className="timeline-condition-options">
             <label className="timeline-unknown"><input type="checkbox" checked={clearConditions} onChange={event=>{setClearConditions(event.target.checked);setConditionsTouched(true);setConditions(event.target.checked?[]:(baseState?.appearance.physicalConditions??[]));setUnknownFields(current=>current.filter(field=>field!=="physicalConditions"));}}/> Explicitly none at this story point</label>
-            <label className="timeline-unknown"><input type="checkbox" checked={unknownFields.includes("physicalConditions")} onChange={event=>{toggleUnknown("physicalConditions",event.target.checked);if(event.target.checked)setConditions([]);}}/> Injury state explicitly unknown</label>
+            <label className="timeline-unknown"><input type="checkbox" checked={explicitUnknowns.has("physicalConditions")} onChange={event=>{toggleUnknown("physicalConditions",event.target.checked);if(event.target.checked)setConditions([]);}}/> Injury state explicitly unknown</label>
           </div>
         </div>
         <div className="timeline-fieldset"><h3>Canon review</h3><p>New snapshots begin as proposals. Approving one makes it eligible for continuity retrieval, but the reveal gate and story order still apply.</p>

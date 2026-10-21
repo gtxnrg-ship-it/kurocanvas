@@ -7,7 +7,7 @@ type WorkerRequest =
 type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
-  | { id: number; type: "result"; text: string; finishReason: "stop" | "length" }
+  | { id: number; type: "result"; text: string; outputTokens: number; finishReason: "stop" | "length" }
   | { id: number; type: "error"; message: string };
 
 type Runtime = {
@@ -69,7 +69,7 @@ async function handleRequest(request: WorkerRequest): Promise<void> {
     const output = await runtime.model.generate({ ...inputs, max_new_tokens: maxNewTokens, do_sample: false });
     const tokenIds = Array.from(output.data).slice(promptLength).map(Number);
     const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
-    scope.postMessage({ id: request.id, type: "result", text, finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop" });
+    scope.postMessage({ id: request.id, type: "result", text, outputTokens: tokenIds.length, finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop" });
   } catch (error) {
     scope.postMessage({ id: request.id, type: "error", message: error instanceof Error ? error.message : "Local model worker failed." });
   }

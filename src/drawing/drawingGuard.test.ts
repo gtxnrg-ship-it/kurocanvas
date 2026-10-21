@@ -25,11 +25,12 @@ describe("drawing guard signature", () => {
     expect(drawingGuardSignature({ ...base, layers: [{ ...base.layers[0], visible: false }] })).not.toBe(original);
     expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], tool: "eraser" }] })).not.toBe(original);
     expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], text: "Changed lettering" }] })).not.toBe(original);
+    expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], opacity: 0.2 }] })).not.toBe(original);
   });
   it("returns a fixed-size signature for large editable data", () => {
     const largeText = "x".repeat(400_000);
     const result = drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], shape: "text", text: largeText }] });
-    expect(result.length).toBe(8);
+    expect(result.length).toBe(16);
     expect(result).not.toContain(largeText);
   });
 });

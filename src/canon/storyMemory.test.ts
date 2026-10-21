@@ -66,6 +66,21 @@ describe("durable story memory", () => {
     }).map(item => item.id)).toEqual(["world-note"]);
   });
 
+  it("retrieves future facts for an intentional early cameo only on the selected timeline", () => {
+    const future = record({ id: "future-cameo-payoff", chapterNumber: 18, storyOrder: 180, timelineId: "main", title: "The stranger returns", summary: "The stranger who bumped into Mira is revealed as the future captain.", tags: ["cameo", "payoff"] });
+    const alternate = record({ id: "echo-payoff", chapterNumber: 18, storyOrder: 180, timelineId: "echo", title: "Echo version", summary: "In the Echo timeline the stranger never meets Mira." });
+    const global = record({ id: "timeless-rule", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: undefined, title: "Clue rules", summary: "Keep early clues subtle." });
+    const unscoped = record({ id: "unscoped-future", chapterNumber: 18, storyOrder: 180, timelineId: undefined, title: "Unscoped future", summary: "This history has no timeline." });
+    const selected = filterStoryMemoryAtPoint([future, alternate, global, unscoped], "series-a", {
+      productionRequest: true, chapterNumber: 1, storyOrder: 10, timelineId: "main", allowAuthorDirectedForeshadowing: true,
+    });
+    expect(selected.map(item => item.id)).toEqual(["future-cameo-payoff", "timeless-rule"]);
+    const unresolved = filterStoryMemoryAtPoint([future, alternate, global], "series-a", {
+      productionRequest: true, chapterNumber: 1, allowAuthorDirectedForeshadowing: true,
+    });
+    expect(unresolved.map(item => item.id)).toEqual(["timeless-rule"]);
+  });
+
   it("leaves private brainstorming unrestricted while staying project-scoped", () => {
     const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800 });
     const otherProject = record({ id: "foreign", projectId: "series-b", chapterNumber: 1 });

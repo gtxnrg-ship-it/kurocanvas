@@ -162,6 +162,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   const rootRef = useRef<THREE.Group | null>(null);
   const modelContentRef = useRef<THREE.Group | null>(null);
   const animationMixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const displayedModelIdRef = useRef<string | null>(null);
   const scarRootRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -307,6 +308,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   useEffect(() => {
     const root = modelContentRef.current;
     if (!root) return;
+    displayedModelIdRef.current = null;
     clearGroup(root);
     animationMixerRef.current?.stopAllAction();
     animationMixerRef.current = null;
@@ -328,6 +330,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       if (cancelled) return;
       boundsRef.current = new THREE.Box3().setFromObject(root);
       if (boundsRef.current.isEmpty()) boundsRef.current.set(new THREE.Vector3(-.5,0,-.3),new THREE.Vector3(.5,2.5,.3));
+      displayedModelIdRef.current = selectedModel?.id ?? null;
       setModelRevision(value=>value+1);
       if (notice) setMessage(notice);
     };
@@ -455,12 +458,12 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         const readback = await characterModelStorage.list(projectId);
         const saved = readback.find(model => model.id === updated.id);
         if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model variant update could not be verified after saving.");
-        await waitForNativeModel();
+        await waitForNativeModel(updated.id);
         return;
       }
       if (traits && existingVariant.sourceType === "uploaded-glb") throw new Error("This character state already has an uploaded GLB. The source mesh was preserved; create another approved visual state for a separate model variant.");
       setModelId(existingVariant.id); setStateId(targetStateId ?? ""); setCharacterName(name);
-      await waitForNativeModel();
+      await waitForNativeModel(existingVariant.id);
       setMessage("Selected the existing native 3D model for " + name + (targetState ? " at " + targetState.chapterLabel : "") + ". No source mesh was overwritten.");
       return;
     }
@@ -474,7 +477,9 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         const readback = await characterModelStorage.list(projectId);
         const saved = readback.find(model => model.id === updated.id);
         if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model update could not be verified after saving.");
-        await waitForNativeModel();
+        const currentlyVisible = selectCharacterModelVariant(models, name, selectedState?.storyOrder);
+        if (currentlyVisible && currentlyVisible.id !== existingBase.id) throw new Error("A chapter-specific variant is active for " + name + ". Specify that approved characterStateId so I update the correct timeline model rather than a hidden base.");
+        await waitForNativeModel(existingBase.id);
         return;
       }
       setModelId(existingBase.id);
@@ -497,7 +502,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     if (!readback.some(record => record.id === model.id && record.sourceType === "procedural")) {
       throw new Error("The native character model was not found after saving.");
     }
-    await waitForNativeModel();
+    await waitForNativeModel(model.id);
   }
   async function uploadModel(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget, file = input.files?.[0];
@@ -548,11 +553,11 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     catch(error){setMessage(error instanceof Error?error.message:"Could not remove model.");}
     finally{setBusy(false);}
   }
-  async function waitForNativeModel() {
+  async function waitForNativeModel(expectedModelId?: string) {
     // Wait for the real Three.js mesh tree, not just the record or UI selection.
     // A GLB may still be loading after the record is selected.
     for (let frame = 0; frame < 180; frame++) {
-      if (modelContentRef.current?.children.some(child => child.children.length > 0)) return;
+      if ((!expectedModelId || displayedModelIdRef.current === expectedModelId) && modelContentRef.current?.children.some(child => child.children.length > 0)) return;
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     }
     throw new Error("No 3D character mesh became ready. Create a procedural blockout or select a valid GLB model before using viewport tools.");

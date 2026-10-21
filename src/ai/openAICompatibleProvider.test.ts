@@ -51,6 +51,7 @@ describe("OpenAICompatibleProvider", () => {
       providerId: "test",
       location: "local",
       capabilities: ["chat", "vision", "structured-output"],
+      roles: ["reasoning", "planning", "vision", "coding", "story-writing", "continuity", "research", "fast-helper"],
       installed: true,
       enabled: true,
     });

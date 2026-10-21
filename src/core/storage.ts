@@ -17,7 +17,7 @@ import {
 } from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -52,6 +52,10 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STYLE_BIBLE)) db.createObjectStore(STYLE_BIBLE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(REFERENCE_SOURCES)) db.createObjectStore(REFERENCE_SOURCES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CHARACTER_MODELS)) db.createObjectStore(CHARACTER_MODELS, { keyPath: "id" });
+      const characterModels = request.transaction?.objectStore(CHARACTER_MODELS);
+      if (characterModels && !characterModels.indexNames.contains("byProjectId")) {
+        characterModels.createIndex("byProjectId", "projectId", { unique: false });
+      }
       if (!db.objectStoreNames.contains(UNIVERSES)) db.createObjectStore(UNIVERSES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CONVERSATIONS)) {
         const conversations = db.createObjectStore(CONVERSATIONS, { keyPath: "id" });
@@ -336,15 +340,44 @@ export const canonStorage = {
 /** Temporal visual canon: approved character states and inspirations are chapter-aware. */
 /** Source-linked visual references with license and attribution metadata. */
 /** Local GLB models and chapter-linked scar overlays. */
+export interface CharacterModelPage {
+  records: CharacterModelRecord[];
+  nextOffset: number | null;
+}
+
+/**
+ * Indexed, project-scoped model catalogue access. Page reads bound the number
+ * of records returned to the UI; list() remains for existing compatibility
+ * callers until they are migrated to incremental browsing.
+ */
 export const characterModelStorage = {
   async save(record: CharacterModelRecord): Promise<void> {
     const errors = validateCharacterModel(record, record.projectId);
     if (errors.length) throw new Error("Character model validation failed: " + errors.join(" "));
     await requestValue<IDBValidKey>(CHARACTER_MODELS, "readwrite", store => store.put({ ...record, updatedAt: new Date().toISOString() }));
   },
+  async listPage(projectId: string, offset = 0, limit = 48): Promise<CharacterModelPage> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Model page offset must be a non-negative integer.");
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Model page size must be between 1 and 200.");
+    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => {
+      if (!store.indexNames.contains("byProjectId")) throw new Error("Character model index is missing; reload to finish the local database upgrade.");
+      return store.index("byProjectId").getAll(IDBKeyRange.only(projectId));
+    });
+    const scoped = records.sort((a,b) => a.characterName.localeCompare(b.characterName) || (a.storyOrder ?? 0) - (b.storyOrder ?? 0));
+    const page = scoped.slice(offset, offset + limit);
+    for (const record of page) {
+      const errors = validateCharacterModel(record, projectId);
+      if (errors.length) throw new Error("Saved character model is invalid: " + errors.join(" "));
+    }
+    return { records: page, nextOffset: offset + page.length < scoped.length ? offset + page.length : null };
+  },
   async list(projectId: string): Promise<CharacterModelRecord[]> {
     if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
-    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll());
+    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => {
+      if (store.indexNames.contains("byProjectId")) return store.index("byProjectId").getAll(IDBKeyRange.only(projectId));
+      return store.getAll();
+    });
     const scoped = records.filter(record => record.projectId === projectId);
     for (const record of scoped) {
       const errors = validateCharacterModel(record, projectId);

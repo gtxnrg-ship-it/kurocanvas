@@ -79,7 +79,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
     return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
       const modelName = item.id!;
-      const isQwen38Vision = /qwen3\\.8-27b/i.test(modelName);
+      const isQwen38Vision = /qwen3\.8-27b/i.test(modelName);
       const roles = isQwen38Vision
         ? ["reasoning", "planning", "coding", "story-writing", "continuity", "research", "fast-helper"] as const
         : ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;

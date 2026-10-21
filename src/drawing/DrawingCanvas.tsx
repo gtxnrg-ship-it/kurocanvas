@@ -425,18 +425,38 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const cancel = () => { cancelled = true; userCancelled = true; };
     cancelPlanExecutionRef.current = cancel;
 
-    const restoreOriginal = async () => {
-      if (!workingDocument || !originalDocument) return;
-      await saveDrawingWithReadback(drawingStorage, workingDocument, originalDocument);
-      workingDocument = originalDocument;
-      const restoredStrokes = originalDocument.strokes as Stroke[];
-      const restoredLayers = (originalDocument.layers?.length ? originalDocument.layers : [DEFAULT_LAYER]).map(layer => ({
+    let preserveNewerDocument = false;
+    const loadStoredCanvasIntoView = async (saved: LocalDrawingDocument) => {
+      await preloadDrawingImages(saved.strokes as Stroke[]);
+      const savedStrokes = saved.strokes as Stroke[];
+      const savedLayers = (saved.layers?.length ? saved.layers : [DEFAULT_LAYER]).map(layer => ({
         ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode,
       }));
-      docRef.current = { version: 1, width: originalDocument.width, height: originalDocument.height, background: originalDocument.background, strokes: restoredStrokes };
-      setStrokes(restoredStrokes);
-      setLayers(restoredLayers);
-      setBackground(originalDocument.background);
+      docRef.current = { version: 1, width: saved.width, height: saved.height, background: saved.background, strokes: savedStrokes };
+      setStrokes(savedStrokes);
+      setLayers(savedLayers);
+      setActiveLayerId(savedLayers.find(layer => !layer.locked)?.id || savedLayers[0]?.id || DEFAULT_LAYER.id);
+      setBackground(saved.background);
+      setDrawingName(saved.name || 'Untitled drawing');
+    };
+
+    const restoreOriginal = async () => {
+      if (!workingDocument || !originalDocument) return;
+      let latestSaved: LocalDrawingDocument | undefined;
+      try {
+        latestSaved = await drawingStorage.load(drawingId, projectId);
+      } catch (error) {
+        preserveNewerDocument = true;
+        throw new Error('Could not verify the latest saved canvas, so rollback was skipped to avoid overwriting possible newer work. ' + (error instanceof Error ? error.message : 'Unknown storage error.'));
+      }
+      if (!latestSaved || drawingGuardSignature(latestSaved) !== drawingGuardSignature(workingDocument)) {
+        preserveNewerDocument = true;
+        if (latestSaved) await loadStoredCanvasIntoView(latestSaved);
+        throw new Error('The canvas changed or was removed elsewhere. Automatic rollback was skipped to preserve newer saved work.');
+      }
+      await saveDrawingWithReadback(drawingStorage, workingDocument, originalDocument);
+      workingDocument = originalDocument;
+      await loadStoredCanvasIntoView(originalDocument);
     };
 
     (async () => {
@@ -457,6 +477,25 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         if (drawingGuardSignature(current) !== pendingPlan.expectedDocumentSignature) {
           throw new Error('This canvas changed after Kuro prepared the plan. Nothing was applied. Return to chat, inspect the latest canvas, and ask Kuro for a fresh proposal.');
         }
+        let latestAtStart: LocalDrawingDocument | undefined;
+        try {
+          latestAtStart = await drawingStorage.load(drawingId, projectId);
+        } catch (error) {
+          preserveNewerDocument = true;
+          throw new Error('Could not verify the latest saved canvas. Kuro stopped before drawing to protect existing work. ' + (error instanceof Error ? error.message : 'Unknown storage error.'));
+        }
+        if (latestAtStart && drawingGuardSignature(latestAtStart) !== drawingGuardSignature(current)) {
+          preserveNewerDocument = true;
+          await loadStoredCanvasIntoView(latestAtStart);
+          throw new Error('The saved canvas changed after inspection. Kuro stopped before drawing and reloaded the newer version.');
+        }
+        if (!latestAtStart && current.strokes.length > 0) {
+          preserveNewerDocument = true;
+          throw new Error('The previously saved artwork is missing from storage. Kuro did not recreate or overwrite the missing document.');
+        }
+        // A brand-new empty canvas may not have hit its normal autosave timer yet.
+        // Persist/read it back before the first native action so fresh canvases work too.
+        if (!latestAtStart) await saveDrawingWithReadback(drawingStorage, current, current);
         originalDocument = current;
         workingDocument = current;
         await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
@@ -469,7 +508,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           const previousStep = workingDocument!;
           const latestSaved = await drawingStorage.load(drawingId, projectId);
           if (!latestSaved || drawingGuardSignature(latestSaved) !== drawingGuardSignature(previousStep)) {
-            throw new Error('The canvas changed or was removed while Kuro was drawing. Execution stopped to protect newer work.');
+            preserveNewerDocument = true;
+            if (latestSaved) await loadStoredCanvasIntoView(latestSaved);
+            throw new Error('The canvas changed or was removed while Kuro was drawing. Execution stopped and rollback was skipped to protect newer work.');
           }
           const step = applyCommandsToLocalDrawing(previousStep, [command]);
           if (step.changed) {
@@ -538,12 +579,16 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         const message = error instanceof Error ? error.message : 'Unknown drawing error';
         let recoveryMessage = '';
         try {
-          if (workingDocument && originalDocument) {
+          if (preserveNewerDocument) {
+            recoveryMessage = ' Newer saved work was preserved; automatic rollback was skipped.';
+          } else if (workingDocument && originalDocument) {
             await restoreOriginal();
             recoveryMessage = ' The original canvas was restored and verified.';
           }
         } catch (restoreError) {
-          recoveryMessage = ' Automatic rollback could not be verified: ' + (restoreError instanceof Error ? restoreError.message : 'unknown recovery error') + '. Use the pre-plan version checkpoint.';
+          recoveryMessage = preserveNewerDocument
+            ? ' Newer saved work was preserved; rollback was skipped.'
+            : ' Automatic rollback could not be verified: ' + (restoreError instanceof Error ? restoreError.message : 'unknown recovery error') + '. Use the pre-plan version checkpoint.';
         }
         if (!cancelled) {
           setPlanProgress(null);

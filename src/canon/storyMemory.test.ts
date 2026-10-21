@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStoryMemoryContext, filterStoryMemoryAtPoint, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
+import { buildStoryMemoryContext, filterStoryMemoryAtPoint, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryForApproval, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
 describe("story memory capture triggers", () => {
   it.each([
     "A new character named Mira joins the team.",
@@ -80,6 +80,12 @@ describe("durable story memory", () => {
   it("marks user chapter recaps as proposed until approval", () => {
     const draft = proposeChapterMemory({ id: "chapter-13", projectId: "series-a", title: "After the bridge", summary: "Mira returns at dawn.", chapterNumber: 13, entityIds: ["mira"], tags: ["dawn"], assetRefs: [], supersedes: [] });
     expect(draft.status).toBe("proposed"); expect(draft.source).toBe("user");
+  });
+  it("requires time-bound proposals to be assigned to a timeline before approval", () => {
+    const unscoped = record({ id: "captured-chapter", chapterNumber: 4, timelineId: undefined });
+    expect(validateStoryMemoryRecord(unscoped, "series-a")).toEqual([]);
+    expect(validateStoryMemoryForApproval(unscoped, "series-a")).toContain("Time-bound memories need a timeline ID before approval.");
+    expect(validateStoryMemoryForApproval({ ...unscoped, timelineId: "main" }, "series-a")).toEqual([]);
   });
   it("validates project boundaries and required detail", () => expect(validateStoryMemoryRecord(record(), "series-b")).toContain("Memory belongs to a different project."));
   it("keeps chapter-linked superseded history distinguishable from approved canon", () => {

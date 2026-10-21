@@ -136,3 +136,6 @@
 /* Official Kuro artwork replaces the temporary lettermark */
 .mark.official-mark{overflow:hidden;padding:0;background:#100d18;border:1px solid rgba(198,173,255,.4);box-shadow:0 0 20px rgba(164,124,238,.13)}
 .mark.official-mark img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+/* Visible transform affordance for manual object selection */
+.drawing-paper .canvas-selection-outline{position:absolute;z-index:4;border:1px solid #a78bfa;outline:1px solid rgba(255,255,255,.75);outline-offset:2px;box-shadow:0 0 0 1px rgba(10,8,16,.5);pointer-events:none;min-width:2px;min-height:2px}

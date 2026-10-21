@@ -33,7 +33,7 @@ export function buildKuroConversationTurns(
   });
   if (!prepared.length) return [];
 
-  const candidates = prepared.slice(-Math.max(1, safeLimit));
+  const candidates = prepared;
   if (candidates.length <= 1) {
     const latest = candidates[candidates.length - 1];
     return latest ? [{ role: latest.role === "user" ? "user" : "assistant", content: latest.content.slice(0, safeTotal) }] : [];

@@ -18,7 +18,7 @@ type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; opacity?: number; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
-type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
+type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string; activeLayerId: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
@@ -408,7 +408,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     let cancelled = false;
     (async () => {
       try {
-        const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background };
+        const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background, activeLayerId };
         const current: LocalDrawingDocument = {
           id: drawingId, name: drawingName, version: 1, width: docRef.current.width,
           height: docRef.current.height, background: docRef.current.background,
@@ -594,12 +594,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const action = historyOrder[historyOrder.length - 1];
     if (action === 'plan' && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
       setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'plan']);
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
-      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan undone as one step'); return;
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit undone' : 'AI drawing plan undone as one step'); return;
     }
     if (action === 'edit' && editUndoStack.length) {
       const previous = editUndoStack[editUndoStack.length - 1];
@@ -609,11 +609,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!action && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
-      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan undone as one step'); return;
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit undone' : 'AI drawing plan undone as one step'); return;
     }
     if (!strokes.length) return;
     setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone');
@@ -622,12 +622,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const action = redoOrder[redoOrder.length - 1];
     if (action === 'plan' && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       setHistoryOrder(old => [...old, 'plan']); setRedoOrder(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
-      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan restored as one step'); return;
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit restored' : 'AI drawing plan restored as one step'); return;
     }
     if (action === 'edit' && editRedoStack.length) {
       const next = editRedoStack[editRedoStack.length - 1];
@@ -637,11 +637,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!action && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
-      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan restored as one step'); return;
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit restored' : 'AI drawing plan restored as one step'); return;
     }
     if (!redoStack.length) return;
     setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored');
@@ -813,10 +813,22 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setNotice('Created ' + frames.length + ' editable comic panel frames as one undoable layout.');
   };
 
+  const checkpointLayerEdit = (label: string) => {
+    const snapshot: PlanSnapshot = {
+      planId: 'layer-edit:' + label,
+      strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })),
+      layers: layers.map(layer => ({ ...layer })),
+      background,
+      activeLayerId,
+    };
+    setPlanUndoStack(old => [...old, snapshot]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]);
+    setEditRedoStack([]); setRedoStack([]);
+  };
   const addLayer = () => {
     const name = globalThis.prompt('Layer name', 'New layer');
     if (!name?.trim()) return;
     const layer: Layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false, opacity: 1, blendMode: 'normal' };
+    checkpointLayerEdit('add layer');
     setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name);
   };
   const duplicateActiveLayer = () => {
@@ -824,6 +836,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!source) return;
     const id = crypto.randomUUID();
     const copy: Layer = { ...source, id, name: source.name + ' copy', locked: false };
+    checkpointLayerEdit('duplicate layer');
     const duplicated = strokes.filter(stroke => (stroke.layerId || layers[0]?.id) === source.id).map(stroke => ({ ...stroke, id: crypto.randomUUID(), layerId: id, points: stroke.points.map(point => ({ ...point })) }));
     setLayers(old => [...old, copy]); setStrokes(old => [...old, ...duplicated]); setActiveLayerId(id); setRedoStack([]);
     setNotice('Duplicated layer and its artwork');
@@ -832,6 +845,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (layers.length <= 1) { setNotice('Keep at least one layer in the drawing'); return; }
     const current = layers.find(layer => layer.id === activeLayerId);
     if (!current || !globalThis.confirm('Delete layer "' + current.name + '" and its artwork?')) return;
+    checkpointLayerEdit('delete layer');
     const nextLayers = layers.filter(layer => layer.id !== current.id);
     setLayers(nextLayers); setStrokes(old => old.filter(stroke => (stroke.layerId || layers[0]?.id) !== current.id));
     setActiveLayerId(nextLayers.find(layer => !layer.locked)?.id || nextLayers[0].id); setRedoStack([]);
@@ -841,7 +855,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const current = layers.find(layer => layer.id === id);
     if (!current) return;
     const name = globalThis.prompt('Rename layer', current.name);
-    if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
+    if (name?.trim() && name.trim() !== current.name) { checkpointLayerEdit('rename layer'); setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); }
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
   useEffect(() => {
@@ -934,7 +948,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       {tool!=='eyedropper' && <label className="size-control">Size <input aria-label="Brush or shape size" type="range" min="1" max="200" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>}
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.25, +(z-.1).toFixed(2)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Fit canvas to view" onClick={() => { setZoom(1); setPanOffset({x:0,y:0}); }}>Fit</button><button title="Zoom in" onClick={() => setZoom(z => Math.min(4, +(z+.1).toFixed(2)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<label className="export-scale-control">Resolution <select aria-label="PNG export resolution" value={exportScale} onChange={e => setExportScale(Number(e.target.value) as 1 | 1.5 | 2)}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option></select></label><label className="transparent-export-control" title="Export without the paper background"><input type="checkbox" checked={transparentExport} onChange={e => setTransparentExport(e.target.checked)}/> Transparent export</label><button onClick={createVersionCheckpoint} title="Create a named recoverable checkpoint"><History size={15}/> Save version</button><button onClick={exportSvg} title="Export vector artwork as SVG"><Download size={15}/> Export SVG</button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
-    <div className="version-history-panel"><div className="version-history-head"><b><History size={14}/> Version history</b><span>{revisions.length}/20 checkpoints</span><button onClick={() => void refreshRevisions()}>Refresh</button></div>{revisions.length===0?<p>No named versions yet. Save a checkpoint before a major edit to make it easy to recover later.</p>:<div className="version-history-list">{revisions.map(revision=><div className="version-history-row" key={revision.id}><span><b>{revision.title}</b><small>{new Date(revision.createdAt).toLocaleString()}</small></span><button onClick={() => void restoreVersionCheckpoint(revision.id,revision.title)}>Restore</button></div>)}</div>}</div><div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
+    <div className="version-history-panel"><div className="version-history-head"><b><History size={14}/> Version history</b><span>{revisions.length}/20 checkpoints</span><button onClick={() => void refreshRevisions()}>Refresh</button></div>{revisions.length===0?<p>No named versions yet. Save a checkpoint before a major edit to make it easy to recover later.</p>:<div className="version-history-list">{revisions.map(revision=><div className="version-history-row" key={revision.id}><span><b>{revision.title}</b><small>{new Date(revision.createdAt).toLocaleString()}</small></span><button onClick={() => void restoreVersionCheckpoint(revision.id,revision.title)}>Restore</button></div>)}</div>}</div><div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => { checkpointLayerEdit('visibility'); setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item)); }}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => { checkpointLayerEdit('lock'); setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item)); }}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => { checkpointLayerEdit('reorder'); setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; }); }}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => { checkpointLayerEdit('reorder'); setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; }); }}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onPointerDown={() => checkpointLayerEdit('opacity')} onKeyDown={event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.repeat) checkpointLayerEdit('opacity'); }} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => { checkpointLayerEdit('blend mode'); setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item)); }}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef} onWheel={event => {
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();

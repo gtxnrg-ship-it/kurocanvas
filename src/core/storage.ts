@@ -70,13 +70,16 @@ export const projectStorage = {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
   async remove(id: string): Promise<void> {
+    const memoryRecords = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll());
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
         tx.objectStore(CANON).delete(id);
+        const memoryStore = tx.objectStore(STORY_MEMORY);
+        for (const record of memoryRecords) if (record.projectId === id) memoryStore.delete(record.id);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error("Could not remove project."));
         tx.onabort = () => reject(tx.error ?? new Error("Project removal was cancelled."));

@@ -267,3 +267,6 @@
 .style-conflicts .warning{color:#fcd34d}
 .style-bible-notice{border-top:1px solid rgba(255,255,255,.07);padding-top:12px;color:#c9b8f4;font-size:11px}
 @media(max-width:620px){.style-form-grid{grid-template-columns:minmax(0,1fr)}.style-form-grid .wide{grid-column:auto}.style-record-list article{flex-direction:column}.style-record-actions{justify-content:flex-start}.style-bible-head{flex-direction:column}.style-version{align-self:flex-start}}
+
+.style-search-link{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #403653;border-radius:9px;background:#1c1726;color:#c9b5ff;font-size:11px;text-decoration:none}
+.style-search-link:hover{border-color:#a78bfa;background:#29213a}

@@ -61,8 +61,10 @@ describe("LocalTinyModelProvider", () => {
       role: "fast-helper",
       messages: [{ role: "user", content: "Help plan a panel." }],
       maxOutputTokens: 64,
+      temperature: 0,
     }, model);
     expect(sent.some(request => request.type === "generate")).toBe(true);
+    expect(sent.find(request => request.type === "generate")).toMatchObject({ temperature: 0, maxOutputTokens: 64 });
     expect(result).toMatchObject({ text: "Kuro worker response", finishReason: "stop", providerId: provider.id, usage: { outputTokens: 5 } });
   });
 

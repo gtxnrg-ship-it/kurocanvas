@@ -40,4 +40,38 @@ describe("agent drawing read-back verification", () => {
     expect(verifyDrawingReadback(document, { ...document, width: 800 })).toMatchObject({ ok: false, reason: expect.stringMatching(/dimensions/) });
     expect(verifyDrawingReadback(document, { ...document, background: "#ffffff" })).toMatchObject({ ok: false, reason: expect.stringMatching(/background/) });
   });
+
+  it("restores and verifies the pre-plan document when read-back detects bad persistence", async () => {
+    const { saveDrawingWithReadback } = await import("./drawingReadback");
+    const intended = { ...document, strokes: [...document.strokes, { ...document.strokes[0], id: "stroke-b" }] };
+    let saved: LocalDrawingDocument = document;
+    let firstWrite = true;
+    const storage = {
+      async save(next: LocalDrawingDocument) {
+        if (firstWrite) {
+          firstWrite = false;
+          saved = { ...next, strokes: [...next.strokes].slice(1) };
+        } else {
+          saved = structuredClone(next);
+        }
+      },
+      async load() { return structuredClone(saved); },
+    };
+    await expect(saveDrawingWithReadback(storage, document, intended)).rejects.toThrow(/previous artwork was restored and read back successfully/);
+    expect(saved.strokes).toEqual(document.strokes);
+  });
+
+  it("does not claim rollback succeeded when recovery cannot be verified", async () => {
+    const { saveDrawingWithReadback } = await import("./drawingReadback");
+    const intended = { ...document, background: "#abcdef" };
+    let saveCount = 0;
+    const storage = {
+      async save(next: LocalDrawingDocument) {
+        saveCount++;
+        if (saveCount > 1) throw new Error("storage quota");
+      },
+      async load() { return { ...intended, strokes: [] }; },
+    };
+    await expect(saveDrawingWithReadback(storage, document, intended)).rejects.toThrow(/rollback could not be verified/);
+  });
 });

@@ -172,22 +172,33 @@ export const researchTaskStorage = {
     announce();
   },
   async update(id: string, projectId: string, patch: Partial<ResearchTaskRecord>): Promise<ResearchTaskRecord | undefined> {
-    const next = await transact<ResearchTaskRecord | undefined>("readwrite", (store) => {
-      const request = store.get(id);
-      // The transaction resolves after the get callback has queued the atomic put.
-      request.onsuccess = () => {
-        const current = request.result as ResearchTaskRecord | undefined;
-        if (!current || current.projectId !== projectId) return;
-        const updated = { ...current, ...patch, id: current.id, projectId: current.projectId, updatedAt: new Date().toISOString() };
-        const errors = validateResearchTask(updated, projectId);
-        if (errors.length) throw new Error("Refusing invalid task update: " + errors.join(" "));
-        store.put(updated);
-      };
-      return request;
-    });
-    if (next && validateResearchTask(next, projectId).length === 0) announce();
-    // IndexedDB get requests return the pre-update record; reload to return the saved value.
-    return next ? this.get(id) : undefined;
+    const db = await openDatabase();
+    try {
+      let updated: ResearchTaskRecord | undefined;
+      const result = await new Promise<ResearchTaskRecord | undefined>((resolve, reject) => {
+        const transaction = db.transaction(STORE, "readwrite");
+        const store = transaction.objectStore(STORE);
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const current = request.result as ResearchTaskRecord | undefined;
+          if (!current || current.projectId !== projectId) return;
+          updated = { ...current, ...patch, id: current.id, projectId: current.projectId, updatedAt: new Date().toISOString() };
+          const errors = validateResearchTask(updated, projectId);
+          if (errors.length) {
+            reject(new Error("Refusing invalid task update: " + errors.join(" ")));
+            transaction.abort();
+            return;
+          }
+          store.put(updated);
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not read research task for update."));
+        transaction.oncomplete = () => resolve(updated);
+        transaction.onerror = () => reject(transaction.error ?? new Error("Could not update research task."));
+        transaction.onabort = () => reject(transaction.error ?? new Error("Research task update was aborted."));
+      });
+      if (result) announce();
+      return result;
+    } finally { db.close(); }
   },
   async claimNext(): Promise<ResearchTaskRecord | undefined> {
     const now = Date.now();
@@ -367,10 +378,10 @@ export async function enqueueResearchTask(input: { projectId: string; query: str
   await researchTaskStorage.save(task);
   try {
     if (typeof navigator !== "undefined" && "serviceWorker" in navigator && window.isSecureContext) {
-      const registration = await navigator.serviceWorker.ready;
-      const syncRegistration = registration as ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } };
-      if (syncRegistration.sync) await syncRegistration.sync.register("kuro-research-queue");
-      registration.active?.postMessage({ type: "KURO_RESEARCH_QUEUED", taskId: task.id });
+      const registration = await navigator.serviceWorker.getRegistration();
+      const syncRegistration = registration as (ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } }) | undefined;
+      if (syncRegistration?.sync) await syncRegistration.sync.register("kuro-research-queue");
+      syncRegistration?.active?.postMessage({ type: "KURO_RESEARCH_QUEUED", taskId: task.id });
     }
   } catch { /* Queue still runs in the current page and resumes on next app launch. */ }
   void pumpQueue();
@@ -445,13 +456,11 @@ async function pumpQueue(): Promise<void> {
   } finally {
     pumping = false;
     if (!paused) {
-      void researchTaskStorage.claimNext().then(next => {
-        if (next) {
-          // Return the probe lease to the queue; a follow-up pump will claim it.
-          return researchTaskStorage.update(next.id, next.projectId, { status: "queued", leaseUntil: undefined, stage: "Queued" });
-        }
-        return undefined;
-      }).then(() => undefined).catch(() => undefined);
+      // Catch a task enqueued in the small window between the final claim and pump shutdown.
+      void transact<ResearchTaskRecord[]>("readonly", store => store.getAll()).then(all => {
+        const now = Date.now();
+        if (all.some(task => task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now)) void pumpQueue();
+      }).catch(() => undefined);
     }
   }
 }

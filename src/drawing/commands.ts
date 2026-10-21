@@ -180,7 +180,10 @@ export function validateDrawingCommand(
       } else if (!stroke.points.every(point => validPoint(point, bounds))) {
         errors.push("Restored stroke contains an invalid point or a point outside the document bounds.");
       }
-      if (stroke.shape !== undefined && !["line","rectangle","ellipse","text","panel","bubble"].includes(String(stroke.shape))) errors.push("Unsupported restored native shape.");
+      if (stroke.shape !== undefined && !["line","rectangle","ellipse","text","panel","bubble","image"].includes(String(stroke.shape))) errors.push("Unsupported restored native shape.");
+      if (stroke.imageName !== undefined && (typeof stroke.imageName !== "string" || stroke.imageName.length > 240)) errors.push("Restored image name is invalid or too long.");
+      if (stroke.imageDataUrl !== undefined && (typeof stroke.imageDataUrl !== "string" || stroke.imageDataUrl.length > 12000000 || !/^data:image\/(png|jpeg|webp|gif);base64,/i.test(stroke.imageDataUrl))) errors.push("Restored image data must be a supported bounded image data URL.");
+      if (stroke.shape === "image" && typeof stroke.imageDataUrl !== "string") errors.push("Restored image strokes need image data.");
       if (stroke.text !== undefined && (typeof stroke.text !== "string" || stroke.text.length > 5000)) errors.push("Restored text content is invalid or too long.");
       if (stroke.shape === "text" && (typeof stroke.text !== "string" || !stroke.text.trim())) errors.push("Restored text strokes need non-empty text content.");
       if (stroke.fontFamily !== undefined && !["comic","sans","serif"].includes(String(stroke.fontFamily))) errors.push("Unsupported restored font family.");

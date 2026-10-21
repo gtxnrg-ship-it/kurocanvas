@@ -4,9 +4,10 @@ import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/stor
 import { validateArtDirection, type ArtDirectionBible } from "../canon/artDirection";
 import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible";
 import { validateReferenceSource, type ReferenceSourceRecord } from "../canon/referenceScout";
+import { validateCharacterModel, type CharacterModelRecord } from "../canon/characterModels";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -17,6 +18,7 @@ const STORY_MEMORY = "storyMemory";
 const ART_DIRECTION = "artDirection";
 const STYLE_BIBLE = "styleBible";
 const REFERENCE_SOURCES = "referenceSources";
+const CHARACTER_MODELS = "characterModels";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -35,6 +37,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(ART_DIRECTION)) db.createObjectStore(ART_DIRECTION, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STYLE_BIBLE)) db.createObjectStore(STYLE_BIBLE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(REFERENCE_SOURCES)) db.createObjectStore(REFERENCE_SOURCES, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(CHARACTER_MODELS)) db.createObjectStore(CHARACTER_MODELS, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -83,10 +86,11 @@ export const projectStorage = {
   async remove(id: string): Promise<void> {
     const memoryRecords = await requestValue<StoryMemoryRecord[]>(STORY_MEMORY, "readonly", store => store.getAll());
     const referenceRecords = await requestValue<ReferenceSourceRecord[]>(REFERENCE_SOURCES, "readonly", store => store.getAll());
+    const characterModels = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll());
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE, REFERENCE_SOURCES], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE, REFERENCE_SOURCES, CHARACTER_MODELS], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
         tx.objectStore(CANON).delete(id);
@@ -94,6 +98,8 @@ export const projectStorage = {
         tx.objectStore(STYLE_BIBLE).delete(id);
         const referenceStore = tx.objectStore(REFERENCE_SOURCES);
         for (const record of referenceRecords) if (record.projectId === id) referenceStore.delete(record.id);
+        const characterModelStore = tx.objectStore(CHARACTER_MODELS);
+        for (const record of characterModels) if (record.projectId === id) characterModelStore.delete(record.id);
         const memoryStore = tx.objectStore(STORY_MEMORY);
         for (const record of memoryRecords) if (record.projectId === id) memoryStore.delete(record.id);
         tx.oncomplete = () => resolve();
@@ -275,6 +281,38 @@ export const canonStorage = {
 /** One strict art-direction contract per project; never shared across series. */
 /** Temporal visual canon: approved character states and inspirations are chapter-aware. */
 /** Source-linked visual references with license and attribution metadata. */
+/** Local GLB models and chapter-linked scar overlays. */
+export const characterModelStorage = {
+  async save(record: CharacterModelRecord): Promise<void> {
+    const errors = validateCharacterModel(record, record.projectId);
+    if (errors.length) throw new Error("Character model validation failed: " + errors.join(" "));
+    await requestValue<IDBValidKey>(CHARACTER_MODELS, "readwrite", store => store.put({ ...record, updatedAt: new Date().toISOString() }));
+  },
+  async list(projectId: string): Promise<CharacterModelRecord[]> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
+    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => store.getAll());
+    const scoped = records.filter(record => record.projectId === projectId);
+    for (const record of scoped) {
+      const errors = validateCharacterModel(record, projectId);
+      if (errors.length) throw new Error("Saved character model is invalid: " + errors.join(" "));
+    }
+    return scoped.sort((a,b) => a.characterName.localeCompare(b.characterName) || (a.storyOrder ?? 0) - (b.storyOrder ?? 0));
+  },
+  async load(id: string, projectId: string): Promise<CharacterModelRecord | undefined> {
+    const record = await requestValue<CharacterModelRecord | undefined>(CHARACTER_MODELS, "readonly", store => store.get(id));
+    if (!record || record.projectId !== projectId) return undefined;
+    const errors = validateCharacterModel(record, projectId);
+    if (errors.length) throw new Error("Saved character model is invalid: " + errors.join(" "));
+    return record;
+  },
+  async remove(id: string, projectId: string): Promise<void> {
+    const record = await requestValue<CharacterModelRecord | undefined>(CHARACTER_MODELS, "readonly", store => store.get(id));
+    if (record && record.projectId !== projectId) throw new Error("Cannot remove a model from another project.");
+    await requestValue<undefined>(CHARACTER_MODELS, "readwrite", store => store.delete(id));
+  },
+};
+
+
 export const referenceSourceStorage = {
   async save(record: ReferenceSourceRecord): Promise<void> {
     const errors = validateReferenceSource(record, record.projectId);

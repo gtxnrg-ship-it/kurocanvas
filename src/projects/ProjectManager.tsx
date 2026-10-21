@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { artDirectionStorage, canonStorage, drawingStorage, projectStorage, referenceSourceStorage, storyMemoryStorage, styleBibleStorage, type LocalDrawingDocument } from '../core/storage';
+import { artDirectionStorage, canonStorage, characterModelStorage, drawingStorage, projectStorage, referenceSourceStorage, storyMemoryStorage, styleBibleStorage, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
 import { validateArtDirection, type ArtDirectionBible } from '../canon/artDirection';
 import { validateStyleBible, type ProjectStyleBible } from '../canon/styleBible';
 import { validateReferenceSource, type ReferenceSourceRecord } from '../canon/referenceScout';
+import { blobToDataUrl, dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from '../canon/characterModels';
 import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
@@ -53,6 +54,8 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       if (styleBible) assets['kuro/style-bible.v1.json'] = JSON.stringify(styleBible);
       const references = await referenceSourceStorage.list(id);
       assets['kuro/references.v1.json'] = JSON.stringify(references);
+      const characterModels = await characterModelStorage.list(id);
+      assets['kuro/character-models.v1.json'] = JSON.stringify(await Promise.all(characterModels.map(async model => ({ ...model, modelBlob: undefined, modelDataUrl: model.modelBlob ? await blobToDataUrl(model.modelBlob) : undefined }))));
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
       const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
@@ -71,7 +74,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, and ' + linkedDrawings + ' linked drawings.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + linkedDrawings + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }
@@ -148,6 +151,23 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (errors.length) throw new Error('The bundled Style Bible failed validation: ' + errors.join(' '));
       }
 
+      let oldCharacterModels: Array<Record<string, unknown>> = [];
+      if (importedAssets['kuro/character-models.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/character-models.v1.json']); } catch { throw new Error('The bundled 3D character models are not valid JSON.'); }
+        if (!Array.isArray(raw)) throw new Error('The bundled 3D character models must be a list.');
+        oldCharacterModels = raw as Array<Record<string, unknown>>;
+      }
+      const characterModels: CharacterModelRecord[] = oldCharacterModels.map(raw => {
+        const { modelDataUrl, ...metadata } = raw;
+        const modelBlob = typeof modelDataUrl === 'string' ? dataUrlToBlob(modelDataUrl) : undefined;
+        return { ...metadata, id: crypto.randomUUID(), projectId: project.id, modelBlob, createdAt: typeof metadata.createdAt === 'string' ? metadata.createdAt : now, updatedAt: now } as CharacterModelRecord;
+      });
+      for (const model of characterModels) {
+        const errors = validateCharacterModel(model, project.id);
+        if (errors.length) throw new Error('Bundled 3D character model failed validation: ' + errors.join(' '));
+      }
+
       let oldReferences: ReferenceSourceRecord[] = [];
       if (importedAssets['kuro/references.v1.json']) {
         let raw: unknown;
@@ -208,6 +228,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (artDirection) await artDirectionStorage.save(artDirection);
         if (styleBible) await styleBibleStorage.save(styleBible);
         for (const reference of references) await referenceSourceStorage.save(reference);
+        for (const model of characterModels) await characterModelStorage.save(model);
         for (const drawing of drawings) { await drawingStorage.save(drawing); savedDrawingIds.push(drawing.id); }
         for (const memory of memories) await storyMemoryStorage.save(memory);
       } catch (error) {
@@ -216,7 +237,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         throw error;
       }
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, and ' + drawings.length + ' linked drawings.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + drawings.length + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {

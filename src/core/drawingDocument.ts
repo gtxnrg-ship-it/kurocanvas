@@ -97,6 +97,9 @@ export function validateLocalDrawingDocument(value: unknown, expectedProjectId?:
     if (typeof stroke.size !== "number" || !Number.isFinite(stroke.size) || stroke.size <= 0 || stroke.size > 256) {
       errors.push("Stroke size is outside the supported range.");
     }
+    if (stroke.opacity !== undefined && (typeof stroke.opacity !== "number" || !Number.isFinite(stroke.opacity) || stroke.opacity < 0 || stroke.opacity > 1)) {
+      errors.push("Stroke opacity must be between 0 and 1.");
+    }
     if (stroke.shape !== undefined && !SHAPES.includes(stroke.shape as typeof SHAPES[number])) errors.push("Stroke uses an unsupported shape.");
     if (stroke.text !== undefined && (typeof stroke.text !== "string" || stroke.text.length > 5000)) errors.push("Stroke text is invalid or too long.");
     if (stroke.shape === "text" && (typeof stroke.text !== "string" || !stroke.text.trim())) errors.push("Text strokes need non-empty text.");

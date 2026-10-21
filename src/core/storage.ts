@@ -1,9 +1,10 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
+import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -11,6 +12,7 @@ const DRAWINGS = "drawings";
 const DRAWING_REVISIONS = "drawingRevisions";
 const CANON = "canon";
 const STORY_MEMORY = "storyMemory";
+const STYLE_BIBLE = "styleBible";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -26,6 +28,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(DRAWING_REVISIONS)) db.createObjectStore(DRAWING_REVISIONS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STORY_MEMORY)) db.createObjectStore(STORY_MEMORY, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(STYLE_BIBLE)) db.createObjectStore(STYLE_BIBLE, { keyPath: "projectId" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -76,10 +79,11 @@ export const projectStorage = {
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, STYLE_BIBLE], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
         tx.objectStore(CANON).delete(id);
+        tx.objectStore(STYLE_BIBLE).delete(id);
         const memoryStore = tx.objectStore(STORY_MEMORY);
         for (const record of memoryRecords) if (record.projectId === id) memoryStore.delete(record.id);
         tx.oncomplete = () => resolve();
@@ -256,6 +260,26 @@ export const canonStorage = {
   },
 };
 
+
+/** A single validated style contract per project, including approved visual states over time. */
+export const styleBibleStorage = {
+  async save(bible: ProjectStyleBible): Promise<void> {
+    const errors = validateStyleBible(bible, bible.projectId);
+    if (errors.length) throw new Error("Style bible validation failed: " + errors.join(" "));
+    await requestValue<IDBValidKey>(STYLE_BIBLE, "readwrite", store => store.put({ ...bible, updatedAt: new Date().toISOString() }));
+  },
+  async load(projectId: string): Promise<ProjectStyleBible | undefined> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading its style bible.");
+    const result = await requestValue<ProjectStyleBible | undefined>(STYLE_BIBLE, "readonly", store => store.get(projectId));
+    if (!result) return undefined;
+    const errors = validateStyleBible(result, projectId);
+    if (errors.length) throw new Error("Saved style bible is invalid: " + errors.join(" "));
+    return result;
+  },
+  async remove(projectId: string): Promise<void> {
+    await requestValue<undefined>(STYLE_BIBLE, "readwrite", store => store.delete(projectId));
+  },
+};
 
 /** Durable chapter/event/character-change memory, scoped to a project. */
 export const storyMemoryStorage = {

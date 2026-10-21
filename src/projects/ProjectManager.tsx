@@ -10,7 +10,7 @@ import { validateStyleBible, type ProjectStyleBible } from '../canon/styleBible'
 import { validateReferenceSource, type ReferenceSourceRecord } from '../canon/referenceScout';
 import { blobToDataUrl, dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from '../canon/characterModels';
 import WorldStudio from '../canon/WorldStudio';
-import { findMissingDrawingReferences } from './exportPreflight';
+import { collectProjectExportDrawingIds, findMissingDrawingReferences } from './exportPreflight';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -59,11 +59,8 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       assets['kuro/character-models.v1.json'] = JSON.stringify(await Promise.all(characterModels.map(async model => ({ ...model, modelBlob: undefined, modelDataUrl: model.modelBlob ? await blobToDataUrl(model.modelBlob) : undefined }))));
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
-      const referencedDrawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
-        .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length).trim()).filter(Boolean))];
       const availableDrawings = await drawingStorage.list(id);
-      // Include every saved canvas page in the backup, not only pages linked from Story Vault.
-      const drawingIds = [...new Set([...availableDrawings.map(drawing => drawing.id), ...referencedDrawingIds])];
+      const drawingIds = collectProjectExportDrawingIds(memories, availableDrawings.map(drawing => drawing.id));
       const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
       if (missingDrawings.length) {
         const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.memoryTitles.join(', ') + ')').join('; ');

@@ -73,6 +73,9 @@ export function applyNativeDrawingCommand(
     const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
     if (index < 0) throw new Error("Cannot remove stroke: stroke does not exist.");
     const removed = strokes[index];
+    const layer = layers.find(item => item.id === (removed.layerId || layers[0]?.id));
+    if (!layer) throw new Error("Cannot remove stroke: its layer does not exist.");
+    if (layer.locked) throw new Error("Cannot remove stroke: its layer is locked.");
     strokes.splice(index, 1);
     return {
       state: { ...state, layers, strokes },

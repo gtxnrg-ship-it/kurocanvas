@@ -56,6 +56,9 @@ function openDatabase(): Promise<IDBDatabase> {
       if (characterModels && !characterModels.indexNames.contains("byProjectId")) {
         characterModels.createIndex("byProjectId", "projectId", { unique: false });
       }
+      if (characterModels && !characterModels.indexNames.contains("byProjectAndName")) {
+        characterModels.createIndex("byProjectAndName", ["projectId", "characterName"], { unique: false });
+      }
       if (!db.objectStoreNames.contains(UNIVERSES)) db.createObjectStore(UNIVERSES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CONVERSATIONS)) {
         const conversations = db.createObjectStore(CONVERSATIONS, { keyPath: "id" });
@@ -360,17 +363,43 @@ export const characterModelStorage = {
     if (!projectId.trim()) throw new Error("Choose a project before loading character models.");
     if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Model page offset must be a non-negative integer.");
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw new Error("Model page size must be between 1 and 200.");
-    const records = await requestValue<CharacterModelRecord[]>(CHARACTER_MODELS, "readonly", store => {
-      if (!store.indexNames.contains("byProjectId")) throw new Error("Character model index is missing; reload to finish the local database upgrade.");
-      return store.index("byProjectId").getAll(IDBKeyRange.only(projectId));
-    });
-    const scoped = records.sort((a,b) => a.characterName.localeCompare(b.characterName) || (a.storyOrder ?? 0) - (b.storyOrder ?? 0));
-    const page = scoped.slice(offset, offset + limit);
-    for (const record of page) {
-      const errors = validateCharacterModel(record, projectId);
-      if (errors.length) throw new Error("Saved character model is invalid: " + errors.join(" "));
+    const db = await openDatabase();
+    try {
+      return await new Promise<CharacterModelPage>((resolve, reject) => {
+        const tx = db.transaction(CHARACTER_MODELS, "readonly");
+        const store = tx.objectStore(CHARACTER_MODELS);
+        if (!store.indexNames.contains("byProjectAndName")) {
+          reject(new Error("Character model index is missing; reload to finish the local database upgrade."));
+          return;
+        }
+        const index = store.index("byProjectAndName");
+        const range = IDBKeyRange.bound([projectId, ""], [projectId, "\\uffff"]);
+        const request = index.openCursor(range);
+        const page: CharacterModelRecord[] = [];
+        let seen = 0;
+        let hasMore = false;
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          if (seen++ < offset) { cursor.continue(); return; }
+          if (page.length >= limit) { hasMore = true; return; }
+          page.push(cursor.value as CharacterModelRecord);
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not read the character model page."));
+        tx.oncomplete = () => {
+          for (const record of page) {
+            const errors = validateCharacterModel(record, projectId);
+            if (errors.length) { reject(new Error("Saved character model is invalid: " + errors.join(" "))); return; }
+          }
+          resolve({ records: page, nextOffset: hasMore ? offset + page.length : null });
+        };
+        tx.onerror = () => reject(tx.error ?? new Error("Character model page read failed."));
+        tx.onabort = () => reject(tx.error ?? new Error("Character model page read was cancelled."));
+      });
+    } finally {
+      db.close();
     }
-    return { records: page, nextOffset: offset + page.length < scoped.length ? offset + page.length : null };
   },
   async list(projectId: string): Promise<CharacterModelRecord[]> {
     if (!projectId.trim()) throw new Error("Choose a project before loading character models.");

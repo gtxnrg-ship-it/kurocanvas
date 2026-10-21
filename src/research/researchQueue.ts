@@ -40,7 +40,7 @@ const EXTRACT_CHARS: Record<ResearchDepth, number> = { quick: 1000, balanced: 17
  */
 export function isResearchFollowUpRequest(message: string): boolean {
   const text = message.normalize("NFKC").trim();
-  return /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results|sources|research)|based on (?:the |your )?research|what did (?:you|the research|the sources|your research) find|what have you found|what did you discover|use (?:those|these|the) sources|cite (?:those|these|the) sources|according to (?:the |your )?research|from (?:the |your )?research)\b/i.test(text);
+  return /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results|sources|research)|based on (?:the |your )?research|what did (?:the research|your research|the sources|your sources) find|what did (?:the research|your research) discover|use (?:those|these|the) sources|cite (?:those|these|the) sources|according to (?:the |your )?research|from (?:the |your )?research)\b/i.test(text);
 }
 
 export interface ResearchTaskIntent {

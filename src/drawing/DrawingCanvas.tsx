@@ -111,6 +111,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [editUndoStack, setEditUndoStack] = useState<Stroke[][]>([]);
   const [editRedoStack, setEditRedoStack] = useState<Stroke[][]>([]);
+  const [historyOrder, setHistoryOrder] = useState<Array<'edit'|'plan'>>([]);
+  const [redoOrder, setRedoOrder] = useState<Array<'edit'|'plan'>>([]);
   const [planUndoStack, setPlanUndoStack] = useState<PlanSnapshot[]>([]);
   const [planRedoStack, setPlanRedoStack] = useState<PlanSnapshot[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -192,7 +194,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   useEffect(() => {
     let cancelled = false;
     // History belongs to one document only; never replay another drawing's snapshots here.
-    setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setSelectedStrokeId(null);
+    setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
     setLoaded(false); setSaveState('loading');
     drawingStorage.load(drawingId).then(saved => {
       if (cancelled) return;
@@ -264,7 +266,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
         const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
         docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
         setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
-        setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]);
+        setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]); setEditRedoStack([]);
         setSaveState('saved'); setNotice('Approved AI drawing applied and saved locally');
         setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
         onPlanResult(pendingPlan.id, 'success', 'Applied and saved locally');
@@ -309,8 +311,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       if (!textDraft.trim()) { setNotice('Type your lettering in the toolbar, then tap the canvas to place it.'); return; }
       const at = pointFromEvent(e);
       const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, color, size: Math.max(12, size * 2), points: [at] };
-      setStrokes(old => [...old, lettering]); setRedoStack([]); setNotice('Text object placed · undo is available'); return;
+      moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+      setEditUndoStack(old => [...old, moveSnapshotRef.current!]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
+      setStrokes(old => [...old, lettering]); setRedoStack([]); moveSnapshotRef.current = null; setNotice('Text object placed · undo is available'); return;
     }
+    moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
     activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' ? tool : undefined, color, size, points: [start] };
@@ -343,17 +348,35 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (panRef.current) { panRef.current = null; return; }
     if (selectionDragRef.current) {
       const drag = selectionDragRef.current; selectionDragRef.current = null;
-      if (drag.moved && moveSnapshotRef.current) { setEditUndoStack(old => [...old, moveSnapshotRef.current!]); setEditRedoStack([]); setRedoStack([]); setNotice('Object moved · Undo is available'); }
+      if (drag.moved && moveSnapshotRef.current) { setEditUndoStack(old => [...old, moveSnapshotRef.current!]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice('Object moved · Undo is available'); }
       moveSnapshotRef.current = null; return;
     }
     if (!activeRef.current) return;
     setStrokes(old => [...old, activeRef.current!]);
     activeRef.current = null;
+    if (moveSnapshotRef.current) setEditUndoStack(old => [...old, moveSnapshotRef.current!]);
+    moveSnapshotRef.current = null; setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
     setRedoStack([]);
     setNotice('Drawing mark added · Undo is available');
   };
   const undo = () => {
-    if (planUndoStack.length) {
+    const action = historyOrder[historyOrder.length - 1];
+    if (action === 'plan' && planUndoStack.length) {
+      const snapshot = planUndoStack[planUndoStack.length - 1];
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
+      setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'plan']);
+      docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
+      setNotice('AI drawing plan undone as one step'); return;
+    }
+    if (action === 'edit' && editUndoStack.length) {
+      const previous = editUndoStack[editUndoStack.length - 1];
+      setEditRedoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
+      setEditUndoStack(old => old.slice(0, -1)); setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'edit']);
+      setStrokes(previous); setSelectedStrokeId(null); setRedoStack([]); setNotice('Manual edit undone'); return;
+    }
+    if (!action && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
       const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
@@ -361,32 +384,38 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
       setNotice('AI drawing plan undone as one step'); return;
     }
-    if (editUndoStack.length) {
-      const previous = editUndoStack[editUndoStack.length - 1];
-      setEditRedoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
-      setEditUndoStack(old => old.slice(0, -1)); setStrokes(previous); setSelectedStrokeId(null); setNotice('Object edit undone'); return;
-    }
     if (!strokes.length) return;
     setRedoStack(r => [strokes[strokes.length - 1], ...r]); setStrokes(s => s.slice(0, -1)); setNotice('Last stroke undone');
   };
   const redo = () => {
-    if (planRedoStack.length) {
+    const action = redoOrder[redoOrder.length - 1];
+    if (action === 'plan' && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
       const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
+      setHistoryOrder(old => [...old, 'plan']); setRedoOrder(old => old.slice(0, -1));
+      docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
+      setNotice('AI drawing plan restored as one step'); return;
+    }
+    if (action === 'edit' && editRedoStack.length) {
+      const next = editRedoStack[editRedoStack.length - 1];
+      setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
+      setEditRedoStack(old => old.slice(0, -1)); setHistoryOrder(old => [...old, 'edit']); setRedoOrder(old => old.slice(0, -1));
+      setStrokes(next); setSelectedStrokeId(null); setRedoStack([]); setNotice('Manual edit restored'); return;
+    }
+    if (!action && planRedoStack.length) {
+      const snapshot = planRedoStack[planRedoStack.length - 1];
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: point => ({ ...point }) })) as unknown as Stroke[], layers: layers.map(layer => ({ ...layer })), background };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
       setNotice('AI drawing plan restored as one step'); return;
     }
-    if (editRedoStack.length) {
-      const next = editRedoStack[editRedoStack.length - 1];
-      setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]);
-      setEditRedoStack(old => old.slice(0, -1)); setStrokes(next); setSelectedStrokeId(null); setNotice('Object edit restored'); return;
-    }
     if (!redoStack.length) return;
     setStrokes(s => [...s, redoStack[0]]); setRedoStack(r => r.slice(1)); setNotice('Stroke restored');
   };
-  const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setStrokes([]); setRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared'); };
+  const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
   const exportPng = () => {
     const out = createSurface(docRef.current.width, docRef.current.height);

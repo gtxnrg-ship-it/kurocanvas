@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History, Pipette } from 'lucide-react';
 import { drawingRevisionStorage, drawingStorage, storyMemoryStorage } from '../core/storage';
 import { buildSvgDocument } from './svgExport';
 import type { LocalDrawingDocument } from '../core/storage';
@@ -8,7 +8,7 @@ import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
@@ -433,6 +433,22 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
   };
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (tool === 'eyedropper') {
+      const at = pointFromEvent(e);
+      const ctx = e.currentTarget.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { setNotice('Color sampling is unavailable in this browser.'); return; }
+      try {
+        const pixel = ctx.getImageData(Math.max(0, Math.min(e.currentTarget.width - 1, Math.round(at.x))), Math.max(0, Math.min(e.currentTarget.height - 1, Math.round(at.y))), 1, 1).data;
+        if (pixel[3] === 0) { setNotice('That pixel is transparent; the selected color was not changed.'); return; }
+        const hex = '#' + [pixel[0], pixel[1], pixel[2]].map(value => value.toString(16).padStart(2, '0')).join('');
+        setColor(hex);
+        setTool('brush');
+        setNotice('Sampled ' + hex.toUpperCase() + ' from the visible canvas.');
+      } catch {
+        setNotice('Could not sample this pixel. Try a visible mark on the canvas.');
+      }
+      return;
+    }
     if (tool === 'pan') {
       e.currentTarget.setPointerCapture(e.pointerId);
       panRef.current = { pointerX: e.clientX, pointerY: e.clientY, originX: panOffset.x, originY: panOffset.y };
@@ -835,6 +851,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
         <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>
+        <button className={tool==='eyedropper'?'chosen':''} onClick={() => setTool('eyedropper')} title="Sample a color from the visible canvas"><Pipette size={16}/><span>Eyedropper</span></button>
         <button className={tool==='eraser'?'chosen':''} onClick={() => setTool('eraser')} title="Eraser"><Eraser size={16}/><span>Eraser</span></button>
         <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
         <button className={tool==='line'?'chosen':''} onClick={() => setTool('line')} title="Line"><Minus size={16}/><span>Line</span></button>

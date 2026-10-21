@@ -1,30 +1,30 @@
 # Kuro Local Intelligence Model Strategy
 
-Status: selected browser-local model and download flow under implementation; quality on Kuro tasks remains unverified, 2026-10-21.
+Status: Qwen3-0.6B is the only active model in the app; the adapter/settings/test path is wired, while live model quality and target-device performance remain unverified, 2026-10-21.
 
 ## Selected model: Qwen3-0.6B (quantized ONNX)
 
-**Selected model for the next integrated build:** `onnx-community/Qwen3-0.6B-DQ-ONNX`, the browser-compatible ONNX Community export of Qwen3-0.6B.
+**Current and only active model:** `onnx-community/Qwen3-0.6B-DQ-ONNX`, the browser-compatible ONNX Community export of Qwen3-0.6B.
 
 - **Model:** Qwen3-0.6B, approximately 0.6 billion parameters, with a model-card context length of 32,768 tokens.
 - **Download target:** approximately **370 MB (estimate)** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
 - **Runtime:** Transformers.js with ONNX Runtime Web, running in the browser. The model is fetched on the user's explicit request and stored in the browser-managed cache.
 - **License:** Apache-2.0 for Qwen3-0.6B, according to its official model card. Verify the exact model repository's license and revision before any repackaging/distribution.
 - **Capabilities:** text-only instruction following. No image input, and no claim that the base model is already specialized for Kuro's tool schemas.
-- **Why this choice:** KuroCanvas is a React/Vite browser app, and this export can run through the existing Transformers.js worker path. Compared with the previous 135M option, Qwen3-0.6B trades a larger first download and higher memory use for a more capable model candidate. FunctionGemma 270M is more directly trained for function calling, but other model formats may require a different inference runtime that is not integrated into this web app. For this build, validate the Qwen3 4-bit ONNX runtime on actual target devices before treating it as the default. See [Qwen3-0.6B ONNX model](https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX), [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
+- **Why this choice:** KuroCanvas is a React/Vite browser app, and this export can run through the existing Transformers.js worker path. Compared with the previous 135M option, Qwen3-0.6B trades a larger first download and higher memory use for a more capable model candidate. FunctionGemma 270M is more directly trained for function calling, but other model formats may require a different inference runtime that is not integrated into this web app. The product decision is one active model—not a user-selectable carousel. Keep Qwen as the sole runtime until a deliberate replacement passes the same acceptance gate on target devices. See [Qwen3-0.6B ONNX model](https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX), [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
 
 This is a **practical integration choice, not a claim that 0.6B parameters can equal a 5B–30B general model**. The initial goal is to make Kuro's browser-local inference path real, then measure tool-plan validity and task success before trusting it with more autonomy. Its language quality and instruction-following may be weak; the harness must validate outputs and fail safely.
 
 ### Download and runtime behavior
 
-In Preferences, the user explicitly chooses **Download ~370 MB model & connect**. The app reports download progress and initializes the model before connecting. Transformers.js caches the downloaded artifacts in the browser cache. This is not an APK install or permanent file-library download: browser storage can be evicted, so the app may need to fetch the model again later. The first download requires internet; inference runs locally once the files and runtime are available.
+In Preferences, the user explicitly chooses **Download & prepare Qwen3-0.6B**. The app reports download progress and initializes the model before connecting. A normal chat request must never trigger a surprise download. Transformers.js caches the downloaded artifacts in the browser cache. This is not an APK install or permanent file-library download: browser storage can be evicted, so the app may need to fetch the model again later. The first download requires internet; inference runs locally once the files and runtime are available.
 
 The app must never silently download this model on first launch. The download is opt-in, and prompts/story content are not sent to a model provider when using this local provider. This model is text-only: canvas images are not attached to its requests.
 
 ### What is integrated—and what is not
 
-- **Being implemented:** local browser provider, one-click model preparation with progress, cached local inference, model-provider routing, text-only capability declaration, and removal of the oversized Qwen preset.
-- **Not yet verified:** successful model download in the deployed app, inference on representative low-end Android devices, actual Kuro task success, long-session memory performance, and robust cancellation during an in-progress ONNX generation.
+- **Implemented in source:** one local browser provider adapter, explicit model preparation with progress, browser-cache-backed inference, request cancellation, Qwen-only settings/catalog, and a text-only capability declaration.
+- **Not yet verified:** real model download/inference success on representative low-end Android devices, actual Kuro task quality, long-session memory performance, cached/offline recovery, and physical-device cancellation behavior. Automated tests cover worker cancellation, but they do not replace live model testing.
 - **Not included:** fine-tuning on Kuro's native drawing schemas, vision input, a complete iterative visual-QA loop, a bundled model file, or permanent offline guarantees.
 - **Important:** browser cache is not a durable model-install directory. If Kuro later ships as a native Android app, evaluate a native on-device runtime and model package separately; do not claim that the web build is equivalent to a native LiteRT integration.
 
@@ -44,30 +44,30 @@ The agent loop should be explicit and bounded:
 
 This architecture can make a small model dramatically more useful on structured work, but **a harness cannot guarantee that a 100M-parameter model has the broad reasoning, language, vision, or long-horizon planning ability of a 5B–30B model**. Small models can misunderstand requests, choose wrong tools, produce invalid arguments, and get stuck in loops. Retrieval supplies facts; it does not automatically supply reasoning. Deterministic validators catch defined classes of mistakes; they cannot validate every creative judgement.
 
-Therefore treat **~100M parameters as an experiment for narrow controller tasks**, not a promised all-purpose Kuro brain. Test it for intent routing, tool selection among a small menu, schema filling, and concise status decisions. Evaluate a stronger compact model for nuanced conversation, multi-step creative planning, canon conflict resolution, and visual reasoning. A single model may handle more than one role only if it passes the same gates. Do not assume multiple agents or repeated model calls improve quality; extra calls also add latency and can amplify errors.
+Therefore treat **Qwen3-0.6B as a small-model engineering tradeoff, not a promised all-purpose Kuro brain**. Harnesses can make work more reliable by supplying relevant memory, enforcing schemas, validating tools and checking persisted results, but they cannot guarantee nuanced conversation, multi-step creative planning or long-horizon reasoning. Measure task success and failures rather than assuming extra agents or repeated model calls automatically improve quality; extra calls add latency and can amplify errors.
 
 A small open tool-use model has demonstrated that the niche is real, but also that size is not magic: the published TOAM-100M model card reports 22.9% on BFCL v4 Live AST and lower accuracy than FunctionGemma-270M on its cited comparison. This is evidence to benchmark tiny tool controllers—not evidence that a 100M model can replace a much larger general model. See [TOAM-100M model card](https://huggingface.co/ksg91/toam-100m-v0.1).
 
-## Device-tier strategy (product requirement)
+## Current-device policy and future replacement strategy
 
 Kuro must not require a 27B model—or any multi-tens-of-gigabytes download—to be useful. Model selection must be based on measured device capability, not one universal default. The software harness should carry as much reliability as possible without hiding capability limits or turning every task into a costly chain of model calls.
 
-- **Low-end Android / memory-constrained devices:** keep the app, native drawing tools, Vault metadata, canon records, and saved history usable without a local LLM. Offer an optional compact on-device model only when the device/runtime combination is supported and benchmarked. Aim to evaluate roughly 0.5B–2B-class models first; do not promise agent reliability or vision capability based on parameter count alone.
-- **Capable phones and tablets:** evaluate compact quantized models in roughly the 2B–4B class, with strict limits on RAM, context/KV cache, thermal load, battery use, download size, and latency. Model availability must be checked against actual device capabilities and supported runtime formats.
-- **Desktop/laptop:** offer a broader choice of compact local models and larger models where hardware permits, with transparent disk/RAM/VRAM estimates.
-- **Hosted model:** offer as an explicit optional path for stronger reasoning/vision when the user has connectivity and accepts the provider's privacy, cost, and data handling. Never silently upload private universe content to a hosted service.
-- **No model available:** Kuro should still support manual native drawing, reading/editing saved canon, organizing the Vault, and other deterministic app functions. Clearly disable or label AI-dependent actions rather than pretending they work.
+- **Current build:** Qwen3-0.6B is the one selectable-in-practice model, across supported web targets. If it cannot initialize, preserve manual drawing, reading and Vault access and report the error; do not silently switch models.
+- **Future replacement:** a better model may be considered only as a deliberate engineering upgrade to the same adapter contract, with explicit migration, context/capability updates, tests and device benchmarks. It is not exposed as a runtime carousel.
+- **All devices:** report readiness estimates as estimates, not guarantees. Keep drawing and saved-project features usable when inference is unavailable.
+- **No hosted fallback:** the current application does not offer hosted inference. Do not route private universe content to another model behind the user's back.
+- **No model prepared:** keep the app responsive, preserve the user's draft, explain how to prepare Qwen from Preferences, and do not initiate the large download from an ordinary chat message.
 
 These parameter ranges are evaluation targets, not guarantees of memory use or quality. Quantization, runtime format, context length, KV cache, vision encoder, and backend all affect the real footprint. For example, Google's current LiteRT-LM documentation lists a 2.58 GB Gemma 4 E2B model and provides Android CPU/GPU performance measurements on specific modern devices; those figures demonstrate that smaller local paths exist, but they are not evidence that the same latency or memory use will hold on low-end phones. See [LiteRT-LM supported models and measurements](https://developers.google.cn/edge/litert-lm/overview) and the [Android setup guide](https://developers.google.cn/edge/litert-lm/android).
 
-### Required model-selection gates
+### Required acceptance gates for the current model
 
-1. Keep the selected Qwen3-0.6B model's limitations visible; never imply it supports vision or is already fine-tuned for Kuro.
-2. Benchmark at least one compact text model and one compact vision-capable candidate on representative low-end Android hardware before selecting a mobile default.
-3. Record model download size, peak resident memory, cold-start time, time-to-first-token, tokens/second, battery/thermal behavior, context limit, and crash rate. Test with the app and canvas open, not in an isolated benchmark only.
-4. Test Kuro-specific tasks: multi-turn creative planning, strict structured tool calls, canon retrieval, character continuity, revision-following, uncertainty, and recovery from malformed output. A model that chats well but cannot reliably use drawing tools must not be presented as a complete art agent.
-5. Make model downloads opt-in, resumable, cancellable, integrity-checked, and preceded by storage/network estimates. Do not bundle multi-gigabyte weights in the web app or APK by default.
-6. If the device cannot run a model reliably, offer a smaller model or an explicit hosted/desktop option; never make first launch depend on downloading a large checkpoint.
+1. Keep Qwen3-0.6B's limitations visible; never imply it supports vision or is already fine-tuned for Kuro.
+2. Benchmark Qwen on representative low-end Android hardware before calling it production-ready. A model replacement can be considered separately, through a deliberate release-time change.
+3. Record download size, peak resident memory, cold-start time, time-to-first-token, tokens/second, battery/thermal behavior, effective context/output limits, and crash rate. Test with the app and canvas open.
+4. Test Kuro-specific tasks: multi-turn creative planning, native drawing plans, schema validation, canon retrieval, character continuity, revision-following, uncertainty, and recovery from malformed output.
+5. Keep downloads opt-in and cancellable. Show progress and errors, and do not bundle the ~370 MB weights in the web app or APK by default.
+6. If the device cannot run Qwen reliably, state that AI features are unavailable in this environment; never make first launch depend on downloading a large checkpoint.
 
 ## Kuro is an art agent, not an image generator
 

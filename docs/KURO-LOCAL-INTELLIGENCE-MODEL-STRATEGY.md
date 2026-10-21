@@ -13,7 +13,7 @@ Status: selected browser-local model and download flow under implementation; qua
 - **Capabilities:** text-only instruction following. No image input, and no claim that the base model is already specialized for Kuro's tool schemas.
 - **Why this choice:** KuroCanvas is a React/Vite browser app, and this export can run through the existing Transformers.js worker path. Compared with the previous 135M option, Qwen3-0.6B trades a larger first download and higher memory use for a more capable model candidate. FunctionGemma 270M is more directly trained for function calling, but other model formats may require a different inference runtime that is not integrated into this web app. For this build, validate the Qwen3 4-bit ONNX runtime on actual target devices before treating it as the default. See [Qwen3-0.6B ONNX model](https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX), [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
 
-This is a **practical integration choice, not a claim that 135M parameters can equal a 5B–30B general model**. The initial goal is to make Kuro's browser-local inference path real, then measure tool-plan validity and task success before trusting it with more autonomy. Its language quality and instruction-following may be weak; the harness must validate outputs and fail safely.
+This is a **practical integration choice, not a claim that 0.6B parameters can equal a 5B–30B general model**. The initial goal is to make Kuro's browser-local inference path real, then measure tool-plan validity and task success before trusting it with more autonomy. Its language quality and instruction-following may be weak; the harness must validate outputs and fail safely.
 
 ### Download and runtime behavior
 
@@ -62,7 +62,7 @@ These parameter ranges are evaluation targets, not guarantees of memory use or q
 
 ### Required model-selection gates
 
-1. Keep the selected 135M model's limitations visible; never imply it supports vision or is already fine-tuned for Kuro.
+1. Keep the selected Qwen3-0.6B model's limitations visible; never imply it supports vision or is already fine-tuned for Kuro.
 2. Benchmark at least one compact text model and one compact vision-capable candidate on representative low-end Android hardware before selecting a mobile default.
 3. Record model download size, peak resident memory, cold-start time, time-to-first-token, tokens/second, battery/thermal behavior, context limit, and crash rate. Test with the app and canvas open, not in an isolated benchmark only.
 4. Test Kuro-specific tasks: multi-turn creative planning, strict structured tool calls, canon retrieval, character continuity, revision-following, uncertainty, and recovery from malformed output. A model that chats well but cannot reliably use drawing tools must not be presented as a complete art agent.
@@ -125,7 +125,7 @@ Create a permissioned benchmark covering:
 
 The current application has a compatible-provider connection layer and model capability/selection contracts. This is not a bundled inference engine, does not include model weights, and does not provide a turnkey offline model on first launch. A configured local endpoint means the user or operator has separately installed and started a compatible inference server.
 
-Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The selected SmolLM2-135M model is a compact browser-local baseline, not a guarantee of parity with larger models. Its task quality must be measured before release. The product must distinguish:
+Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The selected Qwen3-0.6B model is a compact browser-local candidate, not a guarantee of parity with larger models. Its task quality must be measured before release. The product must distinguish:
 - **Connected provider:** a configured endpoint answers requests.
 - **Installed local model:** weights and compatible runtime are present and pass a smoke test.
 - **Bundled model/runtime:** the shipped package contains or installs the explicitly licensed runtime and a documented model acquisition flow.

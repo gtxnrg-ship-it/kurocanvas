@@ -104,7 +104,7 @@ describe("approved canon AI context", () => {
       revealGate: { enabled: true, universeId: "u1", states: [future] },
     });
     expect(guarded).not.toContain("The Secret Emperor");
-    expect(guarded).toContain("STORY OUTPUT REVEAL GUARD");
+    expect(guarded).toContain("STORY OUTPUT CONTINUITY GUARD");
     const brainstorm = buildApprovedCanonContext(testBundle, { projectId: "series-a", userMessage: "tell me about the emperor" });
     expect(brainstorm).toContain("The Secret Emperor");
     expect(isStoryProductionRequest("Write Chapter 1")).toBe(true);

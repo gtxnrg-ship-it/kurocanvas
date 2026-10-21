@@ -11,3 +11,6 @@ Every extracted record must be grounded in an exact contiguous quote from the us
 All generated records remain **proposed**. The user must review them in Creative Vault before they become canon. Story order defaults to the stated chapter number as a provisional value; flashbacks and non-linear chronology must be corrected by the user before approval. Repeated exact evidence is deduplicated.
 
 This is a conservative proposal pipeline, not a guarantee that a connected language model will never make an extraction error. The exact-quote gate rejects unsupported details, and the UI exposes source evidence for review.
+
+
+For factual recall, the application also checks whether an explicit chapter-recall request has matching approved memory. If not, it stops before calling the model and asks the user to add or approve the missing recap.

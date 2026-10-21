@@ -12,8 +12,8 @@ function seeded(): ProjectStyleBible {
   ];
   bible.rules = [{ id:"rule-1", category:"continuity", rule:"Scars persist in all later visual states unless an approved event explains removal.", status:"approved" }];
   bible.characterStates = [
-    { id:"state-1", characterName:"Ren", storyOrder:1, chapterLabel:"Chapter 1", age:"17", hair:"short black undercut", scars:"none", status:"approved" },
-    { id:"state-2", characterName:"Ren", storyOrder:12, chapterLabel:"Chapter 12", age:"18", hair:"grown-out black undercut", scars:"thin scar across left eyebrow", status:"approved" },
+    { id:"state-1", characterName:"Ren", storyOrder:1, chapterNumber:1, chapterLabel:"Chapter 1", age:"17", hair:"short black undercut", scars:"none", status:"approved" },
+    { id:"state-2", characterName:"Ren", storyOrder:12, chapterNumber:12, chapterLabel:"Chapter 12", age:"18", hair:"grown-out black undercut", scars:"thin scar across left eyebrow", status:"approved" },
   ];
   return bible;
 }

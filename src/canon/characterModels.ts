@@ -26,6 +26,18 @@ export interface CharacterModelRecord {
   createdAt: string;
   updatedAt: string;
 }
+/** Select the latest model variant available at the requested story order; never use a future model for a flashback. */
+export function selectCharacterModelVariant(
+  records: CharacterModelRecord[], characterName: string, targetStoryOrder?: number,
+): CharacterModelRecord | undefined {
+  const normalize = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
+  const variants = records.filter(record => normalize(record.characterName) === normalize(characterName));
+  if (targetStoryOrder === undefined) return variants.find(record => !record.characterStateId) ?? variants.sort((a,b)=>(a.storyOrder??0)-(b.storyOrder??0))[0];
+  const eligible = variants.filter(record => (record.storyOrder ?? 0) <= targetStoryOrder)
+    .sort((a,b)=>(a.storyOrder??0)-(b.storyOrder??0));
+  return eligible[eligible.length - 1];
+}
+
 export function validateCharacterModel(value: unknown, projectId?: string): string[] {
   if (!value || typeof value !== "object") return ["Character model record must be an object."];
   const model = value as Partial<CharacterModelRecord>, errors: string[] = [];

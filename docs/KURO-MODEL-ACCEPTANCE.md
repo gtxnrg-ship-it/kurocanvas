@@ -43,6 +43,7 @@ Run tasks against the exact model revision, quantization, Transformers.js/ONNX R
 | Long-context retrieval | Recall old universe facts from the correct universe | No cross-universe leakage; supporting records can be inspected |
 | Cancellation | Cancel model generation and model preparation | Worker terminates; no stale reply or false success appears |
 | No-surprise-download | Send a message before preparing the runtime | No worker download begins; user gets clear instructions and the draft remains available |
+| Model-independent tools | Run an explicit source-research or Wikimedia-reference lookup before preparing Qwen | Tool queue/results work without model weights; AI chat still asks for explicit preparation |
 | Error handling | Test offline loading, malformed JSON, truncated output and low memory | App remains usable and explains failure; no fake completion |
 
 ## 4. Release gate

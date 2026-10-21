@@ -25,6 +25,13 @@ export function isLocalTinyModelPrepared(): boolean {
     : false;
 }
 
+/** A truthful status label for the current page's live model session. */
+export function localModelReadinessLabel(): string {
+  return isLocalTinyModelPrepared()
+    ? "Qwen3-0.6B · prepared for this session · on-device · text-only"
+    : "Qwen3-0.6B · not prepared · open Preferences for AI chat";
+}
+
 /**
  * Resolve the single model adapter used by every Kuro harness.
  * Legacy remote-provider settings intentionally fail closed rather than silently

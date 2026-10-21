@@ -3,6 +3,7 @@ import {
   createConfiguredProvider,
   LOCAL_TINY_BASE_URL,
   LOCAL_TINY_MODEL_URI,
+  localModelReadinessLabel,
 } from "./providerFactory";
 import { resetKuroModelAdapterForTests } from "./kuroModelAdapter";
 
@@ -33,6 +34,11 @@ describe("single-model provider factory", () => {
       apiKey: "must-not-be-used",
       allowInsecureLocalhost: false,
     })).toThrow(/only on-device Qwen3-0.6B/i);
+  });
+
+  it("does not advertise Qwen as ready before explicit local preparation", () => {
+    expect(localModelReadinessLabel()).toContain("not prepared");
+    expect(localModelReadinessLabel()).toContain("open Preferences");
   });
 
   it("rejects a different model URI even when the local base URL is selected", () => {

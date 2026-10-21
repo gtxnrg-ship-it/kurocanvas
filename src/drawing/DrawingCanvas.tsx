@@ -6,6 +6,7 @@ import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
+import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
@@ -188,6 +189,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
   const [stabilizer, setStabilizer] = useState(0);
+  const [symmetryMode, setSymmetryMode] = useState<SymmetryMode>('off');
   const [panelLayout, setPanelLayout] = useState<PanelLayoutPreset>('two-rows');
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -546,13 +548,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       moveSnapshotRef.current = null; return;
     }
     if (!activeRef.current) return;
-    setStrokes(old => [...old, activeRef.current!]);
+    const completedStroke = activeRef.current!;
+    const completedMarks = createSymmetryCopies(completedStroke, docRef.current.width, docRef.current.height, symmetryMode, () => crypto.randomUUID());
+    setStrokes(old => [...old, ...completedMarks]);
     activeRef.current = null;
     const beforeStroke = moveSnapshotRef.current;
     if (beforeStroke) setEditUndoStack(old => [...old, beforeStroke]);
     moveSnapshotRef.current = null; setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
     setRedoStack([]);
-    setNotice('Drawing mark added · Undo is available');
+    setNotice(completedMarks.length > 1 ? 'Symmetry drawing added ' + completedMarks.length + ' marks · Undo is available' : 'Drawing mark added · Undo is available');
   };
   const undo = () => {
     const action = historyOrder[historyOrder.length - 1];
@@ -844,6 +848,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
+      <label className="symmetry-control" title="Mirror new strokes around the center of the canvas">Symmetry <select aria-label="Drawing symmetry mode" value={symmetryMode} onChange={e => setSymmetryMode(e.target.value as SymmetryMode)}><option value="off">Off</option><option value="vertical">Vertical mirror</option><option value="horizontal">Horizontal mirror</option><option value="quad">Four-way</option></select></label>
       {tool==='text' && <><label className="text-draft-control">Lettering <textarea rows={2} value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type dialogue; use new lines, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>}

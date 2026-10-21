@@ -43,7 +43,7 @@ export interface ResearchTaskIntent {
 /** Classify explicit research commands before the chat model answers from memory alone. */
 export function extractResearchTaskIntent(message: string): ResearchTaskIntent | undefined {
   const text = message.normalize("NFKC").trim();
-  const command = text.match(/^\\s*(?:please\\s+)?(?:(?:can|could|would) you\\s+)?(research|investigate|fact[- ]check|look up|search(?:\\s+(wikipedia|crossref))?|find\\s+(?:credible\\s+|scholarly\\s+)?sources)\\b/i);
+  const command = text.match(/^\\s*(?:(?:quickly|briefly|exhaustively|comprehensively)\\s+)?(?:please\\s+)?(?:(?:can|could|would) you\\s+)?(research|investigate|fact[- ]check|look up|search(?:\\s+(wikipedia|crossref))?|find\\s+(?:credible\\s+|scholarly\\s+)?sources)\\b/i);
   if (!command) return undefined;
   const commandLength = command[0].length;
   let query = text.slice(commandLength)
@@ -56,7 +56,7 @@ export function extractResearchTaskIntent(message: string): ResearchTaskIntent |
   const lower = text.toLocaleLowerCase();
   const depth: ResearchDepth = /\\b(?:exhaustive|comprehensive|as many as possible|deep dive)\\b/i.test(lower)
     ? "exhaustive"
-    : /\\b(?:quick|brief|short)\\b/i.test(lower) ? "quick"
+    : /\\b(?:quick(?:ly)?|brief(?:ly)?|short)\\b/i.test(lower) ? "quick"
     : /\\bbalanced\\b/i.test(lower) ? "balanced" : "deep";
   const sourceProvider: ResearchSourceProvider = command[2]?.toLowerCase() === "crossref"
     || /\\b(?:scholarly papers?|academic papers?|journal articles?)\\b/i.test(lower)

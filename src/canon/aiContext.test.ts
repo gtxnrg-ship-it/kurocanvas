@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isAuthorDirectedFullScopeRequest, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -8,6 +8,22 @@ const fact = (id: string, status: CanonFact["status"], value: unknown): CanonFac
   id, projectId: "series-a", subjectId: "hero", predicate: "secret", value, status,
 });
 const bundle = { ...createEmptyCanon("series-a"), entities: [entity], facts: [fact("f-approved", "approved", "She is the heir"), fact("f-proposed", "proposed", "She is immortal"), fact("f-inferred", "inferred", "She fears fire")] };
+
+describe("author-directed full-scope requests", () => {
+  it.each([
+    "Give me a full-series outline from chapter one to the ending.",
+    "Write the ending and finale, including every major future reveal.",
+    "Plan all chapters and the complete story arc.",
+    "Explore an alternate timeline where the rival wins.",
+    "Give me the full cast list, including future characters.",
+  ])("does not mistake explicit author-wide planning for sequential chapter production: %s", text => {
+    expect(isAuthorDirectedFullScopeRequest(text)).toBe(true);
+  });
+
+  it("keeps ordinary sequential chapter creation inside its reveal workflow", () => {
+    expect(isAuthorDirectedFullScopeRequest("Write chapter 2 where Mira enters the academy.")).toBe(false);
+  });
+});
 
 describe("approved canon AI context", () => {
   it("resolves the target chapter from the latest approved state at the requested story order", () => {

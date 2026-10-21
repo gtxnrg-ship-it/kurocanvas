@@ -22,15 +22,47 @@ The universe-first workspace is being developed on an open pull request. That wo
 - **Local-first core:** core editing and project access should not require an account or server.
 - **Honest status:** illustrative previews are never presented as completed tool execution.
 
-## Development
+## Try Kuro Canvas yourself
 
-Node.js 20+ recommended.
+### Open a browser-based development workspace
 
-    npm install
-    npm run dev
-    npm run typecheck
-    npm run build
-    npm run preview
+You can try the current development branch in StackBlitz without installing Node.js locally:
+
+**[Open Kuro Canvas in StackBlitz](https://stackblitz.com/github/gtxnrg-ship-it/kurocanvas/tree/feat/universe-per-chat-foundation?startScript=dev)**
+
+This is a live development workspace, not a stable production deployment. It may take a little while to install dependencies and start Vite. Changes are not automatically committed back to this repository.
+
+### Run it on your own computer
+
+Kuro Canvas is a **React + TypeScript + Vite web app**. TypeScript is compiled into browser JavaScript by the build process; you do not need a separate TypeScript server.
+
+Requirements: Node.js 20+ and npm.
+
+```bash
+git clone https://github.com/gtxnrg-ship-it/kurocanvas.git
+cd kurocanvas
+git switch feat/universe-per-chat-foundation
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite (usually `http://localhost:5173`). The development server supports hot module replacement, so code changes are reflected in the browser as you save files.
+
+Useful checks:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run preview
+```
+
+### Live hosted website and automatic updates
+
+The StackBlitz link above is the fastest way to see the current branch. A permanent public website needs a hosting target and deployment permissions. GitHub Pages is not considered configured or live just because this repository contains a workflow; repository Pages settings and a successful deployment must be verified first. Until that is confirmed, do not treat any URL as the production app.
+
+For ongoing development, the intended preview flow is: push a commit to the development branch → CI typecheck/build/tests → publish a preview → open the same preview URL to see the latest successful build. Do not deploy a failing build as the live preview.
+
 
 ## Engineering decisions
 

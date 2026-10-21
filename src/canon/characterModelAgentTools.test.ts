@@ -22,6 +22,27 @@ describe("native character-model viewport tools", () => {
     expect(describeCharacterModelAgentCommand(plan.commands[1])).toContain("relaxed");
   });
 
+  it("links a 3D blockout to an explicit approved character-state ID", () => {
+    const plan = parseCharacterModelAgentPlan(JSON.stringify({
+      summary: "Create Ren's older chapter variant from the approved visual state.",
+      commands: [{
+        version: 1, id: "ren-chapter-18", type: "model.createBlockout",
+        characterName: "Ren", characterStateId: "ren-state-18",
+        hair: "long silver hair", outfit: "black battle coat", age: "18",
+      }],
+    }));
+    expect(plan.commands[0]).toMatchObject({
+      type: "model.createBlockout", characterName: "Ren", characterStateId: "ren-state-18",
+    });
+    expect(describeCharacterModelAgentCommand(plan.commands[0])).toContain("ren-state-18");
+  });
+
+  it("detects native model construction and pose requests", () => {
+    expect(isCharacterModelToolRequest("Create a 3D character model for Ren with short black hair.")).toBe(true);
+    expect(isCharacterModelToolRequest("Make Ren flex in the 3D model.")).toBe(true);
+    expect(isCharacterModelToolRequest("Write a scene where Ren flexes after training.")).toBe(false);
+  });
+
   it("rejects unsafe traits, unsupported body types, and unsupported motion names", () => {
     expect(() => parseCharacterModelAgentPlan(JSON.stringify({ summary: "bad name", commands: [
       { version: 1, id: "create", type: "model.createBlockout", characterName: " " },

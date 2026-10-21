@@ -26,7 +26,7 @@ import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
 import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts } from './canon/styleBible';
 import StyleBibleStudio from './canon/StyleBibleStudio';
-import { buildStoryMemoryContext, filterStoryMemoryAtPoint, retrieveStoryMemory, shouldCaptureStoryMemory } from './canon/storyMemory';
+import { buildStoryMemoryContext, filterStoryMemoryAtPoint, retrieveStoryMemory, shouldCaptureStoryMemory, type StoryThreadType, type StoryThreadAudienceTreatment } from './canon/storyMemory';
 import { proposeVisualStatesFromEvidence } from './canon/visualStateCapture';
 import { missingChapterRecallMessage } from './canon/recallGuard';
 import StoryVault from './canon/StoryVault';
@@ -201,11 +201,11 @@ const captureStory = shouldCaptureStoryMemory(text)
 if(activeProjectId && captureStory){
   try {
     const extraction=await provider.generate({role:'planning',messages:[
-      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}],"visualStates":[{"characterName":"exact character name","evidence":"exact contiguous quote copied from the user message","chapterNumber":12,"storyOrder":12,"age":"exact substring or empty","hair":"exact substring or empty","eyes":"exact substring or empty","scars":"exact substring or empty","outfit":"exact substring or empty","body":"exact substring or empty","accessories":"exact substring or empty","injuries":"exact substring or empty","other":"exact substring or empty"}]}. Only create visualStates for explicit appearance changes or a clearly described first visual design, and only when the evidence explicitly names a chapter number. Every non-empty appearance field must be an exact substring of evidence, and characterName must appear verbatim in evidence. chapterNumber must be explicitly stated in evidence. storyOrder may default to chapterNumber but is only a proposal for user correction, especially for flashbacks. Never infer a scar, age, hair, outfit, injury, or other visual detail. If there are no supported details, return empty arrays. Also return newCharacters:[{"name":"exact character name","evidence":"exact contiguous quote copied from the user message","aliases":["only explicitly stated alternate names"]}] only for a clearly introduced or first-appearing named character. Every name and alias must appear verbatim in evidence. If introduction is ambiguous, omit it. Never approve canon; every result is only a proposal for human review.'},
+      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}],"storyThreads":[{"type":"foreshadowing|easter-egg|cameo|callback|mystery|red-herring|recurring-motif","title":"short title","evidence":"an exact contiguous user quote explicitly connecting the clue to its planned payoff","clueDescription":"what should appear subtly in the early chapter","plannedPayoff":"explicitly stated future payoff, or Unknown — not specified by author","audienceTreatment":"background-only|subtle-hint|visible-callback|explicit-reveal|author-only","plantChapterNumber":1,"plantStoryOrder":10,"plantTimelineId":"main","payoffChapterNumber":20,"payoffStoryOrder":200,"payoffTimelineId":"main","linkedEntities":["exact entity names appearing in evidence"]}],"visualStates":[{"characterName":"exact character name","evidence":"exact contiguous quote copied from the user message","chapterNumber":12,"storyOrder":12,"age":"exact substring or empty","hair":"exact substring or empty","eyes":"exact substring or empty","scars":"exact substring or empty","outfit":"exact substring or empty","body":"exact substring or empty","accessories":"exact substring or empty","injuries":"exact substring or empty","other":"exact substring or empty"}]}. Only create visualStates for explicit appearance changes or a clearly described first visual design, and only when the evidence explicitly names a chapter number. Every non-empty appearance field must be an exact substring of evidence, and characterName must appear verbatim in evidence. chapterNumber must be explicitly stated in evidence. storyOrder may default to chapterNumber but is only a proposal for user correction, especially for flashbacks. Never infer a scar, age, hair, outfit, injury, or other visual detail. If there are no supported details, return empty arrays. Also return newCharacters:[{"name":"exact character name","evidence":"exact contiguous quote copied from the user message","aliases":["only explicitly stated alternate names"]}] only for a clearly introduced or first-appearing named character. Every name and alias must appear verbatim in evidence. If introduction is ambiguous, omit it. For storyThreads, create an item ONLY when the user explicitly describes an intentional clue/cameo/callback and a future payoff or explicitly asks to track the thread. Do not invent a secret identity, relationship, payoff, chapter, order, or timeline. Evidence must be an exact contiguous quote. Only fill plantChapterNumber/payoffChapterNumber if the corresponding chapter is explicitly named in evidence; only fill story-order fields if an explicit story order is written; only fill timeline fields when the user explicitly specifies a timeline. linkedEntities must be exact names present verbatim in evidence. audienceTreatment must reflect what the author explicitly wants readers to see; otherwise use subtle-hint for an explicit understated clue and label this as a proposal. The planned payoff is author-only planning information and must not be included in early reader-facing narration unless the user asks for that reveal. Never approve canon; every result is only a proposal for human review.'},
       {role:'user',content:text}
     ],temperature:0,maxOutputTokens:1000,responseFormat:'json'},model);
     if(!requestIsCurrent())return;
-    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>;newCharacters?:Array<{name?:string;evidence?:string;aliases?:string[]}>;visualStates?:Array<{characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>};
+    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>;storyThreads?:Array<{type?:string;title?:string;evidence?:string;clueDescription?:string;plannedPayoff?:string;audienceTreatment?:string;plantChapterNumber?:number;plantStoryOrder?:number;plantTimelineId?:string;payoffChapterNumber?:number;payoffStoryOrder?:number;payoffTimelineId?:string;linkedEntities?:string[]}>;newCharacters?:Array<{name?:string;evidence?:string;aliases?:string[]}>;visualStates?:Array<{characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>};
     const candidates=Array.isArray(parsed.memories)?parsed.memories:[];
     let saved=0;
     for(const item of candidates.slice(0,8)){
@@ -218,6 +218,50 @@ if(activeProjectId && captureStory){
       const now=new Date().toISOString();
       await storyMemoryStorage.save({id:crypto.randomUUID(),projectId:activeProjectId,kind:item.kind as 'chapter'|'event'|'character-change'|'visual-reference'|'panel-template',title,summary:evidence,chapterNumber:chapterFromEvidence?Number(chapterFromEvidence[1]):undefined,entityIds,tags:[],source:'user',status:'proposed',assetRefs:[],supersedes:[],createdAt:now,updatedAt:now});
       saved++;
+    }
+    let threadSaved=0;
+    const threadCandidates=Array.isArray(parsed.storyThreads)?parsed.storyThreads:[];
+    const threadTypes:StoryThreadType[]=['foreshadowing','easter-egg','cameo','callback','mystery','red-herring','recurring-motif'];
+    const audienceTreatments:StoryThreadAudienceTreatment[]=['background-only','subtle-hint','visible-callback','explicit-reveal','author-only'];
+    for(const item of threadCandidates.slice(0,12)){
+      const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
+      const title=typeof item.title==='string'?item.title.trim().slice(0,180):'';
+      const clueDescription=typeof item.clueDescription==='string'?item.clueDescription.trim().slice(0,1600):'';
+      const plannedPayoff=typeof item.plannedPayoff==='string'?item.plannedPayoff.trim().slice(0,1600):'';
+      if(!evidence||!text.includes(evidence)||!title||!clueDescription||!plannedPayoff)continue;
+      if(!threadTypes.includes(item.type as StoryThreadType)||!audienceTreatments.includes(item.audienceTreatment as StoryThreadAudienceTreatment))continue;
+      const explicitChapters=[...evidence.matchAll(/\\b(?:chapter|ch\\.?)\\s*#?\\s*(\\d+)\\b/gi)].map(match=>Number(match[1]));
+      const explicitOrders=[...evidence.matchAll(/\\b(?:story\\s+order|storyOrder)\\s*[:#]?\\s*(\\d+)\\b/gi)].map(match=>Number(match[1]));
+      const explicitTimelines=[...evidence.matchAll(/\\b(?:plant|payoff|on|in)?\\s*timeline(?:\\s+id)?\\s*[:#]?\\s*([A-Za-z0-9_-]+)\\b/gi)].map(match=>match[1]);
+      const plantChapter=Number.isInteger(item.plantChapterNumber)&&explicitChapters.includes(Number(item.plantChapterNumber))?Number(item.plantChapterNumber):undefined;
+      const payoffChapter=Number.isInteger(item.payoffChapterNumber)&&explicitChapters.includes(Number(item.payoffChapterNumber))?Number(item.payoffChapterNumber):undefined;
+      const plantOrder=Number.isFinite(item.plantStoryOrder)&&explicitOrders.includes(Number(item.plantStoryOrder))?Number(item.plantStoryOrder):undefined;
+      const payoffOrder=Number.isFinite(item.payoffStoryOrder)&&explicitOrders.includes(Number(item.payoffStoryOrder))?Number(item.payoffStoryOrder):undefined;
+      const timelineMention=(value:unknown)=>typeof value==='string'&&explicitTimelines.includes(value)?value:undefined;
+      const plantTimeline=timelineMention(item.plantTimelineId);
+      const payoffTimeline=timelineMention(item.payoffTimelineId);
+      const linkedEntityIds=(Array.isArray(item.linkedEntities)?item.linkedEntities:[])
+        .filter((name):name is string=>typeof name==='string'&&name.trim().length>0&&evidence.toLocaleLowerCase().includes(name.toLocaleLowerCase()))
+        .slice(0,12).map(name=>name.trim().toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,'-').replace(/^-|-$/g,''));
+      const now=new Date().toISOString();
+      await storyMemoryStorage.save({
+        id:crypto.randomUUID(),projectId:activeProjectId,kind:'event',title,summary:evidence,
+        ...(plantChapter===undefined?{}:{chapterNumber:plantChapter}),
+        ...(plantOrder===undefined?{}:{storyOrder:plantOrder}),
+        ...(plantTimeline?{timelineId:plantTimeline}:{}),
+        entityIds:linkedEntityIds,tags:['narrative-thread',item.type as string,item.audienceTreatment as string],
+        source:'user',status:'proposed',assetRefs:[],supersedes:[],
+        storyThread:{
+          type:item.type as StoryThreadType,audienceTreatment:item.audienceTreatment as StoryThreadAudienceTreatment,
+          clueDescription,plannedPayoff,
+          ...(payoffChapter===undefined?{}:{payoffChapterNumber:payoffChapter}),
+          ...(payoffOrder===undefined?{}:{payoffStoryOrder:payoffOrder}),
+          ...(payoffTimeline?{payoffTimelineId:payoffTimeline}:{}),
+          linkedEntityIds,
+        },
+        createdAt:now,updatedAt:now,
+      });
+      threadSaved++;
     }
     let characterSaved=0;
     const characterCandidates=Array.isArray(parsed.newCharacters)?parsed.newCharacters:[];
@@ -240,8 +284,8 @@ if(activeProjectId && captureStory){
       }
     }
     if(!requestIsCurrent())return;
-    if(saved||visualSaved||characterSaved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+', '+characterSaved+' new-character proposal'+(characterSaved===1?'':'s')+', and '+visualSaved+' character-visual proposal'+(visualSaved===1?'':'s')+' from exact quotes in your message. They are unapproved proposals in Creative Vault, not canon. Check each character identity and the chronological story order—especially for flashbacks—before approving them.'}]);
-    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail, first-appearance candidate, or chapter-specific visual change to capture. Nothing was added to the Story Vault, World Bible, or Style Bible.'}]);
+    if(saved||visualSaved||characterSaved||threadSaved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+', '+threadSaved+' narrative-thread proposal'+(threadSaved===1?'':'s')+', '+characterSaved+' new-character proposal'+(characterSaved===1?'':'s')+', and '+visualSaved+' character-visual proposal'+(visualSaved===1?'':'s')+' from exact quotes in your message. They are unapproved proposals in Creative Vault, not canon. Future payoffs are stored as author-only planning notes, not automatically exposed in the early chapter. Check entity identities, timeline scope, and chronological order—especially for flashbacks—before approving them.'}]);
+    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail, explicit clue-to-payoff thread, first-appearance candidate, or chapter-specific visual change to capture. Nothing was added to the Story Vault, World Bible, or Style Bible.'}]);
   } catch { if(requestIsCurrent())setMessages(m=>[...m,{role:'kuro',text:'I could not safely draft story-memory proposals from that message. Nothing was added; you can still record it directly in Creative Vault.'}]); }
 }
 }}catch(e){if(requestIsCurrent())setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the provider settings and connection, then try again.'}]);}finally{if(requestIsCurrent())setWorking(false);}}

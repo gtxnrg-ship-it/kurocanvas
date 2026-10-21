@@ -32,8 +32,12 @@ export function createConfiguredProvider(
   });
 }
 
-export async function prepareLocalTinyModel(onProgress?: (progress: { percent: number; file?: string; status: string }) => void) {
+export async function prepareLocalTinyModel(
+  onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
+  signal?: AbortSignal,
+) {
   localTinyProvider.setProgressListener(onProgress);
-  await localTinyProvider.prepare();
+  await localTinyProvider.prepare(signal);
+  if (signal?.aborted) throw new Error("Local model preparation cancelled.");
   return localTinyProvider.listModels();
 }

@@ -32,6 +32,12 @@ describe("character evolution canon", () => {
     expect(characterStateAt([young, older, proposal, alternate], "u1", "c1", "missing", 100)).toBeUndefined();
   });
 
+  it("fails closed when multiple approved states conflict at the same story point", () => {
+    const conflicting = state({ id: "state-conflict", storyOrder: 10, appearance: { ageYears: 35, hairLength: "floor" } });
+    expect(() => characterStateAt([state(), conflicting], "u1", "c1", "main", 10))
+      .toThrow(/Ambiguous approved character canon/);
+  });
+
   it("calculates age only from established dates and handles birthdays", () => {
     expect(ageOnInWorldDate("2010-10-20", "2026-10-19")).toBe(15);
     expect(ageOnInWorldDate("2010-10-20", "2026-10-20")).toBe(16);

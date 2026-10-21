@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Check, Clock3, History, Plus, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
+import { BookOpen, Check, Clock3, History, Plus, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { storyMemoryStorage } from '../core/storage';
 import type { StoryMemoryRecord } from './storyMemory';
 
 type ProjectChoice = { id: string; name: string };
-type Props = { projectId: string; projects: ProjectChoice[]; onProjectChange: (id: string) => void };
+type Props = { projectId: string; projects: ProjectChoice[]; onProjectChange: (id: string) => void; onOpenDrawing: (id: string) => void };
 type Kind = StoryMemoryRecord['kind'];
 const KINDS: Array<{ value: Kind; label: string }> = [
   { value: 'chapter', label: 'Chapter recap' }, { value: 'event', label: 'Story event' },
@@ -14,7 +14,7 @@ const KINDS: Array<{ value: Kind; label: string }> = [
 const splitList = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
 const chapterLabel = (record: StoryMemoryRecord) => record.chapterNumber === undefined ? 'No chapter set' : 'Chapter ' + record.chapterNumber + (record.sceneNumber === undefined ? '' : ' · Scene ' + record.sceneNumber);
 
-export default function StoryVault({ projectId, projects, onProjectChange }: Props) {
+export default function StoryVault({ projectId, projects, onProjectChange, onOpenDrawing }: Props) {
   const [records, setRecords] = useState<StoryMemoryRecord[]>([]);
   const [kind, setKind] = useState<Kind>('chapter');
   const [title, setTitle] = useState('');
@@ -138,7 +138,7 @@ export default function StoryVault({ projectId, projects, onProjectChange }: Pro
           <div className="story-record-top"><span className="story-kind">{KINDS.find(item => item.value === record.kind)?.label ?? record.kind}</span><span className={'story-status '+record.status}>{record.status === 'approved' ? <><Check size={12}/> Approved</> : record.status === 'proposed' ? <><Clock3 size={12}/> Needs review</> : <><History size={12}/> Older version</>}</span></div>
           <h4>{record.title}</h4><small className="story-record-chapter">{chapterLabel(record)}</small><p>{record.summary}</p>
           {record.entityIds.length > 0 && <div className="story-chips">{record.entityIds.map(id => <span key={id}>{id}</span>)}</div>}
-          {record.assetRefs.length > 0 && <small className="story-assets">Linked assets: {record.assetRefs.join(', ')}</small>}
+          {record.assetRefs.length > 0 && <><small className="story-assets">Linked assets: {record.assetRefs.join(', ')}</small><div className="story-record-actions">{record.assetRefs.filter(asset => asset.startsWith('drawing:')).map(asset => <button key={asset} disabled={busy} onClick={() => onOpenDrawing(asset.slice('drawing:'.length))}><BookOpen size={13}/> Open saved drawing</button>)}</div></>}
           {record.supersedes.length > 0 && <small className="story-assets">Revises: {records.find(item => item.id === record.supersedes[0])?.title ?? record.supersedes.join(', ')}</small>}
           <div className="story-record-actions">{record.status === 'proposed' && <><button disabled={busy} onClick={() => editProposal(record)}><History size={13}/> Edit proposal</button><button disabled={busy} className="story-approve" onClick={() => void approve(record)}><Check size={13}/> Approve memory</button></>}{record.status === 'approved' && <button disabled={busy} onClick={() => supersede(record)}><History size={13}/> Revise / preserve history</button>}<button disabled={busy} className="story-delete" onClick={() => void remove(record)}><Trash2 size={13}/> Delete</button></div>
         </article>)}</div>}

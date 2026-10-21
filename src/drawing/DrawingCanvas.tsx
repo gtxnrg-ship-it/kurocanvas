@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy } from 'lucide-react';
-import { drawingStorage } from '../core/storage';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library } from 'lucide-react';
+import { drawingStorage, storyMemoryStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
@@ -93,7 +93,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 }
 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
-export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void }) {
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -452,6 +452,32 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   };
   const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
+  const saveDrawingToStoryVault = async () => {
+    if (!projectId) { setNotice('Choose a project before linking a drawing to the Story Vault.'); return; }
+    if (!loaded) { setNotice('Wait for this drawing to finish loading before saving a reference.'); return; }
+    const title = globalThis.prompt('Name this reusable panel or drawing template', drawingName || 'Panel template');
+    if (!title?.trim()) return;
+    const chapterText = globalThis.prompt('Chapter number (optional)', '');
+    const chapterNumber = chapterText?.trim() ? Number(chapterText.trim()) : undefined;
+    if (chapterNumber !== undefined && (!Number.isInteger(chapterNumber) || chapterNumber < 0)) { setNotice('Chapter must be a non-negative whole number. Nothing was added.'); return; }
+    setSaveState('saving');
+    try {
+      const now = new Date().toISOString();
+      await drawingStorage.save({ id: drawingId, name: drawingName, version: 1, width: docRef.current.width, height: docRef.current.height, background, strokes, layers, updatedAt: now });
+      await storyMemoryStorage.save({
+        id: crypto.randomUUID(), projectId, kind: 'panel-template', title: title.trim(),
+        summary: 'Reusable drawing asset linked to the exact saved canvas "' + drawingName + '". Open the linked drawing from Story Vault to reuse this composition.',
+        ...(chapterNumber !== undefined ? { chapterNumber } : {}),
+        entityIds: [], tags: ['drawing-asset','panel-template'], source: 'user', status: 'proposed',
+        assetRefs: ['drawing:' + drawingId], supersedes: [], createdAt: now, updatedAt: now,
+      });
+      setSaveState('saved');
+      setNotice('Drawing linked to Story Vault as a proposal. Review and approve it in Creative Vault.');
+    } catch (error) {
+      setSaveState('error'); setNotice('Could not link this drawing to Story Vault: ' + (error instanceof Error ? error.message : 'unknown error'));
+    }
+  };
+
   const exportPng = () => {
     const out = createSurface(docRef.current.width, docRef.current.height);
     const ctx = out?.getContext('2d');
@@ -515,6 +541,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
+  useEffect(() => {
+    if (!requestedDrawingId) return;
+    if (requestedDrawingId !== drawingId) switchDrawing(requestedDrawingId);
+    onDrawingOpened?.();
+  }, [requestedDrawingId]);
   const resetView = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); setNotice('Canvas view centered at 100%'); };
   const createDrawing = () => {
     const name = globalThis.prompt('Name your new drawing', 'Untitled drawing');
@@ -569,7 +600,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       {tool==='text' && <label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
-      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
+      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
     <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>

@@ -687,15 +687,47 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const snapshotStrokes = () => strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
   const removeSelected = () => {
     if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before deleting this object.'); return; }
     setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
     setStrokes(old => old.filter(stroke => stroke.id !== selectedStroke.id)); setSelectedStrokeId(null); setNotice('Selected object deleted · Undo is available');
   };
   const duplicateSelected = () => {
     if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before duplicating this object.'); return; }
     const duplicate: Stroke = { ...selectedStroke, id: crypto.randomUUID(), points: selectedStroke.points.map(point => ({ ...point, x: point.x + 24, y: point.y + 24 })) };
     setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
     setStrokes(old => [...old, duplicate]); setSelectedStrokeId(duplicate.id); setNotice('Object duplicated · Undo is available');
   };
+  const nudgeSelected = (dx: number, dy: number, checkpoint: boolean) => {
+    if (!selectedStroke) return;
+    const layer = layers.find(item => item.id === (selectedStroke.layerId || layers[0]?.id));
+    if (layer?.locked) { setNotice('Unlock "' + layer.name + '" before moving this object.'); return; }
+    if (checkpoint) {
+      setEditUndoStack(old => [...old, snapshotStrokes()]); setHistoryOrder(old => [...old, 'edit']);
+      setRedoOrder([]); setEditRedoStack([]); setRedoStack([]); setPlanRedoStack([]);
+    }
+    setStrokes(old => old.map(stroke => stroke.id === selectedStroke.id ? { ...stroke, points: stroke.points.map(point => ({ ...point, x: point.x + dx, y: point.y + dy })) } : stroke));
+    setNotice('Moved selected object ' + (dx || dy ? '· Undo is available' : ''));
+  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(target.tagName))) return;
+      const key = event.key.toLowerCase();
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && key === 'd' && selectedStroke) { event.preventDefault(); duplicateSelected(); return; }
+      if (modifier || event.altKey || !selectedStroke) return;
+      if (key === 'delete' || key === 'backspace') { event.preventDefault(); removeSelected(); return; }
+      if (tool !== 'select') return;
+      const step = event.shiftKey ? 10 : 1;
+      const delta = key === 'arrowleft' ? [-step,0] : key === 'arrowright' ? [step,0] : key === 'arrowup' ? [0,-step] : key === 'arrowdown' ? [0,step] : null;
+      if (delta) { event.preventDefault(); nudgeSelected(delta[0], delta[1], !event.repeat); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [tool, selectedStrokeId, strokes, layers, duplicateSelected, removeSelected, nudgeSelected]);
   const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
   const importReferenceImage = async (file?: File) => {

@@ -24,6 +24,40 @@ export interface StoryMemoryQuery {
   kinds?: StoryMemoryRecord["kind"][]; includeProposed?: boolean; limit?: number;
 }
 export interface StoryMemoryResult { records: StoryMemoryRecord[]; assetRefs: string[]; warnings: string[] }
+
+export interface StoryMemoryTemporalTarget {
+  productionRequest: boolean;
+  chapterNumber?: number;
+  storyOrder?: number;
+}
+
+/**
+ * Hard filter for story-writing retrieval. A lexical match never overrides chronology.
+ * If the target point is unknown, chronology-bearing records are withheld rather than
+ * assuming that unnumbered or future material belongs in the current scene.
+ */
+export function filterStoryMemoryAtPoint(
+  records: readonly StoryMemoryRecord[],
+  projectId: string,
+  target: StoryMemoryTemporalTarget,
+): StoryMemoryRecord[] {
+  const owned = records.filter(record => record.projectId === projectId);
+  if (!target.productionRequest) return owned;
+  const chapter = target.chapterNumber;
+  const order = target.storyOrder;
+  if (chapter === undefined && order === undefined) return [];
+  if (chapter !== undefined && (!Number.isInteger(chapter) || chapter < 0)) {
+    throw new Error("Target chapter must be a non-negative integer.");
+  }
+  if (order !== undefined && (!Number.isFinite(order) || order < 0)) {
+    throw new Error("Target story order must be non-negative and finite.");
+  }
+  return owned.filter(record => {
+    if (chapter !== undefined && (record.chapterNumber === undefined || record.chapterNumber > chapter)) return false;
+    if (order !== undefined && (record.storyOrder === undefined || record.storyOrder > order)) return false;
+    return true;
+  });
+}
 const normalize = (s: string) => s.normalize("NFKC").toLocaleLowerCase().trim();
 const tokenize = (s: string) => normalize(s).split(/[^\p{L}\p{N}]+/u).filter(token => token.length > 1);
 export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: string): string[] {

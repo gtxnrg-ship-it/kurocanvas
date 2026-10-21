@@ -75,18 +75,15 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
 
   for (const entity of characterEntities) {
     const allHistory = states.filter(state => state.characterId === entity.id);
-    let hidden = false;
+    let hidden = true;
     if (point.storyOrder !== undefined && point.timelineId && !point.ambiguous) {
-      hidden = characterRevealStatusAt(gate.states, gate.universeId, entity.id, point.timelineId, point.storyOrder) === "hidden";
-    } else if (point.ambiguous) {
-      // An ambiguous timeline never grants permission to expose a character prepared in any branch.
-      hidden = allHistory.some(state => state.revealAtStoryOrder !== undefined
-        || states.some(candidate => candidate.characterId === entity.id && candidate.timelineId === state.timelineId
-          && characterRevealStatusAt(gate.states, gate.universeId, entity.id, state.timelineId, state.storyOrder) === "hidden"));
-    } else {
-      // No reliable story coordinate: explicit spoiler gates fail closed.
-      hidden = allHistory.some(state => state.revealAtStoryOrder !== undefined);
+      // A resolved story point may use only an approved state on this exact timeline.
+      // "Unknown" is not treated as permission to invent or reveal a preloaded character.
+      hidden = characterRevealStatusAt(gate.states, gate.universeId, entity.id, point.timelineId, point.storyOrder) !== "available";
     }
+    // If the target is missing or timelines disagree, every character is withheld from
+    // generated story context until the author supplies a resolvable point in the timeline.
+
     if (hidden) {
       hiddenIds.add(entity.id);
       hiddenNames.add(entity.name);
@@ -168,8 +165,10 @@ export function buildApprovedCanonContext(
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);
     source = filtered.bundle;
-    if (filtered.hiddenCount || filtered.unresolvedTarget) {
-      revealNotice = "STORY OUTPUT REVEAL GUARD: Preloaded cast not yet safe to reveal and any facts identifying them have been withheld. Do not name, describe, count, hint at, or otherwise expose withheld characters. If the requested chapter/timeline cannot be mapped to approved story order, ask for that mapping instead of guessing.";
+    if (filtered.unresolvedTarget) {
+      revealNotice = "STORY OUTPUT CONTINUITY GUARD: The requested chapter/timeline does not map to one approved story point. Character identities, appearance facts, and reveal-sensitive canon are withheld. Ask for the chapter/timeline mapping rather than inventing which characters or designs belong in this scene.";
+    } else if (filtered.hiddenCount) {
+      revealNotice = "STORY OUTPUT REVEAL GUARD: Preloaded or not-yet-eligible cast and any facts identifying them have been withheld. Do not name, describe, count, hint at, or otherwise expose withheld characters before their approved reveal point.";
     }
   }
 

@@ -74,9 +74,9 @@ export function buildKuroConversationTurns(
   };
 
   // Give the recent exchange most of the budget, but not all of it.
-  const recentBudget = Math.floor(safeTotal * 0.62);
+  const recentBudget = Math.floor(safeTotal * 0.28);
   let recentUsed = 0;
-  const recentFloor = Math.min(6, candidates.length, safeLimit);
+  const recentFloor = Math.min(4, candidates.length, safeLimit);
   for (let i = candidates.length - 1; i >= 0; i--) {
     const item = candidates[i];
     if (selected.size >= recentFloor && recentUsed >= recentBudget) break;

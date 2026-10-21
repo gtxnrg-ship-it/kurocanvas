@@ -764,6 +764,7 @@ export interface ImportedProjectBundle {
   references: ReferenceSourceRecord[];
   characterModels: CharacterModelRecord[];
   drawings: LocalDrawingDocument[];
+  drawingRevisions: DrawingRevision[];
   memories: StoryMemoryRecord[];
   universes: UniverseRecord[];
   conversations: ConversationRecord[];
@@ -793,7 +794,8 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
 
   const collections: Array<[string, unknown]> = [
     ["reference sources", bundle.references], ["3D character models", bundle.characterModels],
-    ["drawings", bundle.drawings], ["story memories", bundle.memories], ["universes", bundle.universes],
+    ["drawings", bundle.drawings], ["drawing revisions", bundle.drawingRevisions],
+    ["story memories", bundle.memories], ["universes", bundle.universes],
     ["conversations", bundle.conversations], ["chat messages", bundle.messages],
     ["relationship history", bundle.relationships], ["character timeline states", bundle.characterStates],
   ];
@@ -829,6 +831,20 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
       || drawing.version !== 1 || !Number.isFinite(drawing.width) || drawing.width <= 0
       || !Number.isFinite(drawing.height) || drawing.height <= 0 || !Array.isArray(drawing.strokes)) {
       errors.push("Imported drawing is invalid or belongs to a different project.");
+    }
+  }
+  const drawingIds = new Set(bundle.drawings.map(drawing => drawing.id));
+  for (const revision of bundle.drawingRevisions) {
+    if (!revision || typeof revision.id !== "string" || !revision.id.trim()
+      || typeof revision.title !== "string" || !revision.title.trim()
+      || !drawingIds.has(revision.drawingId)
+      || revision.document?.id !== revision.drawingId
+      || revision.document?.projectId !== projectId
+      || revision.document?.version !== 1
+      || !Number.isFinite(revision.document?.width) || revision.document.width <= 0
+      || !Number.isFinite(revision.document?.height) || revision.document.height <= 0
+      || !Array.isArray(revision.document?.strokes)) {
+      errors.push("Imported drawing revision is invalid or references a missing drawing.");
     }
   }
   for (const memory of bundle.memories) errors.push(...validateStoryMemoryRecord(memory, projectId));
@@ -880,7 +896,7 @@ export async function saveImportedProjectBundle(bundle: ImportedProjectBundle): 
 
   const stores = [
     PROJECTS, CANON, ART_DIRECTION, STYLE_BIBLE, REFERENCE_SOURCES, CHARACTER_MODELS,
-    DRAWINGS, STORY_MEMORY, UNIVERSES, CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION,
+    DRAWINGS, DRAWING_REVISIONS, STORY_MEMORY, UNIVERSES, CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION,
   ];
   const db = await openDatabase();
   try {
@@ -907,6 +923,7 @@ export async function saveImportedProjectBundle(bundle: ImportedProjectBundle): 
         for (const reference of bundle.references) tx.objectStore(REFERENCE_SOURCES).add(reference);
         for (const model of bundle.characterModels) tx.objectStore(CHARACTER_MODELS).add(model);
         for (const drawing of bundle.drawings) tx.objectStore(DRAWINGS).add(drawing);
+        for (const revision of bundle.drawingRevisions) tx.objectStore(DRAWING_REVISIONS).add(revision);
         for (const memory of bundle.memories) tx.objectStore(STORY_MEMORY).add(memory);
         for (const universe of bundle.universes) tx.objectStore(UNIVERSES).add(universe);
         for (const conversation of bundle.conversations) tx.objectStore(CONVERSATIONS).add(conversation);

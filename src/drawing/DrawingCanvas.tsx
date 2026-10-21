@@ -364,7 +364,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
-    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), brushPreset: tool === 'eraser' ? undefined : brushPreset, color, size, points: [start] };
+    activeRef.current = { id: crypto.randomUUID(), layerId: activeLayerId, tool: tool === 'eraser' ? 'eraser' : 'brush', shape: tool === 'line' || tool === 'rectangle' || tool === 'ellipse' || tool === 'panel' ? tool : undefined, filled: fillShapes && (tool === 'rectangle' || tool === 'ellipse'), brushPreset: tool === 'brush' ? brushPreset : undefined, color, size, points: [start] };
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {

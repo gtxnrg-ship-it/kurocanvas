@@ -53,10 +53,36 @@ describe("LocalTinyModelProvider", () => {
     expect(result.finishReason).toBe("cancelled");
   });
 
+  it("does not start a worker or download weights from a normal chat request", async () => {
+    const { sent, state } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => ({
+      ...fakeWorker(true).worker,
+      postMessage: request => { sent.push(request); },
+    }));
+    const model = (await provider.listModels())[0];
+    expect(model.installed).toBe(false);
+    await expect(provider.generate({
+      role: "reasoning",
+      messages: [{ role: "user", content: "Let's make a character." }],
+    }, model)).rejects.toThrow(/will not download model weights from an ordinary chat message/i);
+    expect(sent).toEqual([]);
+    expect(state.terminated).toBe(false);
+  });
+
+  it("marks the descriptor prepared only after the explicit preparation request succeeds", async () => {
+    const { worker } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
+    expect((await provider.listModels())[0].installed).toBe(false);
+    await provider.prepare();
+    expect((await provider.listModels())[0].installed).toBe(true);
+    expect(provider.isPrepared()).toBe(true);
+  });
+
   it("runs generation through an injected worker and returns its result", async () => {
     const { worker, sent } = fakeWorker(true);
     const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];
+    await provider.prepare();
     const result = await provider.generate({
       role: "fast-helper",
       messages: [{ role: "user", content: "Help plan a panel." }],
@@ -73,6 +99,7 @@ describe("LocalTinyModelProvider", () => {
     const { worker, sent } = fakeWorker(true);
     const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];
+    await provider.prepare();
     await provider.generate({
       role: "planning",
       messages: [{ role: "user", content: "Plan a multi-panel page with editable native strokes." }],
@@ -86,6 +113,7 @@ describe("LocalTinyModelProvider", () => {
     const { worker, sent } = fakeWorker(true);
     const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];
+    await provider.prepare();
     await provider.generate({
       role: "story-writing",
       messages: [{ role: "user", content: "Continue." }],
@@ -111,9 +139,10 @@ describe("LocalTinyModelProvider", () => {
   });
 
   it("actually terminates the worker when inference is cancelled", async () => {
-    const { worker, state } = fakeWorker(false);
+    const { worker, state } = fakeWorker(false, true);
     const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];
+    await provider.prepare();
     const controller = new AbortController();
     const pending = provider.generate({
       role: "fast-helper",
@@ -136,7 +165,7 @@ describe("LocalTinyModelProvider", () => {
   });
 });
 
-function fakeWorker(autoRespond: boolean): { worker: ModelWorker; sent: WorkerRequest[]; state: { terminated: boolean } } {
+function fakeWorker(autoRespond: boolean, respondToPrepare = autoRespond): { worker: ModelWorker; sent: WorkerRequest[]; state: { terminated: boolean } } {
   const sent: WorkerRequest[] = [];
   const state = { terminated: false };
   let worker: ModelWorker;
@@ -145,7 +174,7 @@ function fakeWorker(autoRespond: boolean): { worker: ModelWorker; sent: WorkerRe
     onerror: null,
     postMessage(request: WorkerRequest) {
       sent.push(request);
-      if (!autoRespond) return;
+      if (request.type === "prepare" ? !respondToPrepare : !autoRespond) return;
       const response: WorkerResponse = request.type === "prepare"
         ? { id: request.id, type: "ready" }
         : { id: request.id, type: "result", text: "Kuro worker response", outputTokens: 5, finishReason: "stop" };

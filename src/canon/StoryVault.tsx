@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { BookOpen, Check, Clock3, History, Plus, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { storyMemoryStorage } from '../core/storage';
-import { validateStoryMemoryForApproval, type StoryMemoryRecord } from './storyMemory';
+import { validateStoryMemoryForApproval, type StoryMemoryRecord, type StoryThreadAudienceTreatment, type StoryThreadPlan, type StoryThreadType } from './storyMemory';
 
 type ProjectChoice = { id: string; name: string };
 type Props = { projectId: string; projects: ProjectChoice[]; onProjectChange: (id: string) => void; onOpenDrawing: (id: string) => void };
@@ -26,6 +26,13 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
   const [entities, setEntities] = useState('');
   const [tags, setTags] = useState('');
   const [assets, setAssets] = useState('');
+  const [threadType, setThreadType] = useState<StoryThreadType | ''>('');
+  const [threadAudience, setThreadAudience] = useState<StoryThreadAudienceTreatment>('subtle-hint');
+  const [threadClue, setThreadClue] = useState('');
+  const [threadPayoff, setThreadPayoff] = useState('');
+  const [threadPayoffChapter, setThreadPayoffChapter] = useState('');
+  const [threadPayoffOrder, setThreadPayoffOrder] = useState('');
+  const [threadPayoffTimeline, setThreadPayoffTimeline] = useState('');
   const [query, setQuery] = useState('');
   const [timelineEntity, setTimelineEntity] = useState('');
   const [filter, setFilter] = useState<'all'|'approved'|'proposed'|'superseded'>('all');
@@ -44,7 +51,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return records.filter(record => (filter === 'all' || record.status === filter) &&
-      (!needle || [record.title, record.summary, ...record.tags, ...record.entityIds].join(' ').toLocaleLowerCase().includes(needle)))
+      (!needle || [record.title, record.summary, ...record.tags, ...record.entityIds, ...(record.storyThread ? [record.storyThread.type, record.storyThread.audienceTreatment, record.storyThread.clueDescription, record.storyThread.plannedPayoff, ...record.storyThread.linkedEntityIds] : [])].join(' ').toLocaleLowerCase().includes(needle)))
       .sort((a,b) => (b.chapterNumber ?? -1) - (a.chapterNumber ?? -1) || b.updatedAt.localeCompare(a.updatedAt));
   }, [records, query, filter]);
 
@@ -60,7 +67,10 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     if (chapter.trim() && (!Number.isInteger(Number(chapter)) || Number(chapter) < 0)) { setNotice('Chapter must be a non-negative integer.'); return; }
     if (scene.trim() && (!Number.isInteger(Number(scene)) || Number(scene) < 0)) { setNotice('Scene must be a non-negative integer.'); return; }
     if (storyOrder.trim() && (!Number.isFinite(Number(storyOrder)) || Number(storyOrder) < 0)) { setNotice('Story order must be a non-negative number.'); return; }
-    if ((chapter.trim() || storyOrder.trim()) && !timelineId.trim()) { setNotice('Time-bound memories need a timeline ID (for example, main) so alternate histories cannot mix.'); return; }
+    if ((chapter.trim() || storyOrder.trim() || threadType) && !timelineId.trim()) { setNotice('Time-bound memories and narrative threads need a timeline ID (for example, main) so alternate histories cannot mix.'); return; }
+    if (threadPayoffChapter.trim() && (!Number.isInteger(Number(threadPayoffChapter)) || Number(threadPayoffChapter) < 0)) { setNotice('Payoff chapter must be a non-negative integer.'); return; }
+    if (threadPayoffOrder.trim() && (!Number.isFinite(Number(threadPayoffOrder)) || Number(threadPayoffOrder) < 0)) { setNotice('Payoff story order must be a non-negative number.'); return; }
+    if (threadType && (!threadClue.trim() || !threadPayoff.trim())) { setNotice('Describe both the visible clue and its intended payoff. Use “Unknown — not decided” if you have not decided the payoff yet.'); return; }
     setBusy(true);
     try {
       const now = new Date().toISOString();
@@ -72,10 +82,21 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         ...(timelineId.trim() ? { timelineId: timelineId.trim() } : {}),
         entityIds: splitList(entities), tags: splitList(tags), source: 'user', status: 'proposed',
         assetRefs: splitList(assets), supersedes: supersedesId ? [supersedesId] : [],
+        ...(threadType ? { storyThread: {
+          type: threadType,
+          audienceTreatment: threadAudience,
+          clueDescription: threadClue.trim(),
+          plannedPayoff: threadPayoff.trim(),
+          ...(threadPayoffChapter.trim() ? { payoffChapterNumber: Number(threadPayoffChapter) } : {}),
+          ...(threadPayoffOrder.trim() ? { payoffStoryOrder: Number(threadPayoffOrder) } : {}),
+          ...(threadPayoffTimeline.trim() ? { payoffTimelineId: threadPayoffTimeline.trim() } : {}),
+          linkedEntityIds: splitList(entities),
+        } satisfies StoryThreadPlan } : {}),
         createdAt: records.find(item => item.id === editingId)?.createdAt ?? now, updatedAt: now,
       };
       await storyMemoryStorage.save(record);
       setTitle(''); setSummary(''); setEntities(''); setTags(''); setAssets(''); setChapter(''); setScene(''); setStoryOrder(''); setTimelineId(''); setSupersedesId(''); setEditingId(null);
+      setThreadType(''); setThreadAudience('subtle-hint'); setThreadClue(''); setThreadPayoff(''); setThreadPayoffChapter(''); setThreadPayoffOrder(''); setThreadPayoffTimeline('');
       await refresh();
       setNotice(editingId ? 'Proposal updated. It remains unapproved until you review it.' : 'Saved as a proposal. Approve it when the details are accurate; proposals do not count as established canon.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save story memory.'); }
@@ -113,6 +134,11 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     setStoryOrder(record.storyOrder === undefined ? '' : String(record.storyOrder));
     setTimelineId(record.timelineId ?? '');
     setEntities(record.entityIds.join(', ')); setTags(record.tags.join(', ')); setAssets(record.assetRefs.join(', '));
+    setThreadType(record.storyThread?.type ?? ''); setThreadAudience(record.storyThread?.audienceTreatment ?? 'subtle-hint');
+    setThreadClue(record.storyThread?.clueDescription ?? ''); setThreadPayoff(record.storyThread?.plannedPayoff ?? '');
+    setThreadPayoffChapter(record.storyThread?.payoffChapterNumber === undefined ? '' : String(record.storyThread.payoffChapterNumber));
+    setThreadPayoffOrder(record.storyThread?.payoffStoryOrder === undefined ? '' : String(record.storyThread.payoffStoryOrder));
+    setThreadPayoffTimeline(record.storyThread?.payoffTimelineId ?? '');
     setSupersedesId(record.supersedes[0] ?? '');
     setNotice('Editing a proposal. Saving keeps it unapproved until you approve it.');
     globalThis.document?.getElementById('story-memory-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -125,6 +151,11 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     setStoryOrder(record.storyOrder === undefined ? '' : String(record.storyOrder));
     setTimelineId(record.timelineId ?? '');
     setEntities(record.entityIds.join(', ')); setTags(record.tags.join(', ')); setAssets(record.assetRefs.join(', '));
+    setThreadType(record.storyThread?.type ?? ''); setThreadAudience(record.storyThread?.audienceTreatment ?? 'subtle-hint');
+    setThreadClue(record.storyThread?.clueDescription ?? ''); setThreadPayoff(record.storyThread?.plannedPayoff ?? '');
+    setThreadPayoffChapter(record.storyThread?.payoffChapterNumber === undefined ? '' : String(record.storyThread.payoffChapterNumber));
+    setThreadPayoffOrder(record.storyThread?.payoffStoryOrder === undefined ? '' : String(record.storyThread.payoffStoryOrder));
+    setThreadPayoffTimeline(record.storyThread?.payoffTimelineId ?? '');
     setNotice('Revision draft prepared. Edit the summary and approve the new version to preserve this older record for chapter flashbacks.');
     globalThis.document?.getElementById('story-memory-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -149,7 +180,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     </label>
     {!projectId ? <div className="story-vault-empty"><ShieldAlert size={22}/><b>No project selected</b><span>Story memory must be scoped to a project so separate series cannot leak into each other.</span></div> : <>
       <form id="story-memory-editor" className="story-memory-editor" onSubmit={event => void addMemory(event)}>
-        <div className="story-editor-title"><div><Plus size={16}/><b>{editingId ? 'Edit story-memory proposal' : 'Add a memory'}</b></div><span>NEW ITEMS START AS PROPOSALS</span>{editingId && <button type="button" onClick={() => { setEditingId(null); setTitle(''); setSummary(''); setNotice('Proposal editing cancelled.'); }}>Cancel edit</button>}</div>
+        <div className="story-editor-title"><div><Plus size={16}/><b>{editingId ? 'Edit story-memory proposal' : 'Add a memory'}</b></div><span>NEW ITEMS START AS PROPOSALS</span>{editingId && <button type="button" onClick={() => { setEditingId(null); setTitle(''); setSummary(''); setThreadType(''); setThreadClue(''); setThreadPayoff(''); setThreadPayoffChapter(''); setThreadPayoffOrder(''); setThreadPayoffTimeline(''); setNotice('Proposal editing cancelled.'); }}>Cancel edit</button>}</div>
         <label>Memory type<select value={kind} onChange={event => setKind(event.target.value as Kind)}>{KINDS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label>Title<input value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Mira loses her left sleeve" required maxLength={180}/></label>
         <label>What actually happened?<textarea value={summary} onChange={event => setSummary(event.target.value)} placeholder="Record confirmed events, character state, exact visual details, and what must stay consistent…" rows={4} required maxLength={6000}/></label>
@@ -157,6 +188,26 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         <label>Character / entity IDs <small>Comma-separated, stable IDs work best</small><input value={entities} onChange={event => setEntities(event.target.value)} placeholder="mira, silver-oath"/></label>
         <label>Search tags <input value={tags} onChange={event => setTags(event.target.value)} placeholder="flashback, injury, bridge"/></label>
         <label>Reusable asset references <small>Saved panel or template IDs; this links assets, it does not copy files yet</small><input value={assets} onChange={event => setAssets(event.target.value)} placeholder="panel-bridge-03, template-flashback-blue"/></label>
+        <section className="story-thread-editor" aria-label="Optional Easter egg or foreshadowing plan">
+          <label>Narrative thread (optional)<select value={threadType} onChange={event => setThreadType(event.target.value as StoryThreadType | '')}>
+            <option value="">None — ordinary story memory</option>
+            <option value="foreshadowing">Foreshadowing</option><option value="easter-egg">Easter egg</option><option value="cameo">Future cameo</option>
+            <option value="callback">Callback</option><option value="mystery">Mystery</option><option value="red-herring">Red herring</option><option value="recurring-motif">Recurring motif</option>
+          </select></label>
+          {threadType && <>
+            <p className="story-thread-help">This is author-facing planning metadata. Kuro can know the payoff while keeping the actual early chapter subtle. The record stays a proposal until you approve it.</p>
+            <label>What should the reader see?<select value={threadAudience} onChange={event => setThreadAudience(event.target.value as StoryThreadAudienceTreatment)}>
+              <option value="background-only">Background-only appearance</option><option value="subtle-hint">Subtle hint</option><option value="visible-callback">Visible callback</option>
+              <option value="explicit-reveal">Explicit reveal (show the secret now)</option><option value="author-only">Author-only note, nothing visible yet</option>
+            </select></label>
+            <label>Clue / plant description<input value={threadClue} onChange={event => setThreadClue(event.target.value)} placeholder="e.g. a stranger bumps into the protagonist in the hallway" required maxLength={1600}/></label>
+            <label>Intended payoff<textarea value={threadPayoff} onChange={event => setThreadPayoff(event.target.value)} placeholder="What this clue eventually means, or write “Unknown — not decided”" required rows={2} maxLength={1600}/></label>
+            <div className="story-form-grid"><label>Payoff chapter<input type="number" min="0" step="1" value={threadPayoffChapter} onChange={event => setThreadPayoffChapter(event.target.value)} placeholder="Optional"/></label>
+              <label>Payoff story order<input type="number" min="0" step="any" value={threadPayoffOrder} onChange={event => setThreadPayoffOrder(event.target.value)} placeholder="Optional"/></label>
+              <label>Payoff timeline ID<input value={threadPayoffTimeline} onChange={event => setThreadPayoffTimeline(event.target.value)} placeholder="Same as plant by default"/></label>
+            </div>
+          </>}
+        </section>
         <label>Revises earlier memory <select value={supersedesId} onChange={event => setSupersedesId(event.target.value)}><option value="">None — new history</option>{records.filter(record => record.status === 'approved').map(record => <option key={record.id} value={record.id}>{chapterLabel(record)} · {record.title}</option>)}</select></label>
         <div className="story-editor-foot"><span>Saved locally · No model is allowed to silently approve canon.</span><button disabled={busy || !title.trim() || !summary.trim()} type="submit">{editingId ? 'Update proposal' : 'Save proposal'}</button></div>
       </form>
@@ -184,6 +235,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         <div className="story-memory-records">{visible.map(record => <article className={'story-memory-record '+record.status} key={record.id}>
           <div className="story-record-top"><span className="story-kind">{KINDS.find(item => item.value === record.kind)?.label ?? record.kind}</span><span className={'story-status '+record.status}>{record.status === 'approved' ? <><Check size={12}/> Approved</> : record.status === 'proposed' ? <><Clock3 size={12}/> Needs review</> : <><History size={12}/> Older version</>}</span></div>
           <h4>{record.title}</h4><small className="story-record-chapter">{chapterLabel(record)} · Story order {record.storyOrder ?? 'unspecified'} · Timeline {record.timelineId ?? 'global / timeless'}</small><p>{record.summary}</p>
+          {record.storyThread && <div className="story-thread-record"><b>✦ AUTHOR STORY THREAD · {record.storyThread.type}</b><small>Reader treatment: {record.storyThread.audienceTreatment}</small><p><strong>Clue / plant:</strong> {record.storyThread.clueDescription}</p><p><strong>Planned payoff (not for early on-page disclosure):</strong> {record.storyThread.plannedPayoff}</p>{record.storyThread.payoffChapterNumber !== undefined && <small>Payoff chapter {record.storyThread.payoffChapterNumber} · </small>}{record.storyThread.payoffStoryOrder !== undefined && <small>Story order {record.storyThread.payoffStoryOrder} · </small>}{record.storyThread.payoffTimelineId && <small>Timeline {record.storyThread.payoffTimelineId}</small>}</div>}
           {record.entityIds.length > 0 && <div className="story-chips">{record.entityIds.map(id => <span key={id}>{id}</span>)}</div>}
           {record.assetRefs.length > 0 && <><small className="story-assets">Linked assets: {record.assetRefs.join(', ')}</small><div className="story-record-actions">{record.assetRefs.filter(asset => asset.startsWith('drawing:')).map(asset => <button key={asset} disabled={busy} onClick={() => onOpenDrawing(asset.slice('drawing:'.length))}><BookOpen size={13}/> Open saved drawing</button>)}</div></>}
           {record.supersedes.length > 0 && <small className="story-assets">Revises: {records.find(item => item.id === record.supersedes[0])?.title ?? record.supersedes.join(', ')}</small>}

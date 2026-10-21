@@ -168,6 +168,40 @@ describe("OpenAICompatibleProvider", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+
+  it("times out hung model discovery instead of waiting forever", async () => {
+    const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    })) as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      modelListTimeoutMs: 5,
+      fetchImpl,
+    });
+    await expect(provider.listModels()).rejects.toThrow(/timed out/i);
+  });
+
+  it("times out hung generation and returns cancelled when the caller aborts", async () => {
+    const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    })) as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      requestTimeoutMs: 5,
+      fetchImpl,
+    });
+    await expect(provider.generate({ role: "reasoning", messages: [{ role: "user", content: "Hang." }] }, model)).rejects.toThrow(/timed out/i);
+
+    const controller = new AbortController();
+    const pending = provider.generate({ role: "reasoning", messages: [{ role: "user", content: "Cancel." }], signal: controller.signal }, model);
+    controller.abort();
+    await expect(pending).resolves.toMatchObject({ finishReason: "cancelled" });
+  });
+
   it("does not allow a model from a different provider", async () => {
     const provider = new OpenAICompatibleProvider({
       baseUrl: "https://example.com/v1",

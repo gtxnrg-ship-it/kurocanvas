@@ -93,7 +93,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
     }
   }
 
-  if (!hiddenIds.size) return { bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined };
+  if (!hiddenIds.size) return { bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined, hiddenTokens: [] };
   const publicEntities = bundle.entities.filter(entity => !hiddenIds.has(entity.id));
   const tokens = [...hiddenNames].map(value => value.normalize("NFKC").toLocaleLowerCase().trim()).filter(value => value.length >= 3);
   const refersToHiddenCharacter = (value: unknown) => {
@@ -109,7 +109,33 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
     bundle: { ...bundle, entities: publicEntities, facts: publicFacts },
     hiddenCount: hiddenIds.size,
     unresolvedTarget: point.ambiguous || point.storyOrder === undefined,
+    hiddenTokens: tokens,
   };
+}
+
+/** Remove recent dialogue turns that directly mention a still-hidden character before producing story output. */
+export function filterConversationTurnsForRevealGate<T extends { content: unknown }>(
+  turns: readonly T[],
+  bundle: CanonBundle | undefined,
+  gate: CanonRevealGateOptions,
+): T[] {
+  if (!bundle || !gate.enabled) return [...turns];
+  const filtered = filterUnrevealedCanon(bundle, gate);
+  if (!filtered.hiddenTokens.length) return [...turns];
+  const extractText = (value: unknown, depth = 0): string => {
+    if (depth > 5 || value == null) return "";
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) return value.map(item => extractText(item, depth + 1)).join(" ");
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return ["text", "content", "value", "title", "name"].map(key => extractText(record[key], depth + 1)).join(" ");
+    }
+    return "";
+  };
+  return turns.filter(turn => {
+    const text = extractText(turn.content).normalize("NFKC").toLocaleLowerCase();
+    return !filtered.hiddenTokens.some(token => text.includes(token));
+  });
 }
 
 /** Detect requests that create story material, where reveal gates must be enforced. Private brainstorming stays unrestricted. */

@@ -9,7 +9,11 @@ export type CharacterCameraPreset =
   | "full-body"
   | "high-angle";
 
+export type CharacterMotionPreset = "idle" | "relaxed" | "flex" | "combat-ready";
+
 export type CharacterModelAgentCommand =
+  | { version: 1; id: string; type: "model.createBlockout"; characterName: string; hair?: string; age?: string; outfit?: string; skinTone?: string; eyeColor?: string; bodyType?: "slim" | "average" | "athletic" | "stocky" }
+  | { version: 1; id: string; type: "model.motionPreset"; preset: CharacterMotionPreset }
   | { version: 1; id: string; type: "camera.preset"; preset: CharacterCameraPreset }
   | { version: 1; id: string; type: "camera.zoom"; factor: number }
   | { version: 1; id: string; type: "model.rotateView"; degrees: number }
@@ -30,6 +34,9 @@ const MAX_RESPONSE_CHARS = 24_000;
 /** Recognize explicit native 3D-viewport requests; this does not invoke image generation. */
 export function isCharacterModelToolRequest(message: string): boolean {
   const text = message.normalize("NFKC");
+  if (/\b(?:create|build|make|construct)\s+(?:a|an|the|me\s+a)?\s*(?:new\s+)?(?:3d\s+)?(?:character\s+)?(?:model|blockout|figure)\b/i.test(text)) return true;
+  if (/\b(?:make|put|set)\s+(?:the\s+)?(?:character|model)\s+(?:flex|flexing|combat[- ]ready|relaxed|idle|stand(?:ing)?)\b/i.test(text)
+    || /\b(?:flex|flexing|combat[- ]ready|idle animation|motion preset)\b/i.test(text) && /\b(?:character|model|3d|figure|avatar)\b/i.test(text)) return true;
   if (/\b(?:camera|orbit controls?|camera angle|viewport angle|zoom in|zoom out|pan the view)\b/i.test(text)) {
     return /\b(?:character|model|3d|viewport|view|figure|avatar|scene|camera|orbit|zoom)\b/i.test(text);
   }
@@ -63,7 +70,36 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
       throw new Error("Every 3D tool command needs a unique ID, version 1, and a supported type.");
     }
     seen.add(rawCommand.id);
-    if (rawCommand.type === "camera.preset") {
+    if (rawCommand.type === "model.createBlockout") {
+      const allowed = ["version", "id", "type", "characterName", "hair", "age", "outfit", "skinTone", "eyeColor", "bodyType"];
+      if (Object.keys(rawCommand).some(key => !allowed.includes(key))
+        || typeof rawCommand.characterName !== "string" || !rawCommand.characterName.trim() || rawCommand.characterName.length > 120) {
+        throw new Error("Native model creation needs a character name and only supported trait fields.");
+      }
+      for (const key of ["hair", "age", "outfit", "skinTone", "eyeColor"] as const) {
+        if (rawCommand[key] !== undefined && (typeof rawCommand[key] !== "string" || rawCommand[key].trim().length > 160)) {
+          throw new Error("Character trait " + key + " must be a string of at most 160 characters.");
+        }
+      }
+      if (rawCommand.bodyType !== undefined && !["slim", "average", "athletic", "stocky"].includes(String(rawCommand.bodyType))) {
+        throw new Error("Native model body type is unsupported.");
+      }
+      commands.push({
+        version: 1, id: rawCommand.id, type: "model.createBlockout", characterName: rawCommand.characterName.trim(),
+        ...(typeof rawCommand.hair === "string" ? { hair: rawCommand.hair.trim() } : {}),
+        ...(typeof rawCommand.age === "string" ? { age: rawCommand.age.trim() } : {}),
+        ...(typeof rawCommand.outfit === "string" ? { outfit: rawCommand.outfit.trim() } : {}),
+        ...(typeof rawCommand.skinTone === "string" ? { skinTone: rawCommand.skinTone.trim() } : {}),
+        ...(typeof rawCommand.eyeColor === "string" ? { eyeColor: rawCommand.eyeColor.trim() } : {}),
+        ...(rawCommand.bodyType !== undefined ? { bodyType: rawCommand.bodyType as "slim" | "average" | "athletic" | "stocky" } : {}),
+      });
+    } else if (rawCommand.type === "model.motionPreset") {
+      if (Object.keys(rawCommand).some(key => !["version", "id", "type", "preset"].includes(key))
+        || !["idle", "relaxed", "flex", "combat-ready"].includes(String(rawCommand.preset))) {
+        throw new Error("Motion preset must be idle, relaxed, flex, or combat-ready.");
+      }
+      commands.push({ version: 1, id: rawCommand.id, type: "model.motionPreset", preset: rawCommand.preset as CharacterMotionPreset });
+    } else if (rawCommand.type === "camera.preset") {
       if (Object.keys(rawCommand).some(key => !["version", "id", "type", "preset"].includes(key))
         || typeof rawCommand.preset !== "string" || !PRESETS.has(rawCommand.preset as CharacterCameraPreset)) {
         throw new Error("Camera preset is unknown or contains unsupported fields.");
@@ -97,6 +133,8 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
 
 export function describeCharacterModelAgentCommand(command: CharacterModelAgentCommand): string {
   switch (command.type) {
+    case "model.createBlockout": return "Create native procedural 3D blockout for " + command.characterName;
+    case "model.motionPreset": return "Animate procedural character preview: " + command.preset.replace(/-/g, " ");
     case "camera.preset": return "Set camera to " + command.preset.replace(/-/g, " ") + " view";
     case "camera.zoom": return (command.factor >= 1 ? "Zoom in " : "Zoom out ") + Math.round(Math.abs(command.factor - 1) * 100) + "%";
     case "model.rotateView": return "Rotate displayed model by " + command.degrees + "° (view only)";

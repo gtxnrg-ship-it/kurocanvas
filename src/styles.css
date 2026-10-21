@@ -483,3 +483,12 @@
 .drawing-step.status-rolled-back .drawing-step-copy small{color:#c9a875}
 @keyframes drawing-step-pulse{0%,100%{opacity:1}50%{opacity:.48}}
 @media(max-width:780px){.drawing-step-timeline{max-height:175px;padding:6px}.drawing-step{gap:6px;padding:6px 3px}.drawing-step-copy b{font-size:10px}.drawing-step-copy small{font-size:9px}}
+
+.drawing-blocker-progress{display:grid;gap:7px;width:min(100%,640px);color:#d5c6eb;font-size:11px}
+.drawing-blocker-progress progress{width:100%;height:6px;accent-color:#b59af2}
+.drawing-step-timeline-live{width:min(100%,680px);max-height:min(38dvh,320px);margin:3px 0;overflow:auto;border-color:#55476a;background:rgba(12,10,18,.9)}
+.drawing-step-timeline-live .drawing-step-copy b{color:#f0e8ff}
+.drawing-blocker-cancel{align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 14px;border:1px solid #775a91;border-radius:9px;background:#2b1d3c;color:#f1e7ff;font-size:12px;font-weight:650;cursor:pointer}
+.drawing-blocker-cancel:hover{background:#3b2752;border-color:#a58ac4}
+.drawing-blocker-cancel:focus-visible{outline:2px solid #d8c5ff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.drawing-step.status-running .drawing-step-icon{animation:none}}

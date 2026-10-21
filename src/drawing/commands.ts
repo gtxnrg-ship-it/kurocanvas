@@ -191,6 +191,7 @@ export function validateDrawingCommand(
 
   switch (value.type) {
     case "stroke.add": {
+      if (bounds.strokeLayerById && Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.id)) errors.push("Added stroke ID already exists in the active document.");
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Stroke targets an unknown layer.");
       if (typeof value.layerId === "string" && (bounds.lockedLayerIds ?? []).includes(value.layerId)) errors.push("Stroke targets a locked layer.");
       if (value.tool !== "brush" && value.tool !== "eraser") errors.push("Unsupported stroke tool.");
@@ -247,6 +248,7 @@ export function validateDrawingCommand(
       }
       const stroke = value.stroke;
       if (!nonEmptyString(stroke.id, 160)) errors.push("Restored stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, stroke.id)) errors.push("Restored stroke ID already exists in the active document.");
       if (!nonEmptyString(stroke.layerId) || !bounds.layerIds.includes(String(stroke.layerId))) errors.push("Restored stroke targets an unknown layer.");
       if (typeof stroke.layerId === "string" && (bounds.lockedLayerIds ?? []).includes(stroke.layerId)) errors.push("Restored stroke targets a locked layer.");
       if (stroke.tool !== "brush" && stroke.tool !== "eraser") errors.push("Unsupported restored stroke tool.");
@@ -329,12 +331,79 @@ export function validateDrawingPlan(
   }
   const errors: string[] = [];
   const ids = new Set<string>();
+  // Commands execute sequentially, so validate later operations against the native
+  // document shape produced by earlier validated actions (e.g. create a layer, then
+  // draw on it; remove a stroke, then remove its now-empty layer).
+  let current: DrawingDocumentBounds = {
+    ...bounds,
+    layerIds: [...bounds.layerIds],
+    lockedLayerIds: [...(bounds.lockedLayerIds ?? [])],
+    ...(bounds.strokeLayerById ? { strokeLayerById: { ...bounds.strokeLayerById } } : {}),
+  };
+  const moveLayer = (layerId: string, index: number) => {
+    const next = [...current.layerIds];
+    const from = next.indexOf(layerId);
+    if (from < 0) return;
+    next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(next.length, index)), 0, layerId);
+    current = { ...current, layerIds: next };
+  };
   value.forEach((command, index) => {
-    const result = validateDrawingCommand(command, bounds);
+    const result = validateDrawingCommand(command, current);
     for (const error of result.errors) errors.push("Command " + (index + 1) + ": " + error);
     if (record(command) && typeof command.id === "string") {
       if (ids.has(command.id)) errors.push("Duplicate command ID: " + command.id);
       ids.add(command.id);
+    }
+    if (!result.valid || !record(command)) return;
+    switch (command.type) {
+      case "stroke.add":
+        if (current.strokeLayerById) current = { ...current, strokeLayerById: { ...current.strokeLayerById, [command.id as string]: command.layerId as string } };
+        break;
+      case "stroke.remove": {
+        const next = { ...(current.strokeLayerById ?? {}) };
+        delete next[String(command.strokeId)];
+        if (current.strokeLayerById) current = { ...current, strokeLayerById: next };
+        break;
+      }
+      case "stroke.restore":
+        if (current.strokeLayerById && record(command.stroke)) {
+          current = { ...current, strokeLayerById: { ...current.strokeLayerById, [String(command.stroke.id)]: String(command.stroke.layerId) } };
+        }
+        break;
+      case "layer.add": {
+        const layerIds = [...current.layerIds];
+        layerIds.splice(Number(command.index), 0, String(command.layerId));
+        current = { ...current, layerIds };
+        break;
+      }
+      case "layer.remove": {
+        const layerIds = current.layerIds.filter(id => id !== String(command.layerId));
+        current = { ...current, layerIds, lockedLayerIds: (current.lockedLayerIds ?? []).filter(id => id !== String(command.layerId)) };
+        break;
+      }
+      case "layer.restore": {
+        const layerIds = [...current.layerIds];
+        layerIds.splice(Number(command.index), 0, String((command.layer as Record<string, unknown>).id));
+        const lockedLayerIds = [...(current.lockedLayerIds ?? [])];
+        if ((command.layer as Record<string, unknown>).locked === true) lockedLayerIds.push(String((command.layer as Record<string, unknown>).id));
+        current = { ...current, layerIds, lockedLayerIds };
+        break;
+      }
+      case "layer.rename":
+        break;
+      case "layer.reorder":
+        moveLayer(String(command.layerId), Number(command.index));
+        break;
+      case "layer.setLock": {
+        const layerId = String(command.layerId);
+        const lockedLayerIds = (current.lockedLayerIds ?? []).filter(id => id !== layerId);
+        if (command.locked === true) lockedLayerIds.push(layerId);
+        current = { ...current, lockedLayerIds };
+        break;
+      }
+      default:
+        break;
     }
   });
   return { valid: errors.length === 0, errors };

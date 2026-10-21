@@ -39,3 +39,22 @@ export function findMissingDrawingReferences(
       memoryTitles: [...titles].sort((left, right) => left.localeCompare(right)),
     }));
 }
+
+/**
+ * The export manifest includes every saved drawing plus every drawing referenced by memory.
+ * Keeping missing references in the manifest lets preflight fail loudly rather than hide data loss.
+ */
+export function collectProjectExportDrawingIds(
+  memories: readonly DrawingMemoryReference[],
+  availableDrawingIds: Iterable<string>,
+): string[] {
+  const ids = new Set(availableDrawingIds);
+  for (const memory of memories) {
+    for (const reference of memory.assetRefs) {
+      if (!reference.startsWith("drawing:")) continue;
+      const id = reference.slice("drawing:".length).trim();
+      if (id) ids.add(id);
+    }
+  }
+  return [...ids].sort((left, right) => left.localeCompare(right));
+}

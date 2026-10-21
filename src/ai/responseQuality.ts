@@ -66,3 +66,23 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
   }
   return hostedBudget[depth];
 }
+
+
+/**
+ * Turn model finish metadata into honest user-facing chat text.
+ * Structured-output callers still validate/recover JSON with their own schema.
+ */
+export function formatKuroChatResponse(
+  text: string,
+  finishReason: "stop" | "length" | "cancelled" | "error",
+): string {
+  const content = text.trim();
+  if (!content) return "The model returned an empty response. Please try again.";
+  if (finishReason === "length") {
+    return content + "\n\n*I reached Qwen3-0.6B's current output limit, so this reply may be incomplete. Say “continue” and I'll carry on from here.*";
+  }
+  if (finishReason === "error") {
+    return content + "\n\n*This response ended with a model error and may be incomplete.*";
+  }
+  return content;
+}

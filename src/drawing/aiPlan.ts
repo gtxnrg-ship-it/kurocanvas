@@ -47,3 +47,44 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
   const commands = parseDrawingPlan(JSON.stringify(candidate.commands), bounds);
   return { summary: candidate.summary.trim(), commands };
 }
+
+
+export type AIPlanAttempt =
+  | { mode: "initial" }
+  | { mode: "repair"; previousOutput: string; validationError: string };
+
+export interface ValidatedAIPlanResult {
+  plan: AIStrokePlan;
+  repaired: boolean;
+}
+
+/**
+ * Ask for a native plan with one strictly bounded repair attempt. Repairs receive
+ * the exact validator error and original output, but all output still passes through
+ * the same allowlist/document validator; retrying never grants extra tool permission.
+ * Empty plans are valid no-ops and are not retried.
+ */
+export async function requestAIStrokePlan(
+  generate: (attempt: AIPlanAttempt) => Promise<string>,
+  bounds: DrawingDocumentBounds = DEFAULT_BOUNDS,
+): Promise<ValidatedAIPlanResult> {
+  const firstOutput = await generate({ mode: "initial" });
+  try {
+    return { plan: parseAIStrokePlan(firstOutput, bounds), repaired: false };
+  } catch (firstError) {
+    const validationError = firstError instanceof Error ? firstError.message : "The plan failed native validation.";
+    let repairedOutput: string;
+    try {
+      repairedOutput = await generate({ mode: "repair", previousOutput: firstOutput, validationError });
+    } catch (repairError) {
+      const reason = repairError instanceof Error ? repairError.message : "The model could not perform its repair attempt.";
+      throw new Error("Kuro's first drawing plan failed validation (" + validationError + "); the single repair attempt failed: " + reason);
+    }
+    try {
+      return { plan: parseAIStrokePlan(repairedOutput, bounds), repaired: true };
+    } catch (repairError) {
+      const reason = repairError instanceof Error ? repairError.message : "The repaired plan failed native validation.";
+      throw new Error("Kuro's drawing plan failed validation after one repair attempt: " + reason);
+    }
+  }
+}

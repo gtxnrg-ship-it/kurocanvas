@@ -52,9 +52,9 @@ export default function App(){
  let conversationId='';try{conversationId=localStorage.getItem('kuro-active-conversation')||'';}catch{}
  let savedConversation; if(conversationId){try{savedConversation=await conversationStorage.load(conversationId,universe.id);}catch{savedConversation=undefined;}}
  const selectedConversation=savedConversation?.id??universe.homeConversationId;
- const records=await chatMessageStorage.list(universe.id,selectedConversation);
+ const [records,conversations]=await Promise.all([chatMessageStorage.list(universe.id,selectedConversation),conversationStorage.list(universe.id)]);
  if(!alive)return;
- setRecentUniverses(recent);setActiveUniverseId(universe.id);setActiveConversationId(selectedConversation);setActiveProjectId(universe.projectId);
+ setRecentUniverses(recent);setUniverseConversations(conversations.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt})));setActiveUniverseId(universe.id);setActiveConversationId(selectedConversation);setActiveProjectId(universe.projectId);
  persistedMessageCount.current=records.length;setMessages(records.map(item=>({role:item.role==='user'?'user':'kuro',text:item.content})));
  try{localStorage.setItem('kuro-active-universe',universe.id);localStorage.setItem('kuro-active-conversation',selectedConversation);localStorage.setItem('kuro-active-project',universe.projectId);}catch{}
  setCanonNotice('Universe loaded · canon and assets are scoped to this workspace.');

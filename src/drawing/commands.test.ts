@@ -31,6 +31,18 @@ describe("drawing command validation", () => {
     expect(validateDrawingCommand({ ...update, patch: {} }, documentBounds).valid).toBe(false);
     expect(validateDrawingCommand({ ...update, patch: { points: [{ x: 1, y: 1 }] } }, documentBounds).valid).toBe(false);
   });
+  it("validates native transforms only for existing, unlocked strokes", () => {
+    const transform = {
+      version: 1, id: "transform-1", type: "stroke.transform", strokeId: "stroke-existing",
+      translateX: 10, translateY: 15, scaleX: 2, scaleY: 1.5, rotationDegrees: 30,
+    };
+    const documentBounds = { ...bounds, strokeLayerById: { "stroke-existing": "ink" } };
+    expect(validateDrawingCommand(transform, documentBounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...transform, strokeId: "missing" }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand(transform, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
+    expect(validateDrawingCommand({ ...transform, scaleX: 0 }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...transform, rotationDegrees: 999 }, documentBounds).valid).toBe(false);
+  });
   it("parses editable shape and lettering metadata", () => {
     const bubble = { ...validStroke, shape: "bubble", fillColor: "#fffdfb", points: [{x:20,y:30},{x:220,y:140}] };
     expect(validateDrawingCommand(bubble, bounds).valid).toBe(true);

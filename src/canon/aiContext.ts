@@ -139,7 +139,7 @@ export function filterConversationTurnsForRevealGate<T extends { content: unknow
 /** Detect requests that create story material, where reveal gates must be enforced. Private brainstorming stays unrestricted. */
 export function isStoryProductionRequest(message: string): boolean {
   const storyUnit = /\b(?:chapter|scene|panel|episode|page|storyboard|comic|manga|webtoon)\b/i.test(message);
-  const productionAction = /\b(?:write|draft|continue|generate|create|illustrate|draw|render|script|outline|plan|produce|compose|show|include|depict|appear|feature)\b/i.test(message);
+  const productionAction = /\b(?:write|draft|continue|generate|create|illustrate|draw|render|script|outline|plan|produce|compose|show|include|depict|appear|feature|start|begin|make|build|do)\b/i.test(message);
   return storyUnit && productionAction;
 }
 

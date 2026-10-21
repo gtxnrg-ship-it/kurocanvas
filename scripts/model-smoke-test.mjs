@@ -25,6 +25,7 @@ async function request(path, init = {}) {
   const response = await fetch(baseUrl + path, {
     ...init,
     headers: { ...headers, ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers },
+    signal: init.signal || AbortSignal.timeout(30_000),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {

@@ -74,6 +74,7 @@ export interface RestoreStrokeCommand {
     tool: "brush" | "eraser";
     color: string;
     size: number;
+    opacity?: number;
     points: DrawingPoint[];
   /** Optional native canvas primitive metadata; these remain editable strokes. */
   shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReferenceContext, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
+import { buildReferenceContext, extractReferenceSearchQuery, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
 
 const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSourceRecord => ({
   id: "ref-1", projectId: "project-1", title: "Rainy city street", description: "Night street with reflections",
@@ -11,6 +11,18 @@ const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSource
 });
 
 describe("reference scout", () => {
+  it("recognizes explicit image-reference searches but leaves ordinary prose alone", () => {
+    expect(extractReferenceSearchQuery("Find reference images for a medieval Kyoto street at night"))
+      .toBe("a medieval Kyoto street at night");
+    expect(extractReferenceSearchQuery("Please search for photos of 19th century steam trains"))
+      .toBe("19th century steam trains");
+    expect(extractReferenceSearchQuery("Search Wikimedia Commons for weathered wooden shrine gates"))
+      .toBe("weathered wooden shrine gates");
+    expect(extractReferenceSearchQuery("What images should I describe in chapter three?")).toBeUndefined();
+    expect(extractReferenceSearchQuery("Find reference images, please")).toBeUndefined();
+  });
+
+
   it("parses Wikimedia image metadata and ignores insecure/malformed records", () => {
     const results = parseWikimediaSearchResponse({
       query: { pages: {

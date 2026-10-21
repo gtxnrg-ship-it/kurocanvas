@@ -35,7 +35,7 @@ export async function assessDevice(): Promise<DeviceAssessment> {
     "Performance rating stays provisional until this exact model/runtime completes a real benchmark."
   ];
   if (nav?.deviceMemory === undefined) notes.push("This browser does not expose device memory; Kuro will use conservative estimates.");
-  if (typeof GPU === "undefined" || !("gpu" in (globalThis as unknown as Record<string, unknown>))) notes.push("WebGPU availability is not exposed in this environment.");
+  if (!(nav as Navigator & { gpu?: unknown } | undefined)?.gpu) notes.push("WebGPU is not available or not exposed in this environment.");
   return {
     environment,
     browser: /edg\//i.test(ua) ? "Edge" : /firefox\//i.test(ua) ? "Firefox" : /chrome\//i.test(ua) ? "Chromium browser" : /safari/i.test(ua) ? "Safari" : "Unknown browser",

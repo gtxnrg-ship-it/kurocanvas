@@ -51,7 +51,7 @@ function createProceduralCharacter(group: THREE.Group, traits?: { hair?: string;
     : /red|crimson/i.test(outfitText) ? "#8f3c4a" : "#536d9d";
   const skin = "#d5ad92", trousers = "#292f42", shoes = "#171b24";
   addMesh(group,new THREE.SphereGeometry(.32,32,24),skin,[0,2.04,0],[.82,1.08,.78]);
-  addMesh(group,new THREE.SphereGeometry(.335,32,24),hair,[0,shavedHair?2.2:2.245,-.035],[1.04,shavedHair?.32:longHair?.66:.52,.93]);
+  addMesh(group,new THREE.SphereGeometry(.335,32,24),hair,[0,shavedHair?2.2:2.245,-.035],[1.04, shavedHair ? 0.32 : longHair ? 0.66 : 0.52, .93]);
   addMesh(group,new THREE.SphereGeometry(.25,24,20),hair,[0,longHair?1.86:1.99,-.19],[longHair?1.2:1.15,longHair?1.55:1.1,.8]);
   addMesh(group,new THREE.CapsuleGeometry(.29,.57,5,12),clothes,[0,1.34,0],[1.02,1,0.75]);
   addMesh(group,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[-.4,1.36,0],[1,1,.85]).rotation.z=-.17;

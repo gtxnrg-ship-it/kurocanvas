@@ -3,7 +3,7 @@
  * Chat transcripts are not a reliable canon database. Missing history remains unknown.
  */
 
-const STORY_MEMORY_CAPTURE_PATTERN = /\\b(?:remember(?:\\s+that)?|chapter|ch\\.?|scene|flashback|backstory|character|new\\s+character|introduc(?:e|es|ed|ing)|first\\s+appearance|reveal(?:s|ed)?|becomes?|became|transform(?:s|ed)?|dies|died|killed|injur(?:ed|y)|betray(?:s|ed|al)|relationship|alliance|event|canon|story\\s+vault|visual\\s+reference|outfit|appearance|design|power|ability|loses|gains|learns|discovers|meets?|met|born|returns?|vanishes?|disappears?|named|renamed|no\\s+longer|is\\s+now|has\\s+changed|changed\\s+from)\\b/i;
+const STORY_MEMORY_CAPTURE_PATTERN = /\b(?:remember(?:\s+that)?|chapter|ch\.?|scene|flashback|backstory|character|new\s+character|introduc(?:e|es|ed|ing)|first\s+appearance|reveal(?:s|ed)?|becomes?|became|transform(?:s|ed)?|dies|died|killed|injur(?:ed|y)|betray(?:s|ed|al)|relationship|alliance|event|canon|story\s+vault|visual\s+reference|outfit|appearance|design|power|ability|loses|gains|learns|discovers|meets?|met|born|returns?|vanishes?|disappears?|named|renamed|no\s+longer|is\s+now|has\s+changed|changed\s+from)\b/i;
 
 export function shouldCaptureStoryMemory(text: string): boolean {
   return STORY_MEMORY_CAPTURE_PATTERN.test(text);

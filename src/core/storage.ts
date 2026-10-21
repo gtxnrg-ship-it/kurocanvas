@@ -659,6 +659,14 @@ export const universeStorage = {
   },
   async save(universe: UniverseRecord): Promise<void> {
     if (!validateUniverseRecord(universe)) throw new Error("Refusing to save an invalid universe.");
+    // The project is the owner of project-level canon/story memory. Reassigning an
+    // existing universe would cross that boundary; creating a new one must use create(),
+    // which checks project uniqueness in the same write transaction.
+    const existing = await this.load(universe.id);
+    if (!existing) throw new Error("Cannot save an unknown universe. Use universeStorage.create() to create a new isolated workspace.");
+    if (existing.projectId !== universe.projectId) {
+      throw new Error("Universe isolation violation: an existing universe cannot be reassigned to a different project.");
+    }
     await requestValue<IDBValidKey>(UNIVERSES, "readwrite", store => store.put(universe));
   },
   async load(id: string): Promise<UniverseRecord | undefined> {
@@ -669,6 +677,10 @@ export const universeStorage = {
   async list(): Promise<UniverseRecord[]> {
     const values = await requestValue<UniverseRecord[]>(UNIVERSES, "readonly", store => store.getAll());
     if (values.some(value => !validateUniverseRecord(value))) throw new Error("Saved universe collection contains invalid records.");
+    const partitionErrors = validateUniverseProjectPartition(values);
+    if (partitionErrors.length) {
+      throw new Error("Saved universe isolation is invalid: " + partitionErrors.join(" "));
+    }
     return values.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
 };

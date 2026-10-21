@@ -9,7 +9,7 @@ export function shouldCaptureStoryMemory(text: string): boolean {
   return STORY_MEMORY_CAPTURE_PATTERN.test(text);
 }
 
-export type MemorySource = "user" | "approved-chapter" | "imported";
+export type MemorySource = "user" | "kuro-draft" | "approved-chapter" | "imported";
 export type MemoryStatus = "approved" | "proposed" | "superseded";
 export type StoryThreadType = "foreshadowing" | "easter-egg" | "cameo" | "callback" | "mystery" | "red-herring" | "recurring-motif";
 export type StoryThreadAudienceTreatment = "background-only" | "subtle-hint" | "visible-callback" | "explicit-reveal" | "author-only";
@@ -68,6 +68,7 @@ export function createStoryThreadProposal(
   projectId: string,
   now = new Date().toISOString(),
   idFactory: () => string = () => crypto.randomUUID(),
+  source: MemorySource = "user",
 ): StoryMemoryRecord | undefined {
   if (!projectId.trim()) return undefined;
   const evidence = typeof candidate.evidence === "string" ? candidate.evidence.trim() : "";
@@ -103,7 +104,7 @@ export function createStoryThreadProposal(
     ...(storyOrder === undefined ? {} : { storyOrder }),
     ...(timelineId ? { timelineId } : {}),
     entityIds: linkedEntityIds, tags: ["narrative-thread", threadType, audienceTreatment],
-    source: "user", status: "proposed", assetRefs: [], supersedes: [],
+    source, status: "proposed", assetRefs: [], supersedes: [],
     storyThread: {
       type: threadType,
       audienceTreatment,
@@ -189,6 +190,7 @@ export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: 
   if (record.storyOrder !== undefined && (!Number.isFinite(record.storyOrder) || record.storyOrder < 0)) errors.push("Story order must be a non-negative finite number.");
   if (record.timelineId !== undefined && (typeof record.timelineId !== "string" || !record.timelineId.trim())) errors.push("Timeline ID must be a non-empty string when supplied.");
   if (!Array.isArray(record.entityIds) || !Array.isArray(record.tags) || !Array.isArray(record.assetRefs) || !Array.isArray(record.supersedes)) errors.push("Memory links and tags must be arrays.");
+  if (!["user", "kuro-draft", "approved-chapter", "imported"].includes(record.source)) errors.push("Memory provenance source is invalid.");
   if (record.storyThread !== undefined) {
     const thread = record.storyThread;
     const threadTypes: StoryThreadType[] = ["foreshadowing", "easter-egg", "cameo", "callback", "mystery", "red-herring", "recurring-motif"];

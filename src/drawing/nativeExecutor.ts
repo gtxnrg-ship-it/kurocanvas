@@ -103,6 +103,26 @@ export function applyNativeDrawingCommand(
     };
   }
 
+  if (command.type === "stroke.update") {
+    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
+    if (index < 0) throw new Error("Cannot update stroke: stroke does not exist.");
+    const current = strokes[index];
+    const layer = layers.find(item => item.id === (current.layerId || layers[0]?.id));
+    if (!layer) throw new Error("Cannot update stroke: its layer does not exist.");
+    if (layer.locked) throw new Error("Cannot update stroke: its layer is locked.");
+    const previousPatch: { tool?: NativeStroke["tool"]; color?: string; size?: number } = {};
+    if (command.patch.tool !== undefined) previousPatch.tool = current.tool;
+    if (command.patch.color !== undefined) previousPatch.color = current.color;
+    if (command.patch.size !== undefined) previousPatch.size = current.size;
+    const updated = { ...current, ...command.patch };
+    strokes[index] = updated;
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.update", strokeId: current.id, patch: previousPatch }],
+      changed: Object.keys(command.patch).length > 0,
+    };
+  }
+
   if (command.type === "stroke.restore") {
     const layer = layers.find(item => item.id === command.stroke.layerId);
     if (!layer) throw new Error("Cannot restore stroke: target layer does not exist.");

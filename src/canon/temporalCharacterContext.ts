@@ -1,6 +1,7 @@
 import {
   buildCharacterStateBrief,
   characterStateAt,
+  validateCharacterEvolutionState,
   type CharacterEvolutionState,
 } from "./characterEvolution";
 

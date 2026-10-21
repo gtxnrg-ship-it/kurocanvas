@@ -123,8 +123,8 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
       const url = new URL(source.url);
       // This implementation researches Wikipedia, so only accept its exact HTTPS host.
       // Do not accept lookalike domains or arbitrary Wikipedia subdomains from imported ZIPs.
-      return url.protocol !== "https:" || url.hostname.toLocaleLowerCase() !== "en.wikipedia.org"
-        || !url.pathname.startsWith("/wiki/") && !url.pathname.startsWith("/?");
+      const validPath = url.pathname.startsWith("/wiki/") || (url.pathname === "/" && url.searchParams.has("curid"));
+      return url.protocol !== "https:" || url.hostname.toLocaleLowerCase() !== "en.wikipedia.org" || !validPath;
     } catch { return true; }
   })) errors.push("Research sources must be bounded, valid en.wikipedia.org HTTPS source records.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");

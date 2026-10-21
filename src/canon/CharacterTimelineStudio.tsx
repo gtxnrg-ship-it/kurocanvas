@@ -299,32 +299,11 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     finally { setBusy(false); }
   }
   async function remove(record: CharacterEvolutionState) {
-    if (record.status === "approved") { setMessage("Approved history is preserved. Create a later correcting snapshot or supersede through a retcon workflow; do not delete canon here."); return; }
+    if (record.status !== "proposed") { setMessage("Approved history is preserved. Create a later correcting snapshot or handle changes through a retcon workflow."); return; }
     if (!globalThis.confirm("Delete this unapproved proposal?")) return;
     setBusy(true);
     try {
-      // Validate scope by loading first; the storage API has no remove method for evolution states.
-      const dbName = "kuro-canvas-local";
-      const request = indexedDB.open(dbName, 13);
-      await new Promise<void>((resolve, reject) => {
-        request.onerror = () => reject(request.error ?? new Error("Could not open local character history."));
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains("characterEvolution")) { db.close(); reject(new Error("Character history storage is unavailable.")); return; }
-          const tx = db.transaction("characterEvolution", "readwrite");
-          const store = tx.objectStore("characterEvolution");
-          const get = store.get(record.id);
-          get.onsuccess = () => {
-            const current = get.result as CharacterEvolutionState | undefined;
-            if (!current) return;
-            if (current.universeId !== universeId || current.status === "approved") { tx.abort(); return; }
-            store.delete(record.id);
-          };
-          tx.oncomplete = () => { db.close(); resolve(); };
-          tx.onerror = () => { db.close(); reject(tx.error ?? new Error("Could not delete proposal.")); };
-          tx.onabort = () => { db.close(); reject(tx.error ?? new Error("Proposal delete was cancelled or refused.")); };
-        };
-      });
+      await characterEvolutionStorage.removeProposal(record.id, universeId);
       setRecords(current => current.filter(item => item.id !== record.id));
       setMessage("Deleted the unapproved proposal.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not delete proposal."); }

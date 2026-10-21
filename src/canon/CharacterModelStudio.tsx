@@ -5,7 +5,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Box, Plus, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
-import { validateCharacterModel, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
+import { type CharacterModelRecord, type ScarOverlay } from "./characterModels";
 import "./characterModelStudio.css";
 
 type ProjectChoice = { id: string; name: string };
@@ -72,6 +72,8 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   const rootRef = useRef<THREE.Group | null>(null);
   const scarRootRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
   const boundsRef = useRef(new THREE.Box3(new THREE.Vector3(-.5,0,-.3),new THREE.Vector3(.5,2.5,.3)));
   const [models, setModels] = useState<CharacterModelRecord[]>([]);
   const [styleBible, setStyleBible] = useState<ProjectStyleBible | null>(null);
@@ -145,14 +147,14 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     const controls = new OrbitControls(camera,renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor=.08; controls.minDistance=2.1; controls.maxDistance=11;
     controls.target.set(0,1.25,0); controls.update();
-    sceneRef.current=scene; rootRef.current=root; scarRootRef.current=scarRoot; rendererRef.current=renderer;
+    sceneRef.current=scene; rootRef.current=root; scarRootRef.current=scarRoot; rendererRef.current=renderer; cameraRef.current=camera; controlsRef.current=controls;
     let frame=0;
     const animate=()=>{frame=window.requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);};
     animate();
     const resize=()=>{if(!hostRef.current)return;const width=Math.max(1,host.clientWidth),height=Math.max(1,host.clientHeight);camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);};
     const observer=typeof ResizeObserver!=="undefined"?new ResizeObserver(resize):null;
     observer?.observe(host);window.addEventListener("resize",resize);
-    return ()=>{window.cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener("resize",resize);controls.dispose();clearGroup(root);clearGroup(scarRoot);renderer.dispose();if(renderer.domElement.parentNode===host)host.removeChild(renderer.domElement);sceneRef.current=null;rootRef.current=null;scarRootRef.current=null;rendererRef.current=null;};
+    return ()=>{window.cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener("resize",resize);controls.dispose();clearGroup(root);clearGroup(scarRoot);renderer.dispose();if(renderer.domElement.parentNode===host)host.removeChild(renderer.domElement);sceneRef.current=null;rootRef.current=null;scarRootRef.current=null;rendererRef.current=null;cameraRef.current=null;controlsRef.current=null;};
   }, []);
 
   useEffect(() => {
@@ -254,7 +256,7 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   }
   async function addScar() {
     if (!selectedModel || !selectedState || scarsAbsent) { setMessage("Add and approve a character state that records the scar before placing it on the model."); return; }
-    const overlay: ScarOverlay = { id:crypto.randomUUID(),characterStateId:selectedState.id,introducedAtOrder:selectedState.storyOrder,label:"Scar · "+selectedState.chapterLabel,x:.03,y:.34,z:.43,length:.075,angle:45,color:"#8b343b" };
+    const overlay: ScarOverlay = { id:crypto.randomUUID(),characterStateId:selectedState.id,introducedAtOrder:selectedState.storyOrder,label:"Scar · "+selectedState.chapterLabel,x:.03,y:.34,z:.5,length:.075,angle:45,color:"#8b343b" };
     await persistModel({...selectedModel,scarOverlays:[...selectedModel.scarOverlays,overlay]},"Added a scar overlay from " + selectedState.chapterLabel + ". Adjust its position on the model below.");
   }
   async function recordScarRemoval() {
@@ -270,17 +272,19 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     finally{setBusy(false);}
   }
   async function resetView() {
-    const scene = sceneRef.current;
-    if (!scene) return;
-    // Camera reset is handled by the viewer's reset event through a lightweight scene marker.
-    scene.userData.resetCamera = (scene.userData.resetCamera ?? 0) + 1;
-    setMessage("View reset requested. Drag to orbit and scroll to zoom.");
+    const camera = cameraRef.current, controls = controlsRef.current;
+    if (!camera || !controls) return;
+    camera.position.set(0,1.45,5.8);
+    controls.target.set(0,1.25,0);
+    controls.update();
+    setMessage("View centered. Drag to orbit and scroll to zoom.");
   }
 
   const stateOptions: CharacterVisualState[] = statesForCharacter;
   const hasTextScar = !!resolved?.traits.scars && !scarsAbsent;
+  const activeProject = projects.find(project => project.id === projectId);
   return <section className="character-model-studio">
-    <header className="character-model-head"><div><small>3D CHARACTER WORKSPACE · CHAPTER-AWARE</small><h2><Box size={20}/> Character model studio</h2><p>Attach a GLB model, choose an approved chapter state, and place scar overlays that appear only from their introduction onward.</p></div></header>
+    <header className="character-model-head"><div><small>3D CHARACTER WORKSPACE · CHAPTER-AWARE</small><h2><Box size={20}/> Character model studio</h2><p>Attach a GLB model, choose an approved chapter state, and place scar overlays that appear only from their introduction onward.</p><small className="character-model-project-name">{activeProject?.name ?? "No active project"}</small></div></header>
     {!projectId ? <p className="character-model-message">Choose a project to create a character model.</p> : <>
       <div className="character-model-create">
         <label><span>Character name (must match Style Bible)</span><input value={characterName} onChange={event=>setCharacterName(event.target.value)} placeholder="e.g. Ren"/></label>

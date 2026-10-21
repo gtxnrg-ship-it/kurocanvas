@@ -438,15 +438,41 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     finally { setBusy(false); }
   }
 
-  async function createBlockout() {
-    const name = characterName.trim();
-    if (!projectId || !name) { setMessage("Enter the exact character name before creating a blockout."); return; }
+  async function createBlockout(nameOverride?: string, traitOverrides?: ProceduralCharacterTraits) {
+    const name = (nameOverride ?? characterName).trim();
+    if (!projectId || !name) throw new Error("Choose a project and provide the exact character name before creating a native 3D blockout.");
+    const traits = traitOverrides ? { ...traitOverrides } : undefined;
     const existingBase = models.find(model => normalizeName(model.characterName) === normalizeName(name) && !model.characterStateId);
-    if (existingBase) { setModelId(existingBase.id); setMessage("A base model already exists. Choose a chapter state and upload a separate GLB variant to show aging or design changes."); return; }
+    if (existingBase) {
+      if (traits && existingBase.sourceType === "procedural") {
+        // Keep the existing model record and its scar/timeline links; change only the
+        // explicitly requested procedural traits. Uploaded GLB source meshes are never overwritten.
+        const updated: CharacterModelRecord = { ...existingBase, proceduralTraits: traits, updatedAt: timestamp() };
+        await persistModel(updated, "Updated the native procedural blockout for " + name + ". Its editable 3D geometry will be rebuilt from the saved traits.");
+        const readback = await characterModelStorage.list(projectId);
+        const saved = readback.find(model => model.id === updated.id);
+        if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model update could not be verified after saving.");
+        return;
+      }
+      setModelId(existingBase.id);
+      setCharacterName(name);
+      setMessage("A base model already exists for " + name + ". I selected it rather than replacing an uploaded mesh or inventing a second base identity.");
+      if (traits && existingBase.sourceType === "uploaded-glb") throw new Error("An uploaded GLB mesh already owns this character's base model. Create a chapter-specific visual state first to preserve the original mesh.");
+      return;
+    }
     const existingCharacter = models.find(model => normalizeName(model.characterName) === normalizeName(name));
     const now = timestamp();
-    const model: CharacterModelRecord = { id: crypto.randomUUID(), projectId, characterName: name, storyOrder: 0, sourceType: "procedural", fileName: "", frontFace: existingCharacter?.frontFace ?? "positive-z", scarOverlays: existingCharacter?.scarOverlays ?? [], createdAt: now, updatedAt: now };
-    await persistModel(model,"Created a 3D blockout for " + name + ". It is a preview rig, not a finished character sculpt.");
+    const model: CharacterModelRecord = {
+      id: crypto.randomUUID(), projectId, characterName: name, storyOrder: 0,
+      sourceType: "procedural", fileName: "", frontFace: existingCharacter?.frontFace ?? "positive-z",
+      scarOverlays: existingCharacter?.scarOverlays ?? [], ...(traits ? { proceduralTraits: traits } : {}),
+      createdAt: now, updatedAt: now,
+    };
+    await persistModel(model,"Created a native 3D character blockout for " + name + ". It is an editable procedural preview rig, not a finished sculpt.");
+    const readback = await characterModelStorage.list(projectId);
+    if (!readback.some(record => record.id === model.id && record.sourceType === "procedural")) {
+      throw new Error("The native character model was not found after saving.");
+    }
   }
   async function uploadModel(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget, file = input.files?.[0];
@@ -548,8 +574,43 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       : "Rotated the displayed model by " + degrees + "°. This is a non-destructive viewport action.");
   }
 
+  async function applyMotionPreset(preset: CharacterMotionPreset) {
+    motionPresetRef.current = preset;
+    setMotionPreset(preset);
+    setMessage("Kuro set the live native character motion to " + preset.replace(/-/g, " ") + ". This changes only the editable 3D preview pose; it does not flatten or generate an image.");
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+
+  function playEmbeddedAnimation(indexText: string) {
+    const mixer = animationMixerRef.current;
+    const index = indexText === "" ? -1 : Number(indexText);
+    if (!mixer || index < 0 || !animationClips[index]) {
+      animationMixerRef.current?.stopAllAction();
+      setActiveAnimationIndex("");
+      setMessage("Stopped embedded GLB animation tracks. The native viewport idle motion remains available.");
+      return;
+    }
+    mixer.stopAllAction();
+    mixer.clipAction(animationClips[index]).reset().fadeIn(0.18).play();
+    setActiveAnimationIndex(String(index));
+    setMessage("Playing embedded GLB animation: " + (animationClips[index].name || "Animation " + (index + 1)) + ". The imported mesh remains intact.");
+  }
+
   async function executeAgentCommand(command: CharacterModelAgentCommand) {
     switch (command.type) {
+      case "model.createBlockout":
+        await createBlockout(command.characterName, {
+          ...(command.hair ? { hair: command.hair } : {}),
+          ...(command.age ? { age: command.age } : {}),
+          ...(command.outfit ? { outfit: command.outfit } : {}),
+          ...(command.skinTone ? { skinTone: command.skinTone } : {}),
+          ...(command.eyeColor ? { eyeColor: command.eyeColor } : {}),
+          ...(command.bodyType ? { bodyType: command.bodyType } : {}),
+        });
+        return;
+      case "model.motionPreset":
+        await applyMotionPreset(command.preset);
+        return;
       case "camera.preset":
         await applyCameraPreset(command.preset);
         return;
@@ -574,7 +635,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
 
   useEffect(() => {
     const action = pendingAgentAction;
-    if (!action || action.projectId !== projectId || !onAgentActionResult || handledAgentActionRef.current === action.id) return;
+    if (!action || action.projectId !== projectId || !onAgentActionResult || !modelsReady || handledAgentActionRef.current === action.id) return;
     handledAgentActionRef.current = action.id;
     let cancelled = false;
     const run = async () => {
@@ -605,7 +666,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     void run();
     return () => { cancelled = true; };
   // The action ID is the idempotency key: changing parent callbacks or progress state must not replay it.
-  }, [pendingAgentAction?.id]);
+  }, [pendingAgentAction?.id, modelsReady, projectId]);
 
   async function resetView() {
     await applyCameraPreset("front");

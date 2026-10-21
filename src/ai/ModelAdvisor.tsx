@@ -1,67 +1,45 @@
 import { useEffect, useState } from "react";
 import { assessDevice, type DeviceAssessment } from "./deviceAssessment";
-import { KURO_MODEL_CATALOG, type KuroModelOption } from "./modelCatalog";
 import { validateLocalModelBenchmark, type LocalModelBenchmark, localBenchmarkRatingLabel } from "./modelBenchmark";
 
-function formatBytes(bytes?: number): string {
-  if (bytes === undefined) return "Size not verified";
-  if (bytes >= 1024 ** 3) return (bytes / 1024 ** 3).toFixed(1) + " GB";
-  return Math.round(bytes / 1024 ** 2) + " MB";
-}
-function platformMatches(model: KuroModelOption, device: DeviceAssessment): boolean {
-  if (device.environment === "android") return model.platforms.includes("android") || model.platforms.includes("web");
-  if (device.environment === "ios") return model.platforms.includes("ios") || model.platforms.includes("web") || model.platforms.includes("tablet");
-  if (device.environment === "desktop") return model.platforms.includes("desktop") || model.platforms.includes("web");
-  return model.platforms.includes("web");
-}
-function statusLabel(model: KuroModelOption, device: DeviceAssessment, benchmark?: LocalModelBenchmark): { label: string; color: string } {
-  if (model.status === "available-in-web-build") {
-    if (model.id === "qwen3-0.6b-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:qwen3-0.6b") {
-      if (benchmark.rating === "fast") return { label: "Fast local text speed · measured", color: "#21864b" };
-      if (benchmark.rating === "usable") return { label: "Usable, slower · measured", color: "#b7791f" };
-      if (benchmark.rating === "slow") return { label: "Slow local text speed · measured", color: "#c53030" };
-      return { label: "Benchmark inconclusive", color: "#b7791f" };
-    }
-    if (device.deviceMemoryGiB !== undefined && device.deviceMemoryGiB < 2) return { label: "Test cautiously", color: "#d99a16" };
-    return { label: "Available · speed unmeasured", color: "#d99a16" };
+function formatBenchmark(benchmark?: LocalModelBenchmark): string {
+  if (!benchmark || !validateLocalModelBenchmark(benchmark) || benchmark.modelId !== "kuro-local:qwen3-0.6b") {
+    return "Not measured on this device yet";
   }
-  if (model.status === "remote-provider-needed") return { label: "Needs provider", color: "#6b7280" };
-  if (model.minMemoryBytes && device.deviceMemoryGiB !== undefined && device.deviceMemoryGiB * 1024 ** 3 < model.minMemoryBytes) {
-    return { label: "Not recommended for detected memory", color: "#d9534f" };
-  }
-  return { label: "Needs native runtime", color: "#6b7280" };
+  return localBenchmarkRatingLabel(benchmark.rating) + " · " + benchmark.tokensPerSecond.toFixed(1) + " tokens/s";
 }
+
 export default function ModelAdvisor({ benchmark }: { benchmark?: LocalModelBenchmark }) {
   const [device, setDevice] = useState<DeviceAssessment>();
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => { let active = true; void assessDevice().then(value => { if (active) setDevice(value); }); return () => { active = false; }; }, []);
-  const models = device ? KURO_MODEL_CATALOG.filter(model => showAll || platformMatches(model, device)) : KURO_MODEL_CATALOG;
-  return <section aria-label="Device and model advisor" style={{ margin: "16px 0", padding: 14, border: "1px solid var(--border, #444)", borderRadius: 14 }}>
+  useEffect(() => {
+    let active = true;
+    void assessDevice().then(value => { if (active) setDevice(value); });
+    return () => { active = false; };
+  }, []);
+
+  const lowMemory = device?.deviceMemoryGiB !== undefined && device.deviceMemoryGiB < 2;
+  const hasWebAssembly = device?.webAssembly === true;
+
+  return <section aria-label="Qwen device readiness" style={{ margin: "16px 0", padding: 14, border: "1px solid var(--border, #444)", borderRadius: 14 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <strong>Device &amp; model advisor</strong>
+      <strong>On-device readiness</strong>
       <span style={{ fontSize: 12, opacity: .75 }}>Local check · no device fingerprint sent</span>
     </div>
     {device ? <>
-      <p style={{ margin: "8px 0", fontSize: 13 }}>Detected: <strong>{device.environment}</strong> · {device.browser} · {device.cores ? device.cores + " logical cores" : "CPU details unavailable"} · {device.deviceMemoryGiB ? device.deviceMemoryGiB + " GiB reported memory" : "RAM not exposed"}.</p>
-      <p style={{ margin: "6px 0", fontSize: 12, opacity: .8 }}>WebAssembly: {device.webAssembly ? "yes" : "no"} · WebGPU: {device.webGPU ? "available (not yet benchmarked)" : "not detected"} · estimate confidence: {device.confidence}.</p>
-      <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-        {models.map(model => {
-          const status = statusLabel(model, device, benchmark);
-          return <article key={model.id} style={{ border: "1px solid var(--border, #444)", borderRadius: 10, padding: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 }}>
-              <strong>{model.name}</strong>
-              <span style={{ color: status.color, fontSize: 12, fontWeight: 650, textAlign: "right" }}>{status.label}</span>
-            </div>
-            <div style={{ fontSize: 12, opacity: .8, marginTop: 4 }}>{model.tier} tier · {formatBytes(model.downloadBytes)} · {model.modalities.join(" + ")} · {model.runtime}</div>
-            <p style={{ fontSize: 13, margin: "6px 0" }}>{model.bestFor}</p>
-            <p style={{ fontSize: 12, opacity: .75, margin: 0 }}>{model.notes}</p>
-            {model.id === "qwen3-0.6b-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:qwen3-0.6b" && <p role="status" style={{ fontSize: 12, margin: "8px 0 0", padding: "8px", borderRadius: 8, background: "rgba(125,125,125,.09)" }}><strong>{localBenchmarkRatingLabel(benchmark.rating)}</strong><br />{benchmark.tokensPerSecond.toFixed(1)} generated tokens/s · {benchmark.outputTokens} tokens in {benchmark.elapsedMs} ms<br /><span style={{ opacity: .75 }}>Measured locally on {new Date(benchmark.measuredAt).toLocaleString()}. This measures warm text generation, not canvas frame rate or drawing quality.</span></p>}
-            <a href={model.sourceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 7, fontSize: 12 }}>Model details ↗</a>
-          </article>;
-        })}
-      </div>
-      <button type="button" className="provider-secondary" style={{ marginTop: 10 }} onClick={() => setShowAll(value => !value)}>{showAll ? "Show device-matched models" : "Show all model tiers"}</button>
+      <p style={{ margin: "8px 0", fontSize: 13 }}>Device environment: <strong>{device.environment}</strong> · {device.browser} · {device.cores ? device.cores + " logical cores" : "CPU details unavailable"} · {device.deviceMemoryGiB ? device.deviceMemoryGiB + " GiB reported memory" : "RAM not exposed"}.</p>
+      <p style={{ margin: "6px 0", fontSize: 12, opacity: .8 }}>WebAssembly: {hasWebAssembly ? "available" : "not detected"} · WebGPU: {device.webGPU ? "detected (not used as a quality guarantee)" : "not detected"} · estimate confidence: {device.confidence}.</p>
+      <p style={{ margin: "6px 0", fontSize: 13 }}>{lowMemory
+        ? "This device reports less than 2 GiB of memory. A 370 MB model download can require substantially more working memory; generation may fail or the browser may reload."
+        : "Device checks are estimates only. Actual performance depends on available memory, browser support, battery/thermal limits, and other running apps."}</p>
       <ul style={{ fontSize: 12, opacity: .8, paddingLeft: 18 }}>{device.notes.map(note => <li key={note}>{note}</li>)}</ul>
     </> : <p style={{ fontSize: 13 }}>Checking browser capabilities…</p>}
+    <div style={{ borderTop: "1px solid var(--border, #444)", paddingTop: 12, marginTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <strong>Qwen3-0.6B · Q4F16 ONNX</strong>
+        <span style={{ fontSize: 12, fontWeight: 650 }}>{formatBenchmark(benchmark)}</span>
+      </div>
+      <p style={{ fontSize: 13, margin: "6px 0" }}>The single active Kuro model. Text-only, roughly 370 MB of model files. Runtime memory is higher than download size.</p>
+      {benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:qwen3-0.6b" && <p role="status" style={{ fontSize: 12, margin: "8px 0 0", padding: 8, borderRadius: 8, background: "rgba(125,125,125,.09)" }}>{benchmark.tokensPerSecond.toFixed(1)} generated tokens/s · {benchmark.outputTokens} tokens in {benchmark.elapsedMs} ms<br /><span style={{ opacity: .75 }}>Measured locally on {new Date(benchmark.measuredAt).toLocaleString()}. This is a warm text-generation benchmark, not a story-quality or drawing-quality score.</span></p>}
+    </div>
   </section>;
 }

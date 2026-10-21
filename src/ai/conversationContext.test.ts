@@ -37,7 +37,7 @@ describe("buildKuroConversationTurns", () => {
     ];
     const turns = buildKuroConversationTurns(messages, 8, 200, "red scarf ceremonial dagger hidden clue", 1200);
     expect(turns.length).toBeLessThanOrEqual(8);
-    expect(turns.some(turn => turn.content.includes("red scarf"))).toBe(true);
+    expect(turns.some(turn => String(turn.content).includes("red scarf"))).toBe(true);
     expect(turns[turns.length - 1].content).toContain("hallway scene");
     const userMessages = turns.filter(turn => turn.role === "user").map(turn => turn.content);
     expect(userMessages[userMessages.length - 1]).toContain("hallway scene");
@@ -51,7 +51,7 @@ describe("buildKuroConversationTurns", () => {
     const originalLength = source.reduce((sum, item) => sum + item.text.length, 0);
     const turns = buildKuroConversationTurns(source, 24, 600, "blue lantern captain returned", 4000);
     expect(turns.reduce((sum, item) => sum + item.content.length, 0)).toBeLessThanOrEqual(4000);
-    expect(turns.some(item => item.content.includes("blue lantern"))).toBe(true);
+    expect(turns.some(item => String(item.content).includes("blue lantern"))).toBe(true);
     expect(source.reduce((sum, item) => sum + item.text.length, 0)).toBe(originalLength);
   });
 

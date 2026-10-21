@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
 import type { KuroVoiceIntensity } from "./kuroPersona";

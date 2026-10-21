@@ -189,3 +189,22 @@
 .stroke-opacity-control input{width:72px;accent-color:#a78bfa}
 .stroke-opacity-control b{min-width:34px;text-align:right;color:#eee5fa;font-variant-numeric:tabular-nums}
 .size-control input{width:100px}
+
+.story-character-timeline{margin:18px 0 24px;padding:16px;border:1px solid #332b43;border-radius:14px;background:linear-gradient(135deg,rgba(28,23,39,.96),rgba(17,15,24,.96))}
+.story-character-timeline-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.story-character-timeline-head h3{margin:0 0 5px;font-size:14px;color:#f0e8fb}
+.story-character-timeline-head p{margin:0;color:#9e94b0;font-size:11px;max-width:420px;line-height:1.5}
+.story-character-timeline-head label{display:grid;gap:5px;min-width:180px;color:#bfb3ce;font-size:10px}
+.story-character-timeline-head select{border:1px solid #443951;border-radius:8px;background:#100e17;color:#f5f2fb;padding:8px}
+.story-timeline-empty{margin:14px 0 0;padding:12px;border:1px dashed #3b324c;border-radius:9px;color:#a49bb8;font-size:11px}
+.story-timeline-list{list-style:none;display:grid;gap:10px;margin:16px 0 0;padding:0 0 0 9px;border-left:1px solid #514264}
+.story-timeline-entry{position:relative;padding-left:13px;min-width:0}
+.story-timeline-marker{position:absolute;left:-14px;top:14px;width:9px;height:9px;border:2px solid #b49bea;border-radius:50%;background:#191425}
+.story-timeline-entry.superseded .story-timeline-marker{border-color:#82768f}
+.story-timeline-card{display:grid;gap:7px;padding:12px;border:1px solid #393044;border-radius:10px;background:#100e17}
+.story-timeline-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#9f94b2;font-size:10px}
+.story-timeline-card>b{font-size:12px;overflow-wrap:anywhere}
+.story-timeline-card p{margin:0;color:#c5bdcf;font-size:11px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.story-timeline-card small{color:#9c91ad;font-size:10px;line-height:1.45}
+.story-timeline-card button{justify-self:start;padding:6px 9px;border:1px solid #514064;border-radius:7px;background:#211a2d;color:#e7dafa;font-size:10px}
+.story-timeline-card button:disabled{opacity:.5;cursor:not-allowed}

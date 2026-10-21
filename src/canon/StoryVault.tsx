@@ -25,6 +25,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
   const [tags, setTags] = useState('');
   const [assets, setAssets] = useState('');
   const [query, setQuery] = useState('');
+  const [timelineEntity, setTimelineEntity] = useState('');
   const [filter, setFilter] = useState<'all'|'approved'|'proposed'|'superseded'>('all');
   const [supersedesId, setSupersedesId] = useState('');
   const [notice, setNotice] = useState('Choose a project to open its durable story memory.');
@@ -36,7 +37,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     try { setRecords(await storyMemoryStorage.list(projectId)); setNotice('Story memory loaded from this device.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not load story memory.'); }
   }
-  useEffect(() => { void refresh(); }, [projectId]);
+  useEffect(() => { setTimelineEntity(''); void refresh(); }, [projectId]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -44,6 +45,11 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
       (!needle || [record.title, record.summary, ...record.tags, ...record.entityIds].join(' ').toLocaleLowerCase().includes(needle)))
       .sort((a,b) => (b.chapterNumber ?? -1) - (a.chapterNumber ?? -1) || b.updatedAt.localeCompare(a.updatedAt));
   }, [records, query, filter]);
+
+  const timelineEntities = useMemo(() => [...new Set(records.flatMap(record => record.entityIds.map(id => id.trim()).filter(Boolean)))].sort((a,b) => a.localeCompare(b)), [records]);
+  const timelineRecords = useMemo(() => records
+    .filter(record => timelineEntity && record.entityIds.some(id => id.trim().toLocaleLowerCase() === timelineEntity.toLocaleLowerCase()))
+    .sort((a,b) => (a.chapterNumber ?? -1) - (b.chapterNumber ?? -1) || (a.sceneNumber ?? -1) - (b.sceneNumber ?? -1) || a.createdAt.localeCompare(b.createdAt)), [records, timelineEntity]);
 
   async function addMemory(event: FormEvent) {
     event.preventDefault();
@@ -132,6 +138,25 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         <label>Revises earlier memory <select value={supersedesId} onChange={event => setSupersedesId(event.target.value)}><option value="">None — new history</option>{records.filter(record => record.status === 'approved').map(record => <option key={record.id} value={record.id}>{chapterLabel(record)} · {record.title}</option>)}</select></label>
         <div className="story-editor-foot"><span>Saved locally · No model is allowed to silently approve canon.</span><button disabled={busy || !title.trim() || !summary.trim()} type="submit">{editingId ? 'Update proposal' : 'Save proposal'}</button></div>
       </form>
+      <section className="story-character-timeline" aria-label="Character history timeline">
+        <div className="story-character-timeline-head"><div><h3>Character timeline</h3><p>Follow an entity across chapters, including older states preserved for flashbacks.</p></div>
+          <label>Character / entity<select aria-label="Choose character history" value={timelineEntity} onChange={event => setTimelineEntity(event.target.value)}><option value="">Choose an entity…</option>{timelineEntities.map(entity => <option key={entity} value={entity}>{entity}</option>)}</select></label>
+        </div>
+        {!timelineEntity ? <p className="story-timeline-empty">Add stable character/entity IDs to memories to build a timeline.</p> :
+          timelineRecords.length === 0 ? <p className="story-timeline-empty">No records are linked to {timelineEntity} yet.</p> :
+          <ol className="story-timeline-list">{timelineRecords.map(record => {
+            const newer = records.filter(candidate => candidate.supersedes.includes(record.id));
+            return <li key={record.id} className={'story-timeline-entry '+record.status}>
+              <span className="story-timeline-marker" aria-hidden="true"/>
+              <div className="story-timeline-card">
+                <div className="story-timeline-meta"><span>{chapterLabel(record)}</span><span className={'story-status '+record.status}>{record.status==='approved'?'Approved':record.status==='proposed'?'Needs review':'Older version'}</span></div>
+                <b>{record.title}</b><p>{record.summary}</p>
+                {newer.length>0 && <small>Revised later by: {newer.map(item => item.title).join(', ')}</small>}
+                {record.status==='approved' && <button type="button" disabled={busy} onClick={() => supersede(record)}>Revise this state</button>}
+              </div>
+            </li>;
+          })}</ol>}
+      </section>
       <div className="story-memory-list-head"><div><h3>Recorded history</h3><span>{records.length} {records.length === 1 ? 'record' : 'records'}</span></div><div className="story-memory-filters"><label><Search size={14}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search story memory"/></label><select value={filter} onChange={event => setFilter(event.target.value as typeof filter)} aria-label="Filter memory status"><option value="all">All statuses</option><option value="approved">Approved</option><option value="proposed">Proposals</option><option value="superseded">Older versions</option></select></div></div>
       {visible.length === 0 ? <div className="story-vault-empty"><History size={22}/><b>No matching history yet</b><span>Add a recap or character change. Kuro should say when the requested chapter has not been recorded instead of inventing it.</span></div> :
         <div className="story-memory-records">{visible.map(record => <article className={'story-memory-record '+record.status} key={record.id}>

@@ -349,7 +349,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const refreshDocuments = useCallback(async () => {
     try { setDocuments(await drawingStorage.list(projectId)); }
     catch (error) { setNotice('Could not list local drawings: ' + (error instanceof Error ? error.message : 'unknown error')); }
-  }, []);
+  }, [projectId]);
   useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
 
   useEffect(() => {

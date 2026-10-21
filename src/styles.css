@@ -159,3 +159,6 @@
 
 .transparent-export-control{display:inline-flex;align-items:center;gap:5px;color:#bfb3ce;font-size:10px;white-space:nowrap}
 .transparent-export-control input{accent-color:#b69aff}
+
+.export-scale-control{display:inline-flex;align-items:center;gap:5px;color:#bfb3ce;font-size:10px;white-space:nowrap}
+.export-scale-control select{border:1px solid #443951;border-radius:7px;background:#17131f;color:#f1eafa;padding:6px 7px;font-size:10px}

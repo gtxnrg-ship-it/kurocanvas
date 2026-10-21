@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, isStoryProductionRequest } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isStoryProductionRequest } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -150,6 +150,24 @@ describe("approved canon AI context", () => {
     });
     expect(result).toContain("Sun City (location)");
     expect(result).not.toContain("Sun City is destroyed after the treaty breaks");
+  });
+
+  it("detects hidden character names in production output without matching partial words", () => {
+    const secret: CanonEntity = { id: "secret", projectId: "series-a", kind: "character", name: "The Secret Emperor", aliases: ["Silver Sovereign"], status: "approved" };
+    const state = (id: string, characterId: string, storyOrder: number, chapterNumber: number, revealAtStoryOrder?: number): CharacterEvolutionState => ({
+      id, universeId: "u1", characterId, timelineId: "main", storyOrder, chapterNumber, status: "approved",
+      ...(revealAtStoryOrder === undefined ? {} : { revealAtStoryOrder }),
+      appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [], sourceMessageIds: [],
+      changeSummary: "Approved story point", createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const testBundle = { ...bundle, entities: [entity, secret] };
+    const gate = { enabled: true, universeId: "u1", states: [
+      state("hero-ch1", "hero", 10, 1),
+      state("secret-preload", "secret", 5, 1, 40),
+    ], chapterNumber: 1 };
+    expect(hasUnrevealedCharacterMention("The Secret Emperor appears at dawn.", testBundle, gate)).toBe(true);
+    expect(hasUnrevealedCharacterMention("Silver Sovereign watches.", testBundle, gate)).toBe(true);
+    expect(hasUnrevealedCharacterMention("This secret remains undiscovered.", testBundle, gate)).toBe(false);
   });
 
   it("bounds the context size", () => {

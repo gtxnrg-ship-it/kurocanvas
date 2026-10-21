@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 import { deleteProjectWithResearch } from "./projectLifecycle";
 
 type Task = { id: string; projectId: string; status: string };
+type Operations = {
+  loadProject: (id: string) => Promise<unknown | undefined>;
+  listResearchTasks: (id: string) => Promise<Task[]>;
+  removeResearchTasks: (id: string) => Promise<void>;
+  removeProjectData: (id: string) => Promise<void>;
+  restoreResearchTasks: (records: readonly Task[], id: string) => Promise<void>;
+};
 
-function fixture(overrides: Record<string, unknown> = {}) {
+function fixture(overrides: Partial<Operations> = {}) {
   const events: string[] = [];
   const tasks: Task[] = [{ id: "research-1", projectId: "series-a", status: "completed" }];
-  const operations = {
+  const operations: Operations = {
     loadProject: async (id: string) => { events.push("load:" + id); return { id }; },
     listResearchTasks: async (id: string) => { events.push("list:" + id); return tasks.filter(task => task.projectId === id); },
     removeResearchTasks: async (id: string) => { events.push("remove-research:" + id); },

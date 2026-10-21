@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
+import { formatKuroChatResponse, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
 
 describe("Kuro request-aware response quality", () => {
   it("does not expand greetings and explicit brevity requests into essays", () => {
@@ -39,5 +39,27 @@ describe("Kuro request-aware response quality", () => {
     expect(guidance).toMatch(/do not bluff/i);
     expect(guidance).toMatch(/author-only planning distinct/i);
     expect(guidance).toMatch(/substantial/i);
+  });
+});
+
+
+describe("truthful model finish reporting", () => {
+  it("does not alter a normally completed answer", () => {
+    expect(formatKuroChatResponse("  Hello, creator.  ", "stop")).toBe("Hello, creator.");
+  });
+
+  it("tells the creator when the local output ceiling truncated a reply", () => {
+    const response = formatKuroChatResponse("Here is the chapter outline…", "length");
+    expect(response).toContain("Here is the chapter outline");
+    expect(response).toContain("Qwen3-0.6B's current output limit");
+    expect(response).toContain("Say “continue”");
+  });
+
+  it("does not present empty output as successful content", () => {
+    expect(formatKuroChatResponse("  ", "stop")).toBe("The model returned an empty response. Please try again.");
+  });
+
+  it("flags a partial response ending with a runtime error", () => {
+    expect(formatKuroChatResponse("Partial answer", "error")).toContain("may be incomplete");
   });
 });

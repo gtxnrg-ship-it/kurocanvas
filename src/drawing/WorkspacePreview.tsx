@@ -15,6 +15,29 @@ export default function WorkspacePreview({ projectId, drawingId, onOpenCanvas }:
   const [drawingName, setDrawingName] = useState("");
   const [notice, setNotice] = useState("Choose or open a canvas to see saved artwork here.");
   const [loading, setLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    const refreshForProject = (projectId?: string) => {
+      if (!projectId || projectId === projectIdRef.current) setRefreshVersion(version => version + 1);
+    };
+    const onStorageChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
+      refreshForProject(detail?.projectId);
+    };
+    let channel: BroadcastChannel | undefined;
+    window.addEventListener("kuro:drawing-storage-changed", onStorageChanged);
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        channel = new BroadcastChannel("kuro-drawing-storage");
+        channel.addEventListener("message", event => refreshForProject((event.data as { projectId?: string } | undefined)?.projectId));
+      }
+    } catch { channel = undefined; }
+    return () => {
+      window.removeEventListener("kuro:drawing-storage-changed", onStorageChanged);
+      channel?.close();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +97,7 @@ export default function WorkspacePreview({ projectId, drawingId, onOpenCanvas }:
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [projectId, drawingId]);
+  }, [projectId, drawingId, refreshVersion]);
 
   return (
     <div className="preview-placeholder workspace-preview">

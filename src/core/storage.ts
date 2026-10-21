@@ -403,6 +403,25 @@ export const drawingRevisionStorage = {
 };
 
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
+const DRAWING_STORAGE_CHANGED_EVENT = "kuro:drawing-storage-changed";
+const DRAWING_STORAGE_CHANNEL = "kuro-drawing-storage";
+
+function announceDrawingStorageChange(drawingId: string, projectId?: string): void {
+  const detail = { drawingId, projectId };
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(DRAWING_STORAGE_CHANGED_EVENT, { detail }));
+    }
+  } catch { /* Storage remains authoritative if custom events are unavailable. */ }
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel(DRAWING_STORAGE_CHANNEL);
+      channel.postMessage(detail);
+      channel.close();
+    }
+  } catch { /* Cross-tab preview refresh is an enhancement, not a save dependency. */ }
+}
+
 export const drawingStorage = {
   /** Atomic compare-and-save: reject stale edits rather than overwriting another tab. */
   async compareAndSave(expected: LocalDrawingDocument | undefined, document: LocalDrawingDocument): Promise<void> {
@@ -441,6 +460,7 @@ export const drawingStorage = {
         transaction.onabort = () => reject(comparisonError ?? transaction.error ?? new Error("Atomic drawing save was aborted."));
       });
     } finally { db.close(); }
+    announceDrawingStorageChange(document.id, document.projectId);
   },
   async save(document: LocalDrawingDocument): Promise<void> {
     if (!document.projectId?.trim()) {
@@ -458,6 +478,7 @@ export const drawingStorage = {
       throw new Error("This legacy drawing has no owning project. Explicitly migrate it into a universe before editing.");
     }
     await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({ ...document, updatedAt: new Date().toISOString() }));
+    announceDrawingStorageChange(document.id, document.projectId);
   },
   async load(id: string, projectId?: string): Promise<LocalDrawingDocument | undefined> {
     const result = await requestValue<LocalDrawingDocument | undefined>(DRAWINGS, "readonly", store => store.get(id));
@@ -488,10 +509,12 @@ export const drawingStorage = {
       return;
     }
     await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({...document,projectId,updatedAt:new Date().toISOString()}));
+    announceDrawingStorageChange(id, projectId);
   },
   async remove(id: string): Promise<void> {
     await requestValue<undefined>(DRAWINGS, "readwrite", store => store.delete(id));
     await drawingRevisionStorage.removeDrawing(id);
+    announceDrawingStorageChange(id);
   },
 };
 

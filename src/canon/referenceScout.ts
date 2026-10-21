@@ -24,11 +24,76 @@ export type ReferenceSearchResult = Omit<ReferenceSourceRecord, "id" | "projectI
 const plain = (value: unknown): string => typeof value === "string"
   ? value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim()
   : "";
+const EXPLICIT_REFERENCE_SEARCH = /\b(?:search|find|fetch|show(?: me)?|look for|pull up|gather|collect)\b[\s\S]{0,140}\b(?:wikimedia commons|reference(?: images?)?|visual references?|images?|photos?|pictures?)\b/i;
+
+/** Only explicit lookup requests reach the network; ordinary story discussion stays in chat. */
+export function extractReferenceSearchQuery(message: string): string | undefined {
+  const text = message.normalize("NFKC").trim();
+  if (!text || !EXPLICIT_REFERENCE_SEARCH.test(text)) return undefined;
+  const query = text
+    .replace(/^\s*(?:please\s+)?(?:can you\s+|could you\s+)?/i, "")
+    .replace(/^\s*(?:search(?:\s+(?:for|the web for))?|find(?:\s+me)?|fetch|show(?:\s+me)?|look\s+for|pull\s+up|gather|collect)\s+/i, "")
+    .replace(/\b(?:wikimedia commons|reference\s+images?|visual\s+references?|references?|images?|photos?|pictures?|visuals?)\b/gi, " ")
+    .replace(/^\s*(?:of|for|about|showing|featuring|on|to find|with)\s+/i, "")
+    .replace(/\b(?:please|thanks|thank you|could you|can you|for me)\b/gi, " ")
+    .replace(/[.,;:!?]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+  return query.length >= 2 ? query : undefined;
+}
+
 const safeHttps = (value: unknown): string => {
   if (typeof value !== "string") return "";
   try { const url = new URL(value); return url.protocol === "https:" ? url.toString() : ""; }
   catch { return ""; }
 };
+
+function safeWikimediaUrl(value: unknown, expectedHost: "commons.wikimedia.org" | "upload.wikimedia.org"): string {
+  const safe = safeHttps(value);
+  if (!safe) return "";
+  try {
+    const url = new URL(safe);
+    return url.hostname.toLowerCase() === expectedHost && !url.username && !url.password && !url.port
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Validate persisted search cards before rendering external images from local chat history. */
+export function normalizeReferenceSearchResults(value: unknown): ReferenceSearchResult[] {
+  if (!Array.isArray(value)) return [];
+  const results: ReferenceSearchResult[] = [];
+  for (const raw of value.slice(0, 12)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const item = raw as Record<string, unknown>;
+    const sourceUrl = safeWikimediaUrl(item.sourceUrl, "commons.wikimedia.org");
+    const imageUrl = safeWikimediaUrl(item.imageUrl, "upload.wikimedia.org");
+    const thumbnailUrl = safeWikimediaUrl(item.thumbnailUrl, "upload.wikimedia.org");
+    const rawLicenseUrl = typeof item.licenseUrl === "string" ? item.licenseUrl.trim() : "";
+    const licenseUrl = rawLicenseUrl ? safeHttps(rawLicenseUrl) : "";
+    if (!sourceUrl || !imageUrl || !thumbnailUrl || (rawLicenseUrl && !licenseUrl)
+      || typeof item.title !== "string" || !item.title.trim()
+      || typeof item.description !== "string" || typeof item.query !== "string"
+      || typeof item.creator !== "string" || typeof item.license !== "string"
+      || typeof item.attribution !== "string") continue;
+    results.push({
+      title: item.title.slice(0, 300),
+      description: item.description.slice(0, 1800),
+      query: item.query.slice(0, 180),
+      sourceUrl,
+      imageUrl,
+      thumbnailUrl,
+      creator: item.creator.slice(0, 500),
+      license: item.license.slice(0, 300),
+      licenseUrl,
+      attribution: item.attribution.slice(0, 800),
+    });
+  }
+  return results;
+}
 
 export function parseWikimediaSearchResponse(payload: unknown, query: string): ReferenceSearchResult[] {
   if (!payload || typeof payload !== "object") return [];
@@ -41,9 +106,9 @@ export function parseWikimediaSearchResponse(payload: unknown, query: string): R
     const page = raw as { title?: unknown; imageinfo?: Array<{ url?: unknown; thumburl?: unknown; descriptionurl?: unknown; extmetadata?: Record<string, { value?: unknown }> }> };
     const info = page.imageinfo?.[0];
     if (!info) continue;
-    const imageUrl = safeHttps(info.url);
-    const sourceUrl = safeHttps(info.descriptionurl);
-    const thumbnailUrl = safeHttps(info.thumburl) || imageUrl;
+    const imageUrl = safeWikimediaUrl(info.url, "upload.wikimedia.org");
+    const sourceUrl = safeWikimediaUrl(info.descriptionurl, "commons.wikimedia.org");
+    const thumbnailUrl = safeWikimediaUrl(info.thumburl, "upload.wikimedia.org") || imageUrl;
     if (!imageUrl || !sourceUrl || !thumbnailUrl) continue;
     const meta = info.extmetadata ?? {};
     results.push({

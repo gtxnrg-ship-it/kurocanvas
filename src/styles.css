@@ -399,7 +399,66 @@
 @keyframes kuro-orbit-float-b{0%,100%{translate:0 0;rotate:0deg}50%{translate:6px 7px;rotate:18deg}}
 @media(prefers-reduced-motion:reduce){.workspace-preview-spin,.home-hero-art .ring-one,.home-hero-art .ring-two,.home-hero-art .hero-core,.home-hero-art .orbit-a,.home-hero-art .orbit-b,.home-hero-art .orbit-c{animation:none!important}.home-hero-art .ring-one{transform:rotate(-28deg)}.home-hero-art .ring-two{transform:rotate(42deg)}}
 
+
+/* Rich, safe chat formatting. All nodes are created as React elements; raw HTML is never injected. */
+.message-markdown{min-width:0;overflow-wrap:anywhere;word-break:normal}
+.message-markdown>:first-child{margin-top:0}
+.message-markdown>:last-child{margin-bottom:0}
+.message-markdown p{margin:.55em 0;white-space:normal}
+.message-markdown h1,.message-markdown h2,.message-markdown h3,.message-markdown h4,.message-markdown h5,.message-markdown h6{font-family:Manrope,system-ui,sans-serif;color:#f1eaff;font-weight:750;line-height:1.3;margin:1em 0 .45em}
+.message-markdown h1{font-size:1.35em}.message-markdown h2{font-size:1.22em}.message-markdown h3{font-size:1.12em}.message-markdown h4,.message-markdown h5,.message-markdown h6{font-size:1.03em}
+.message-markdown ul,.message-markdown ol{margin:.55em 0;padding-left:1.55em}
+.message-markdown li{padding-left:.15em;margin:.2em 0}
+.message-markdown li::marker{color:#b6a0f4}
+.message-markdown a{color:#c3a8ff;text-decoration:underline;text-decoration-color:#8066b9;text-underline-offset:2px}
+.message-markdown a:hover{color:#e2d4ff}
+.message-markdown blockquote{margin:.65em 0;padding:.15em 0 .15em .8em;border-left:3px solid #8066b9;color:#b9b0ca}
+.message-markdown hr{border:0;border-top:1px solid #40364f;margin:1em 0}
+.message-inline-code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;padding:.12em .35em;background:#0e0c16;border:1px solid #393148;border-radius:5px;color:#e2d6ff;overflow-wrap:anywhere}
+.message-code-block{max-width:100%;overflow:auto;margin:.65em 0;padding:11px 12px;border:1px solid #393148;border-radius:9px;background:#0e0c16;color:#e4def2;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre}
+.message-code-block code{font:inherit}
+.message-table-wrap{max-width:100%;overflow-x:auto;margin:.7em 0;border:1px solid #393148;border-radius:8px}
+.message-markdown table{border-collapse:collapse;width:100%;font-size:.92em;background:#12101b}
+.message-markdown th,.message-markdown td{padding:7px 9px;text-align:left;border-bottom:1px solid #393148;vertical-align:top}
+.message-markdown th{background:#201a2e;color:#eee5ff;font-weight:700}
+.message-markdown tr:last-child td{border-bottom:0}
+.message-task-marker{color:#bda8fb;display:inline-block;margin-right:6px}
+.msg.user .message-markdown a{color:#eee0ff;text-decoration-color:#a58bce}
+
+/* In-chat reference search results: visible provenance, no implicit approval. */
+.inline-reference-results{width:100%;max-width:680px;margin:12px 0 5px;border:1px solid #383047;border-radius:12px;background:#100e18;overflow:hidden}
+.inline-reference-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #30283d;background:#171320}
+.inline-reference-head strong,.inline-reference-head small{display:block}
+.inline-reference-head strong{font-size:12px;color:#f1e9ff}
+.inline-reference-head small{margin-top:4px;font-size:10px;color:#a59bb9}
+.inline-reference-head>span{font-size:10px;color:#c8b2ff;white-space:nowrap}
+.inline-reference-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px}
+.inline-reference-card{min-width:0;border:1px solid #30283d;border-radius:9px;background:#15121e;overflow:hidden}
+.inline-reference-image{display:grid;place-items:center;aspect-ratio:4/3;overflow:hidden;background:#0a0911;color:#a89bbf;text-decoration:none}
+.inline-reference-image img{display:block;width:100%;height:100%;object-fit:cover}
+.inline-reference-image>span{display:grid;justify-items:center;gap:7px;font-size:10px}
+.inline-reference-detail{padding:10px}
+.inline-reference-title{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;font-size:11px;line-height:1.45;font-weight:700;color:#e9ddff;text-decoration:none}
+.inline-reference-title svg{flex:0 0 auto;margin-top:2px}
+.inline-reference-detail>p{margin:7px 0;font-size:10px;line-height:1.55;color:#bbb2ca}
+.inline-reference-detail dl{display:grid;gap:6px;margin:9px 0}
+.inline-reference-detail dl>div{min-width:0}
+.inline-reference-detail dt{font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#898096}
+.inline-reference-detail dd{margin:2px 0 0;font-size:10px;line-height:1.45;color:#d8d0e3;overflow-wrap:anywhere}
+.inline-reference-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;margin-top:10px}
+.inline-reference-actions>a{font-size:10px;color:#c3a8ff}
+.inline-reference-actions>button{border:1px solid #554372;border-radius:7px;padding:6px 8px;background:#241a35;color:#e9ddff;font-size:10px}
+.inline-reference-actions>button:disabled{opacity:.6;cursor:default}
+.inline-reference-note,.inline-reference-status{margin:0;padding:0 12px 10px;font-size:10px;line-height:1.55;color:#a69db7}
+.inline-reference-status{color:#d9c9ff;padding-top:0}
+@media(max-width:640px){.inline-reference-grid{grid-template-columns:minmax(0,1fr)}.inline-reference-card{display:grid;grid-template-columns:minmax(90px,34%) minmax(0,1fr)}.inline-reference-image{aspect-ratio:auto;min-height:180px}.inline-reference-detail{padding:9px}.inline-reference-title{font-size:10px}}
+
+/* Stylus-pressure sensitivity control for the manual drawing toolbar. */
 .pressure-control{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid rgba(167,139,250,.22);border-radius:9px;background:rgba(24,20,37,.78);font-size:11px;color:#cfc5e3;white-space:nowrap}
 .pressure-control input[type=range]{width:76px;accent-color:var(--purple);cursor:pointer}
 .pressure-control output{min-width:30px;color:#f3edff;font-variant-numeric:tabular-nums}
 @media(max-width:520px){.pressure-control{gap:4px;padding:5px 6px}.pressure-control input[type=range]{width:58px}}
+
+.research-task-link{display:inline-flex;align-items:center;gap:6px;margin:9px 0 0 2px;border:1px solid #554372;border-radius:8px;padding:7px 9px;background:#20162f;color:#e7d9ff;font-size:10px}
+.research-task-link:hover{background:#2a1e3c;border-color:#8065aa}
+.research-task-link svg{color:#c5aaff}

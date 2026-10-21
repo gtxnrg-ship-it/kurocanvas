@@ -2,14 +2,17 @@ import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from
 import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
 export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+
+/** Upper bound for mobile-friendly native-tool plans and longer creative responses. */
+export const KURO_LOCAL_MAX_OUTPUT_TOKENS = 1024;
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
   | { id: number; type: "prepare" }
-  | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+  | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number; temperature?: number };
 type WorkerRequestPayload =
   | { type: "prepare" }
-  | { type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+  | { type: "generate"; messages: TextMessage[]; maxOutputTokens: number; temperature?: number };
 export type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
@@ -33,7 +36,7 @@ const MODEL: ModelDescriptor = {
   name: "Kuro Local · Qwen3-0.6B",
   providerId: "kuro-local-browser",
   location: "local",
-  roles: ["fast-helper"],
+  roles: ["reasoning", "planning", "tool-calling", "coding", "story-writing", "continuity", "research", "fast-helper"],
   capabilities: ["chat"],
   downloadBytes: KURO_TINY_MODEL_DOWNLOAD_BYTES,
   memoryBytes: 900 * 1024 * 1024,
@@ -54,6 +57,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   readonly displayName = "Kuro Local · Qwen3-0.6B browser model";
   private progressListener?: ProgressListener;
   private worker?: ModelWorker;
+  private prepared = false;
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
 
@@ -67,7 +71,12 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 
   listModels(): Promise<ModelDescriptor[]> {
-    return Promise.resolve([{ ...MODEL, roles: [...MODEL.roles], capabilities: [...MODEL.capabilities] }]);
+    return Promise.resolve([{ ...MODEL, installed: this.prepared, roles: [...MODEL.roles], capabilities: [...MODEL.capabilities] }]);
+  }
+
+  /** True only when the model weights are loaded in this page's live worker. */
+  isPrepared(): boolean {
+    return this.prepared;
   }
 
   async isAvailable(): Promise<boolean> {
@@ -77,6 +86,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   async prepare(signal?: AbortSignal): Promise<void> {
     const response = await this.send({ type: "prepare" }, signal);
     if (response.type !== "ready") throw new Error("The local model worker did not finish preparing.");
+    this.prepared = true;
   }
 
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
@@ -88,10 +98,16 @@ export class LocalTinyModelProvider implements ModelProvider {
       }
       return { role: message.role, content: message.content };
     });
+    if (!this.prepared) {
+      throw new Error("Qwen3-0.6B has not been prepared in this session. Open Preferences and choose “Download & prepare Qwen3-0.6B”; Kuro will not download model weights from an ordinary chat message.");
+    }
     const bounded = boundMessages(messages, 12_000);
-    const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, 512));
+    const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, KURO_LOCAL_MAX_OUTPUT_TOKENS));
+    const temperature = typeof request.temperature === "number" && Number.isFinite(request.temperature)
+      ? Math.max(0, Math.min(request.temperature, 1.2))
+      : 0.7;
     try {
-      const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens }, request.signal);
+      const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens, temperature }, request.signal);
       if (request.signal?.aborted) return this.cancelledResponse(model);
       if (response.type !== "result") throw new Error("The local model worker returned an unexpected response.");
       return { text: response.text, modelId: model.id, providerId: this.id, finishReason: response.finishReason, usage: { outputTokens: response.outputTokens } };
@@ -153,6 +169,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 
   private stopWorker(reason: Error, cancelledRequestId?: number): void {
+    this.prepared = false;
     const worker = this.worker;
     this.worker = undefined;
     if (worker) {
@@ -169,20 +186,83 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 }
 
-/** Keep the system message and most recent content inside the small model's context budget. */
+/**
+ * Keep the active request present even when a long system prompt contains persona,
+ * canon, research, and canvas context. The old implementation reserved the entire
+ * budget for the first system message and could silently drop the actual user request.
+ */
 export function boundMessages(messages: TextMessage[], maxChars: number): TextMessage[] {
   const limit = Number.isFinite(maxChars) ? Math.max(1, Math.floor(maxChars)) : 12_000;
   if (!messages.length) return [{ role: "user", content: "Hello." }];
-  const first = messages[0]?.role === "system" ? messages[0] : undefined;
-  const rest = messages.slice(first ? 1 : 0);
-  let remaining = Math.max(0, limit - (first?.content.length ?? 0));
-  const selected: TextMessage[] = [];
-  for (let i = rest.length - 1; i >= 0 && remaining > 0; i--) {
-    const message = rest[i];
-    const content = message.content.length > remaining ? message.content.slice(-remaining) : message.content;
-    selected.unshift({ role: message.role, content });
+  const systemIndex = messages[0]?.role === "system" ? 0 : -1;
+  const latestUserIndex = messages.map(message => message.role).lastIndexOf("user");
+  const system = systemIndex >= 0 ? messages[systemIndex] : undefined;
+  const latestUser = latestUserIndex >= 0 && latestUserIndex !== systemIndex ? messages[latestUserIndex] : undefined;
+
+  const clip = (content: string, budget: number): string => {
+    if (content.length <= budget) return content;
+    if (budget <= 1) return content.slice(0, budget);
+    const marker = "\n[…context clipped…]\n";
+    if (budget <= marker.length) return content.slice(-budget);
+    const usable = budget - marker.length;
+    const head = Math.ceil(usable * 0.64);
+    const tail = usable - head;
+    return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
+  };
+
+  // The first system block contains the persona and execution rules. Preserve both
+  // its beginning and its tail, where project context is commonly appended.
+  const hasHistory = messages.some((message, index) =>
+    index !== systemIndex && index !== latestUserIndex && Boolean(message.content),
+  );
+  const systemBudget = system && latestUser
+    ? Math.floor(limit * (hasHistory ? 0.48 : 0.58))
+    : system ? limit : 0;
+  const boundedSystem = system ? { role: "system", content: clip(system.content, systemBudget) } : undefined;
+  let used = boundedSystem?.content.length ?? 0;
+
+  // Protect the newest user ask; leave room for recent history rather than letting
+  // either the system or transcript consume every available character.
+  const latestUserBudget = latestUser
+    ? Math.min(
+        hasHistory ? Math.max(1, Math.floor(limit * 0.36)) : Math.max(1, limit - used),
+        Math.max(1, limit - used),
+      )
+    : 0;
+  const boundedLatestUser = latestUser
+    ? { ...latestUser, content: clip(latestUser.content, latestUserBudget) }
+    : undefined;
+  used += boundedLatestUser?.content.length ?? 0;
+
+  const selected = new Map<number, TextMessage>();
+  if (boundedSystem) selected.set(systemIndex, boundedSystem);
+  if (boundedLatestUser && latestUserIndex >= 0) selected.set(latestUserIndex, boundedLatestUser);
+  let remaining = Math.max(0, limit - used);
+  for (let index = messages.length - 1; index >= 0 && remaining > 0; index--) {
+    if (index === systemIndex || index === latestUserIndex) continue;
+    const message = messages[index];
+    if (!message?.content) continue;
+    const content = message.content.length > remaining
+      ? clip(message.content, remaining)
+      : message.content;
+    if (!content) continue;
+    selected.set(index, { ...message, content });
     remaining -= content.length;
   }
-  const system = first ? [{ role: first.role, content: first.content.slice(0, Math.max(0, limit - selected.reduce((n, message) => n + message.content.length, 0))) }] : [];
-  return [...system, ...selected];
+
+  // Keep role chronology, including the active user request at the end.
+  const bounded = [...selected.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, message]) => message);
+  const total = bounded.reduce((sum, message) => sum + message.content.length, 0);
+  if (total <= limit) return bounded;
+
+  // Defensive final cap for clipping markers and very small custom budgets.
+  let budget = limit;
+  return bounded.map(message => {
+    if (budget <= 0) return { ...message, content: "" };
+    const content = message.content.slice(0, budget);
+    budget -= content.length;
+    return { ...message, content };
+  }).filter(message => message.content.length > 0);
 }

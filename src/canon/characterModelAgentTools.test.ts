@@ -83,6 +83,11 @@ describe("native character-model viewport tools", () => {
     expect(() => parseCharacterModelAgentPlan(raw)).toThrow();
   });
 
+  it("recovers a fenced native tool plan before applying the command allowlist", () => {
+    const plan = parseCharacterModelAgentPlan('Plan:\n\`\`\`json\n{"summary":"Show the model from the front","commands":[{"version":1,"id":"front","type":"camera.preset","preset":"front"}]}\n\`\`\`');
+    expect(plan.commands).toEqual([{ version: 1, id: "front", type: "camera.preset", preset: "front" }]);
+  });
+
   it("rejects malformed, over-sized, and too many commands", () => {
     expect(() => parseCharacterModelAgentPlan("{")).toThrow(/valid JSON/i);
     expect(() => parseCharacterModelAgentPlan(JSON.stringify({ summary: " ", commands: [] }))).toThrow(/summary/i);

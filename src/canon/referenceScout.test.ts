@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReferenceContext, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
+import { buildReferenceContext, extractReferenceSearchQuery, normalizeReferenceSearchResults, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSearchResult, type ReferenceSourceRecord } from "./referenceScout";
 
 const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSourceRecord => ({
   id: "ref-1", projectId: "project-1", title: "Rainy city street", description: "Night street with reflections",
@@ -11,6 +11,18 @@ const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSource
 });
 
 describe("reference scout", () => {
+  it("recognizes explicit image-reference searches but leaves ordinary prose alone", () => {
+    expect(extractReferenceSearchQuery("Find reference images for a medieval Kyoto street at night"))
+      .toBe("a medieval Kyoto street at night");
+    expect(extractReferenceSearchQuery("Please search for photos of 19th century steam trains"))
+      .toBe("19th century steam trains");
+    expect(extractReferenceSearchQuery("Search Wikimedia Commons for weathered wooden shrine gates"))
+      .toBe("weathered wooden shrine gates");
+    expect(extractReferenceSearchQuery("What images should I describe in chapter three?")).toBeUndefined();
+    expect(extractReferenceSearchQuery("Find reference images, please")).toBeUndefined();
+  });
+
+
   it("parses Wikimedia image metadata and ignores insecure/malformed records", () => {
     const results = parseWikimediaSearchResponse({
       query: { pages: {
@@ -24,6 +36,35 @@ describe("reference scout", () => {
     expect(results[0].license).toBe("CC BY 4.0");
     expect(results[0].creator).toBe("Jane Doe");
     expect(results[0].description).toBe("Wet & shiny street");
+  });
+
+  it("rejects external HTTPS image hosts from the Wikimedia API payload", () => {
+    const results = parseWikimediaSearchResponse({
+      query: { pages: {
+        "1": { title: "File:External.jpg", imageinfo: [{ url: "https://evil.example/full.jpg", thumburl: "https://evil.example/thumb.jpg", descriptionurl: "https://evil.example/source" }] },
+        "2": { title: "File:External source.jpg", imageinfo: [{ url: "https://upload.wikimedia.org/full.jpg", thumburl: "https://upload.wikimedia.org/thumb.jpg", descriptionurl: "https://evil.example/source" }] },
+      } },
+    }, "external");
+    expect(results).toEqual([]);
+  });
+
+  it("validates persisted reference cards and drops non-Wikimedia image URLs", () => {
+    const trusted: ReferenceSearchResult = {
+      title: "Rain",
+      description: "Rain over a street",
+      query: "rain",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Rain.jpg",
+      imageUrl: "https://upload.wikimedia.org/full.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/thumb.jpg",
+      creator: "Photographer",
+      license: "CC BY 4.0",
+      licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+      attribution: "Credit the creator",
+    };
+    expect(normalizeReferenceSearchResults([trusted])).toEqual([trusted]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, licenseUrl: "" }])).toMatchObject([{ title: "Rain", licenseUrl: "" }]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, thumbnailUrl: "https://untrusted.example/image.jpg" }])).toEqual([]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, sourceUrl: "https://untrusted.example/page" }])).toEqual([]);
   });
 
   it("validates HTTPS source, image, and license links plus project isolation", () => {

@@ -1,3 +1,5 @@
+import { parseModelJson } from "../ai/structuredOutput";
+
 export interface ArtDirectionInfluence {
   id: string;
   work: string;
@@ -124,9 +126,10 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
 
 /** Parse a model draft into editable art-direction fields without accepting metadata or influence mutations. */
 export function parseArtDirectionSynthesis(rawText: string): Partial<ArtDirectionBible> {
+  if (rawText.length > 64_000) throw new Error("The art-direction draft exceeds the response-size limit.");
   let value: unknown;
-  try { value = JSON.parse(rawText); }
-  catch { throw new Error("Kuro returned invalid JSON for the art-direction draft."); }
+  try { value = parseModelJson(rawText, 64_000); }
+  catch { throw new Error("Kuro returned invalid JSON for the art-direction draft (after structured-output recovery)."); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Kuro did not return a structured art-direction draft.");
   const source = value as Record<string, unknown>;
   const result: Partial<ArtDirectionBible> = {};

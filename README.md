@@ -36,9 +36,12 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Layers, strokes, drawing revisions and local storage | Implemented | Browser/device recovery and migration still need broader verification |
 | Universe/conversation separation and resume flows | Implemented on this branch | Isolation needs continued regression and end-to-end testing |
 | Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed |
+| Rich chat replies and safe Markdown rendering | Implemented | Links open externally; raw HTML is not executed and arbitrary embedded image URLs are not auto-loaded |
+| Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
+| Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
-| Local browser model | Experimental | Optional text-only model runs in a worker, supports cancellation and reports a local speed benchmark; real-device quality/performance remain unverified |
-| Hosted OpenAI-compatible provider | Integration implemented | Requires a compatible endpoint and valid configuration |
+| Qwen3-0.6B local model | Experimental | The only active text-only model; runs in a browser worker with cancellation and local speed benchmark. Quality, download reliability and Android performance still need real-device verification |
+| Replaceable model adapter | Implemented | Future upgrades use the `ModelProvider` seam and require tests/benchmarks; no model carousel or silent remote fallback |
 | Portable project/export workflows | Partial | Packages include universe transcripts, relationship/timeline canon, drawings and revision checkpoints; browser round-trip and corruption-recovery testing remain |
 | Android APK | Rolling debug-signed APK published | The release page records the source commit and SHA-256; install/launch and low-end Android validation still need a physical-device test |
 | Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
@@ -89,13 +92,15 @@ npm run preview
 After the app opens, use this checklist to test the most important paths rather than judging only the home screen:
 
 - [ ] Create a new universe and confirm its first conversation opens.
-- [ ] Send a message. If a model is not connected, confirm the app reports that state instead of pretending a response was generated.
+- [ ] Open Preferences, check or prepare Qwen3-0.6B, then send a message. Confirm model errors are reported plainly and no hosted fallback is attempted.
 - [ ] Open the canvas, draw a few strokes, change tools/layers, and wait for the save indicator.
 - [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.
 - [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.
 - [ ] Create a second universe and confirm its conversation and saved drawings are separate.
-- [ ] In the first universe, ask Kuro for a drawing plan if a provider is connected. Inspect the proposed actions and approve only if the preview looks right.
+- [ ] In the first universe, ask Kuro for a drawing plan after the local Qwen model is prepared. Inspect the proposed actions and approve only if the preview looks right.
 - [ ] Export a project, import it as a separate copy, and verify drawings, revision checkpoints, chat transcripts and chapter/relationship continuity before relying on it as a backup.
+- [ ] Ask Kuro to find reference images for a concrete subject; confirm real thumbnails, source pages, creator/license labels, and that saving creates a proposal rather than approved canon.
+- [ ] Ask Kuro to research a topic with sources; confirm a durable queue task appears in Research Lab and that a follow-up like “summarize those findings” includes saved source URLs.
 
 This is a practical smoke test, not a substitute for the full release test suite. Report failures with the browser/device, exact steps, and any visible error message.
 
@@ -143,25 +148,19 @@ The target workflow is:
 - **Honest privacy expectations:** distinguish local storage from hosted inference. Explain when prompts go to the configured provider, and never imply that a story is private or permanently offline unless the actual storage and model path supports that claim.
 - **Honest status:** no fake research, fake tool activity, invented completion, or claims that unverified behavior works.
 
-## Model and provider status
+## Model adapter and active runtime
 
-Kuro has an optional OpenAI-compatible provider interface and an experimental browser-local model provider.
+**Qwen3-0.6B is Kuro's one and only active language model.** The web build loads the quantized ONNX variant through Transformers.js in a dedicated browser worker. It is text-only; it does not inspect attached images. Kuro can still operate editable drawing data through app-owned tools, but she must not claim visual understanding that the model does not have.
 
-The current local baseline is **SmolLM2-135M-Instruct**, using a quantized ONNX model through Transformers.js. The download is roughly 137 MB, depending on the model artifacts. It is **text-only**, has not been fine-tuned for Kuro, and has not been validated for the full creative-agent workflow. Its availability does not imply strong reasoning, reliable tool use, vision, or high-quality manga planning. Browser caching can be evicted; this is not a permanent native model installation.
+There is no user-selectable hosted provider and no fallback that sends prompts, canon, or project data to another model. Older saved provider settings are normalized to the canonical local Qwen configuration. If local inference cannot initialize, Kuro must show the error rather than silently routing work elsewhere. Initial download requires internet access; browser-managed cached weights can be evicted, and the app has not yet been validated on a representative low-memory Android device.
 
-The optional endpoint smoke test checks model discovery, text generation and an image-input response against a running OpenAI-compatible endpoint. By default it targets `http://127.0.0.1:8000/v1`.
+### Future model upgrades
 
-```bash
-npm run model:smoke
-```
+All live harnesses should depend on the `ModelProvider` contract, not directly on Qwen/Transformers.js. The active runtime is created by `getKuroModelAdapter()` in `src/ai/kuroModelAdapter.ts`. To upgrade later, implement the replacement adapter, switch it there, update truthful capability/context/output limits, add regression tests for chat, tools, cancellation and project isolation, and benchmark it on target devices. An upgrade is a deliberate release change, not an invisible model escalation. See [Model adapter and future upgrades](docs/model-adapter.md).
 
-Optional environment variables:
+The repository still contains a legacy `npm run model:smoke` endpoint probe used for isolated developer testing. **It does not configure or power the app**, and is not part of Kuro's active runtime. Do not pass real prompts or project data to that test endpoint. It is not evidence that a remote provider is supported by the shipped app.
 
-- `KURO_MODEL_BASE_URL` — compatible endpoint base URL.
-- `KURO_MODEL_ID` — model ID served by that endpoint.
-- `KURO_MODEL_API_KEY` — API key, if the endpoint requires one.
-
-The smoke test uses a small synthetic test image rather than project artwork and does not measure creative quality. See [Local intelligence model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md) and [Model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md).
+See [Local intelligence model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md) and [Model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md).
 
 ## What remains before a serious release
 

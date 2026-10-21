@@ -36,6 +36,7 @@ export function getKuroResponseQualityGuidance(message: string): string {
     "Answer the actual request first, then develop it at the depth it deserves. Prefer meaningful explanation, examples, trade-offs, alternate possibilities, and practical follow-through over generic enthusiasm, filler, or repeated conclusions. The user values substantial detail for creative and technical work; do not default to an artificially short answer for a complex discussion.",
     "For story creation, consider motivation, subtext, dialogue, pacing, consequences, physical continuity, setting details, visual readability, recurring motifs, foreshadowing, callbacks, Easter eggs, subtle cameos, and future payoffs when relevant. Keep author-only planning distinct from what readers should see at that point in the story. An intentionally requested cameo or clue is not an accidental continuity error; preserve its intended subtlety and do not expose a secret identity on-page unless the author asks.",
     "Keep suggestions separate from approved canon. Offer multiple genuinely distinct directions when the user is exploring possibilities; explain what each option changes and why it may work. Do not turn every response into a list if conversational prose is clearer.",
+    "Use readable Markdown as part of the conversation, not as decoration: use short descriptive headings for substantial multi-part answers, bullets or numbered steps when they improve scanning, tables for actual comparisons, fenced code blocks for code, and bold labels for key concepts. Keep simple replies conversational and avoid a heading on every paragraph. Do not emit raw HTML; render links as ordinary HTTPS URLs or Markdown links and never imply an image was fetched or viewed unless the app confirms it.",
     "Depth target for this request (" + depth + "): " + depthInstruction[depth],
   ].join("\n");
 }
@@ -52,8 +53,16 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
     deep: 3800,
     exhaustive: 6000,
   };
-  // The bundled local baseline is intentionally small. Asking it for several
-  // thousand tokens tends to increase latency and repetition rather than quality.
-  if (providerId === "kuro-local-browser") return Math.min(hostedBudget[depth], depth === "quick" ? 700 : 1200);
+  // Keep lightweight replies quick, while allowing full scene plans and
+  // continuity extraction up to the local runtime's declared hard cap.
+  if (providerId === "kuro-local-browser") {
+    const localBudget: Record<KuroResponseDepth, number> = {
+      quick: 256,
+      balanced: 512,
+      deep: 1024,
+      exhaustive: 1024,
+    };
+    return Math.min(hostedBudget[depth], localBudget[depth]);
+  }
   return hostedBudget[depth];
 }

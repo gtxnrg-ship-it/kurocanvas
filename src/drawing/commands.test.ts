@@ -22,14 +22,19 @@ describe("drawing command validation", () => {
     expect(validateDrawingCommand({ ...remove, strokeId: "missing" }, documentBounds).valid).toBe(false);
     expect(validateDrawingCommand(remove, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
   });
-  it("validates reversible style edits only for existing unlocked strokes", () => {
-    const update = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "stroke-existing", patch: { color: "#abcdef", size: 8 } };
+  it("validates reversible color, size, opacity, and brush preset edits", () => {
+    const update = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "stroke-existing", patch: { color: "#abcdef", size: 8, opacity: 0.35, brushPreset: "marker" } };
     const documentBounds = { ...bounds, strokeLayerById: { "stroke-existing": "ink" } };
     expect(validateDrawingCommand(update, documentBounds).valid).toBe(true);
     expect(validateDrawingCommand({ ...update, strokeId: "missing" }, documentBounds).valid).toBe(false);
     expect(validateDrawingCommand(update, { ...documentBounds, lockedLayerIds: ["ink"] }).valid).toBe(false);
     expect(validateDrawingCommand({ ...update, patch: {} }, documentBounds).valid).toBe(false);
     expect(validateDrawingCommand({ ...update, patch: { points: [{ x: 1, y: 1 }] } }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...update, patch: { opacity: 1.2 } }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...update, patch: { opacity: -0.1 } }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...update, patch: { brushPreset: "unknown" } }, documentBounds).valid).toBe(false);
+    expect(validateDrawingCommand({ ...validStroke, opacity: 0.4, brushPreset: "pencil" }, bounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...validStroke, opacity: 2 }, bounds).valid).toBe(false);
   });
   it("validates native transforms only for existing, unlocked strokes", () => {
     const transform = {

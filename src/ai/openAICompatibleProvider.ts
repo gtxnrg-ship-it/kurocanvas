@@ -3,6 +3,7 @@ import type {
   ModelProvider,
   ModelRequest,
   ModelResponse,
+  type ModelCapability,
 } from "./modelRegistry";
 
 export interface OpenAICompatibleProviderOptions {
@@ -17,7 +18,7 @@ export interface OpenAICompatibleProviderOptions {
   fetchImpl?: typeof fetch;
 }
 
-type MessageContent = string | Array<{ type?: string; text?: string }> | null | undefined;
+type MessageContent = string | Array<{ type?: string; text?: string; image_url?: { url?: string } }> | null | undefined;
 
 interface ChatCompletionPayload {
   choices?: Array<{
@@ -43,6 +44,13 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
   if (url.username || url.password) throw new Error("Do not put credentials in the provider URL.");
   url.hash = "";
   return url.toString().replace(/\/+$/, "");
+}
+
+/** Conservative model-name hints; the connected provider may still reject image input. */
+export function inferModelCapabilities(modelName: string): ModelCapability[] {
+  const name = modelName.toLocaleLowerCase();
+  const vision = /gpt-4o|gpt-4\\.1|gpt-5|gpt-6|gemini|claude-3|claude-(?:sonnet|opus|haiku)-4|llava|qwen.*vl|pixtral|internvl|minicpm-v|molmo|vision|multimodal/.test(name);
+  return vision ? ["chat", "vision"] : ["chat"];
 }
 
 function contentAsText(content: MessageContent): string {
@@ -83,7 +91,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       providerId: this.id,
       location: new URL(this.baseUrl).hostname === "localhost" || new URL(this.baseUrl).hostname === "127.0.0.1" ? "local" : "remote",
       roles: ["reasoning", "planning", "tool-calling", "coding", "story-writing", "continuity", "research", "fast-helper"],
-      capabilities: ["chat"],
+      capabilities: inferModelCapabilities(item.id),
       modelUri: item.id,
       installed: true,
       enabled: true,

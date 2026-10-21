@@ -12,7 +12,7 @@ export type SvgExportStroke = {
   filled?: boolean;
   fillColor?: string;
   rotation?: number;
-  brushPreset?: 'ink' | 'pencil' | 'marker' | 'airbrush';
+  brushPreset?: 'ink' | 'pencil' | 'marker' | 'airbrush' | 'watercolor' | 'dry-brush' | 'calligraphy';
   imageDataUrl?: string;
   imageName?: string;
 };

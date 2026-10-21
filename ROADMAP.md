@@ -263,3 +263,14 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 
 
 - 2026-10-19 — Added a small rendered preview to the AI drawing approval card. It visualizes the exact validated stroke commands that will be submitted on approval; it does not execute them or substitute generated imagery. CI and visual/browser verification remain required.
+
+
+## 2026-10-21 — Export completeness preflight
+
+- [x] Detect Story Vault references to missing linked drawing documents before packaging.
+- [x] Stop export with an actionable message instead of silently skipping missing drawings.
+- [x] Add unit tests for valid links, missing links, duplicate references, and non-drawing references.
+- [ ] Extend the export manifest/preflight to cover missing 3D binaries, image assets, package size, and every project-owned drawing.
+- [ ] Replace the JSON-only `.kuro.json` package with a versioned archive that stores binary assets as files and verifies integrity.
+
+Scope: this change protects drawings already explicitly linked from Story Vault. It does not yet solve project ownership for every standalone canvas or convert `.kuro.json` into a ZIP archive.

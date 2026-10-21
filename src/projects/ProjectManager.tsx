@@ -10,6 +10,7 @@ import { validateStyleBible, type ProjectStyleBible } from '../canon/styleBible'
 import { validateReferenceSource, type ReferenceSourceRecord } from '../canon/referenceScout';
 import { blobToDataUrl, dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from '../canon/characterModels';
 import WorldStudio from '../canon/WorldStudio';
+import { findMissingDrawingReferences } from './exportPreflight';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -59,11 +60,17 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
       const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
-        .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length)))];
+        .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length).trim()).filter(Boolean))];
+      const availableDrawings = await drawingStorage.list();
+      const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
+      if (missingDrawings.length) {
+        const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.memoryTitles.join(', ') + ')').join('; ');
+        throw new Error('Export cancelled to protect project completeness. These Story Vault drawings are missing: ' + details + '. Recover or remove the broken references, then export again.');
+      }
       let linkedDrawings = 0;
       for (const drawingId of drawingIds) {
         const drawing = await drawingStorage.load(drawingId);
-        if (!drawing) continue;
+        if (!drawing) throw new Error('Export cancelled because drawing "' + drawingId + '" disappeared during packaging. Nothing was downloaded; retry after checking local storage.');
         assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
         linkedDrawings++;
       }

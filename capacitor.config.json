@@ -1,0 +1,8 @@
+{
+  "appId": "com.kurocanvas.studio",
+  "appName": "Kuro Canvas",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

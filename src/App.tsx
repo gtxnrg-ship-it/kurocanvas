@@ -87,7 +87,7 @@ export default function App(){
   }catch(error){setHistoryNotice('Could not resume that universe: '+(error instanceof Error?error.message:'storage error'));}
   finally{setHistoryLoading(false);}
  }
- function openCanvas(){setRequestedDrawingId(activeDrawingId);setMode('canvas');}
+ async function openCanvas(){if(!activeProjectId){await startNewUniverse();}setRequestedDrawingId(activeDrawingId);setMode('canvas');}
  async function openDrawingFromVault(id:string) {
   try {
     const drawing=await drawingStorage.load(id,activeProjectId);

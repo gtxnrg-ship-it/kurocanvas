@@ -26,6 +26,7 @@ export default function WorldStudio({ projectId: externalProjectId, lockedToProj
   const [predicate, setPredicate] = useState("");
   const [value, setValue] = useState("");
   const [storyOrder, setStoryOrder] = useState("");
+  const [timelineId, setTimelineId] = useState("");
   const [status, setStatus] = useState<CanonStatus>("proposed");
   const [message, setMessage] = useState("World facts are saved locally per project. New records start as proposed.");
   const [busy, setBusy] = useState(false);
@@ -90,10 +91,19 @@ export default function WorldStudio({ projectId: externalProjectId, lockedToProj
     if (!bundle || !subjectId || !predicate.trim() || !value.trim()) { setMessage("Choose a subject and fill in the fact, then save."); return; }
     let parsed: unknown = value.trim();
     try { parsed = JSON.parse(value); } catch { /* plain text is a valid canon value */ }
-    const fact: CanonFact = { id: makeId(), projectId: bundle.projectId, subjectId, predicate: predicate.trim(), value: parsed, status, ...(storyOrder.trim() && Number.isFinite(Number(storyOrder)) ? { storyOrder: Number(storyOrder) } : {}) };
+    if (storyOrder.trim() && (!Number.isFinite(Number(storyOrder)) || Number(storyOrder) < 0)) {
+      setMessage("Story order must be a non-negative number."); return;
+    }
+    if (storyOrder.trim() && !timelineId.trim()) {
+      setMessage("Time-bound facts need a timeline ID (for example, main) so alternate timelines cannot leak into each other. Leave story order blank only for timeless global rules."); return;
+    }
+    const fact: CanonFact = {
+      id: makeId(), projectId: bundle.projectId, subjectId, predicate: predicate.trim(), value: parsed, status,
+      ...(storyOrder.trim() ? { storyOrder: Number(storyOrder), timelineId: timelineId.trim() } : timelineId.trim() ? { timelineId: timelineId.trim() } : {}),
+    };
     const next = { ...bundle, facts: [...bundle.facts, fact] };
     if (validateCanon(next).some(i => i.severity === "error")) { setMessage("This fact failed validation and was not saved."); return; }
-    setPredicate(""); setValue(""); setStoryOrder("");
+    setPredicate(""); setValue(""); setStoryOrder(""); setTimelineId("");
     await persist(next, "Saved a " + status + " fact. It is not automatically promoted to approved canon.");
   }
   async function changeStatus(id: string, nextStatus: CanonStatus) {
@@ -120,14 +130,14 @@ export default function WorldStudio({ projectId: externalProjectId, lockedToProj
           <label>Subject<select value={subjectId} onChange={e=>setSubjectId(e.target.value)}><option value="">Choose entity…</option>{bundle.entities.map(e=><option key={e.id} value={e.id}>{e.name} · {e.kind}</option>)}</select></label>
           <label>Fact / predicate<input value={predicate} onChange={e=>setPredicate(e.target.value)} placeholder="e.g. eye_colour or secret_identity"/></label>
           <label>Value<input value={value} onChange={e=>setValue(e.target.value)} placeholder="Plain text or JSON value"/></label>
-          <div className="world-fields"><label>Story order <span>(optional number)</span><input value={storyOrder} onChange={e=>setStoryOrder(e.target.value)} inputMode="numeric" placeholder="e.g. 12"/></label><label>Status<select value={status} onChange={e=>setStatus(e.target.value as CanonStatus)}>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></label></div>
+          <div className="world-fields"><label>Story order <span>(optional number)</span><input value={storyOrder} onChange={e=>setStoryOrder(e.target.value)} inputMode="numeric" placeholder="e.g. 12"/></label><label>Timeline ID <span>(for timeline-specific facts)</span><input value={timelineId} onChange={e=>setTimelineId(e.target.value)} placeholder="e.g. main"/></label><label>Status<select value={status} onChange={e=>setStatus(e.target.value as CanonStatus)}>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></label></div>
           <button className="world-primary" disabled={busy || !subjectId || !predicate.trim() || !value.trim()} onClick={()=>void addFact()}>Save fact</button>
         </div>
       </div>
       <label className="world-search"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search names, aliases, and facts…"/></label>
       {issues.length>0 && <div className="world-issues"><h3><AlertTriangle size={16}/> Validation review</h3>{issues.map((issue,i)=><p key={issue.code+issue.recordIds.join("-")+i}><b>{issue.severity}</b> · {issue.message}</p>)}</div>}
       <div className="world-records"><h3>Entities</h3>{results.entities.length===0?<p className="world-empty">No matching entities yet.</p>:results.entities.map(entity=><article className="world-record" key={entity.id}><div><b>{entity.name}</b><small>{entity.kind}{entity.aliases.length ? " · also known as "+entity.aliases.join(", ") : ""}</small><p>{results.facts.filter(f=>f.subjectId===entity.id).map(f=>f.predicate+": "+(typeof f.value==="string"?f.value:JSON.stringify(f.value))+" · "+f.status).join("  /  ") || "No facts recorded yet."}</p></div><select aria-label={"Status for "+entity.name} value={entity.status} disabled={busy} onChange={e=>void changeStatus(entity.id,e.target.value as CanonStatus)}>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></article>)}</div>
-      <div className="world-records"><h3>Facts</h3>{results.facts.length===0?<p className="world-empty">No matching facts yet.</p>:results.facts.map(f=><article className="world-record" key={f.id}><div><b>{entitiesById.get(f.subjectId)?.name ?? "Unknown subject"} · {f.predicate}</b><small>Story order: {f.storyOrder ?? "unspecified"} · {f.status}</small><p>{typeof f.value==="string"?f.value:JSON.stringify(f.value)}</p></div><select aria-label={"Status for fact "+f.predicate} disabled={busy} value={f.status} onChange={e=>void changeStatus(f.id,e.target.value as CanonStatus)}>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></article>)}</div>
+      <div className="world-records"><h3>Facts</h3>{results.facts.length===0?<p className="world-empty">No matching facts yet.</p>:results.facts.map(f=><article className="world-record" key={f.id}><div><b>{entitiesById.get(f.subjectId)?.name ?? "Unknown subject"} · {f.predicate}</b><small>Story order: {f.storyOrder ?? "timeless/unspecified"} · Timeline: {f.timelineId ?? "global"} · {f.status}</small><p>{typeof f.value==="string"?f.value:JSON.stringify(f.value)}</p></div><select aria-label={"Status for fact "+f.predicate} disabled={busy} value={f.status} onChange={e=>void changeStatus(f.id,e.target.value as CanonStatus)}>{statuses.map(s=><option key={s} value={s}>{s}</option>)}</select></article>)}</div>
       <p className="world-foot"><ShieldCheck size={14}/> Saved in this browser's IndexedDB. Retrieval is currently lexical; warnings flag possible conflicts and do not decide which version is true for you.</p>
     </>}
   </section>;

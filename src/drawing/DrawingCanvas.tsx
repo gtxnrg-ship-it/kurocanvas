@@ -648,8 +648,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         return;
       }
       if (event.altKey) return;
-      if (key === '[') { event.preventDefault(); setSize(value => Math.max(1, value - (event.shiftKey ? 10 : 1))); return; }
-      if (key === ']') { event.preventDefault(); setSize(value => Math.min(200, value + (event.shiftKey ? 10 : 1))); return; }
+      if (key === '[' || key === '{') { event.preventDefault(); setSize(value => Math.max(1, value - ((event.shiftKey || key === '{') ? 10 : 1))); return; }
+      if (key === ']' || key === '}') { event.preventDefault(); setSize(value => Math.min(200, value + ((event.shiftKey || key === '}') ? 10 : 1))); return; }
       const toolShortcuts: Record<string, Tool> = { b: 'brush', e: 'eraser', v: 'select', h: 'pan', l: 'line', r: 'rectangle', o: 'ellipse', t: 'text', i: 'eyedropper', p: 'panel', u: 'bubble' };
       const nextTool = toolShortcuts[key];
       if (nextTool) {

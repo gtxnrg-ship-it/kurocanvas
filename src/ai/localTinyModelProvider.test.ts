@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LocalTinyModelProvider, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID } from "./localTinyModelProvider";
+import { LocalTinyModelProvider, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, type ModelWorker, type WorkerRequest, type WorkerResponse } from "./localTinyModelProvider";
 
 describe("LocalTinyModelProvider", () => {
   it("advertises one compact text-only local model without pretending it has vision", async () => {
@@ -45,4 +45,52 @@ describe("LocalTinyModelProvider", () => {
     }, model);
     expect(result.finishReason).toBe("cancelled");
   });
+
+  it("runs generation through an injected worker and returns its result", async () => {
+    const { worker, sent } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
+    const model = (await provider.listModels())[0];
+    const result = await provider.generate({
+      role: "fast-helper",
+      messages: [{ role: "user", content: "Help plan a panel." }],
+      maxOutputTokens: 64,
+    }, model);
+    expect(sent.some(request => request.type === "generate")).toBe(true);
+    expect(result).toMatchObject({ text: "Kuro worker response", finishReason: "stop", providerId: provider.id });
+  });
+
+  it("actually terminates the worker when inference is cancelled", async () => {
+    const { worker, state } = fakeWorker(false);
+    const provider = new LocalTinyModelProvider(() => worker);
+    const model = (await provider.listModels())[0];
+    const controller = new AbortController();
+    const pending = provider.generate({
+      role: "fast-helper",
+      messages: [{ role: "user", content: "Draw a panel." }],
+      signal: controller.signal,
+    }, model);
+    controller.abort();
+    expect(await pending).toMatchObject({ text: "", finishReason: "cancelled" });
+    expect(state.terminated).toBe(true);
+  });
 });
+
+function fakeWorker(autoRespond: boolean): { worker: ModelWorker; sent: WorkerRequest[]; state: { terminated: boolean } } {
+  const sent: WorkerRequest[] = [];
+  const state = { terminated: false };
+  let worker: ModelWorker;
+  worker = {
+    onmessage: null,
+    onerror: null,
+    postMessage(request: WorkerRequest) {
+      sent.push(request);
+      if (!autoRespond) return;
+      const response: WorkerResponse = request.type === "prepare"
+        ? { id: request.id, type: "ready" }
+        : { id: request.id, type: "result", text: "Kuro worker response", finishReason: "stop" };
+      queueMicrotask(() => worker.onmessage?.({ data: response } as MessageEvent<WorkerResponse>));
+    },
+    terminate() { state.terminated = true; },
+  };
+  return { worker, sent, state };
+}

@@ -274,3 +274,14 @@ A user can create a series, approve canon, ask for a chapter outline, review pan
 - [ ] Verify phone/tablet/desktop behavior separately on actual supported devices. Responsive layout alone is not platform parity.
 
 This is a requirements/acceptance-contract update only. It does not mark any product capability implemented or verified.
+
+
+## 2026-10-21 — Specialist harness and creative quality requirements
+
+- [x] Specify a model-agnostic capability harness: specialist responsibilities, bounded delegation, typed artifacts, validators, retries, checkpoints, cancellation, budgets, and honest progress reporting.
+- [x] Specify visual identity invariants, time-specific character states, approved reference bundles, camera/composition continuity, layered character construction, and visual QA.
+- [x] Specify high-quality dialogue/story checks and editable speech/thought/narration balloons with speaker tails, reading order, overflow checks, and export legibility.
+- [ ] Implement incrementally after the real canvas/action lifecycle is stable; do not turn specialist roles into fake UI or require one model call per role by default.
+- [ ] Add repeatable evaluation fixtures for canon retrieval, voice distinction, visual consistency, action correctness, lettering/layout, and device recovery.
+
+Requirements-only update: no new runtime capability is claimed as implemented or verified.

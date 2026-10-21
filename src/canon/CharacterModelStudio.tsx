@@ -452,6 +452,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         const readback = await characterModelStorage.list(projectId);
         const saved = readback.find(model => model.id === updated.id);
         if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model update could not be verified after saving.");
+        await waitForNativeModel();
         return;
       }
       setModelId(existingBase.id);
@@ -473,6 +474,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     if (!readback.some(record => record.id === model.id && record.sourceType === "procedural")) {
       throw new Error("The native character model was not found after saving.");
     }
+    await waitForNativeModel();
   }
   async function uploadModel(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget, file = input.files?.[0];
@@ -523,6 +525,16 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     catch(error){setMessage(error instanceof Error?error.message:"Could not remove model.");}
     finally{setBusy(false);}
   }
+  async function waitForNativeModel() {
+    // Wait for the real Three.js mesh tree, not just the record or UI selection.
+    // A GLB may still be loading after the record is selected.
+    for (let frame = 0; frame < 180; frame++) {
+      if (modelContentRef.current?.children.some(child => child.children.length > 0)) return;
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    }
+    throw new Error("No 3D character mesh became ready. Create a procedural blockout or select a valid GLB model before using viewport tools.");
+  }
+
   async function animateCameraTo(position: THREE.Vector3, target: THREE.Vector3) {
     const camera = cameraRef.current, controls = controlsRef.current;
     if (!camera || !controls) throw new Error("The live 3D viewport is not ready yet.");
@@ -547,6 +559,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   }
 
   async function applyCameraPreset(preset: CharacterCameraPreset) {
+    await waitForNativeModel();
     const pose = CAMERA_PRESETS[preset];
     if (!pose) throw new Error("Unknown 3D camera preset.");
     await animateCameraTo(new THREE.Vector3(...pose.position), new THREE.Vector3(...pose.target));
@@ -554,6 +567,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   }
 
   async function animateModelRotation(degrees?: number, reset = false) {
+    await waitForNativeModel();
     const root = rootRef.current;
     if (!root) throw new Error("The character preview is not ready yet.");
     const from = root.rotation.y;
@@ -575,6 +589,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   }
 
   async function applyMotionPreset(preset: CharacterMotionPreset) {
+    await waitForNativeModel();
     motionPresetRef.current = preset;
     setMotionPreset(preset);
     setMessage("Kuro set the live native character motion to " + preset.replace(/-/g, " ") + ". This changes only the editable 3D preview pose; it does not flatten or generate an image.");
@@ -615,6 +630,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         await applyCameraPreset(command.preset);
         return;
       case "camera.zoom": {
+        await waitForNativeModel();
         const camera = cameraRef.current, controls = controlsRef.current;
         if (!camera || !controls) throw new Error("The live 3D viewport is not ready yet.");
         const direction = camera.position.clone().sub(controls.target);
@@ -688,7 +704,8 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       <div className="character-model-controls">
         <label><span>Character model</span><select value={modelId} onChange={event=>{setModelId(event.target.value);const model=models.find(item=>item.id===event.target.value);if(model){setCharacterName(model.characterName);setFrontFace(model.frontFace);}}}><option value="">Choose a model…</option>{models.map(model=><option key={model.id} value={model.id}>{model.characterName}{model.characterStateId ? " · " + (styleBible?.characterStates.find(state=>state.id===model.characterStateId)?.chapterLabel ?? "chapter variant") : " · base"}{model.sourceType==="procedural"?" · blockout":" · GLB"}</option>)}</select></label>
         <label><span>Approved chapter state</span><select value={selectedState?.id ?? ""} onChange={event=>setStateId(event.target.value)} disabled={!stateOptions.length}><option value="">No approved state</option>{stateOptions.map(state=><option key={state.id} value={state.id}>{state.chapterLabel} · order {state.storyOrder}</option>)}</select></label>
-        <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label>
+        <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label><label><span>Motion preview</span><select value={motionPreset} onChange={event=>{const value=event.target.value as CharacterMotionPreset;motionPresetRef.current=value;setMotionPreset(value);}}><option value="idle">Natural idle</option><option value="relaxed">Still / relaxed</option><option value="flex">Flex pose</option><option value="combat-ready">Combat-ready</option></select></label>
+        <label><span>Embedded GLB animation</span><select value={activeAnimationIndex} disabled={!animationClips.length} onChange={event=>playEmbeddedAnimation(event.target.value)}><option value="">Native preview motion</option>{animationClips.map((clip,index)=><option key={index} value={String(index)}>{clip.name || "Animation "+(index+1)} · {clip.duration.toFixed(1)}s</option>)}</select></label>
         <button disabled={!selectedModel} onClick={()=>void resetView()}><RotateCcw size={14}/> Reset view</button><button type="button" onClick={()=>void applyCameraPreset("front")}>Front</button><button type="button" onClick={()=>void applyCameraPreset("three-quarter-right")}>3/4 view</button><button type="button" onClick={()=>void applyCameraPreset("profile-left")}>Profile</button><button type="button" onClick={()=>void applyCameraPreset("back")}>Back</button><button type="button" onClick={()=>void applyCameraPreset("full-body")}>Full body</button>
       </div>
       <p className="character-model-message" role="status">{message}</p>

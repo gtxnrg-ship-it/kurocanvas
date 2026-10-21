@@ -114,7 +114,9 @@ export interface LocalDrawingDocument {
     id: string;
     layerId?: string;
     tool: "brush" | "eraser";
-    shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble";
+    shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+    imageDataUrl?: string;
+    imageName?: string;
     text?: string;
     fontFamily?: "comic" | "sans" | "serif";
     fillColor?: string;

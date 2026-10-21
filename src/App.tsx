@@ -11,7 +11,7 @@ import { buildApprovedCanonContext } from './canon/aiContext';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
-import { buildStyleBibleContext, findStyleConflicts } from './canon/styleBible';
+import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, type CharacterVisualState } from './canon/styleBible';
 import StyleBibleStudio from './canon/StyleBibleStudio';
 import { buildStoryMemoryContext, retrieveStoryMemory, shouldCaptureStoryMemory } from './canon/storyMemory';
 import StoryVault from './canon/StoryVault';
@@ -54,10 +54,10 @@ const captureStory = shouldCaptureStoryMemory(text)
 if(activeProjectId && captureStory){
   try {
     const extraction=await provider.generate({role:'planning',messages:[
-      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}]}. Never infer, fill gaps, add dialogue, invent events, or use model knowledge. Every evidence value must be an exact substring of the user message. If there are no clear factual story details, return {"memories":[]}. Do not approve canon; every result is only a proposal for human review.'},
+      {role:'system',content:'Extract proposed story-memory records from the USER MESSAGE ONLY. Look for chapter/scene recaps, major events and consequences, first appearances and newly introduced characters, changes to character appearance, abilities, relationships, identity, allegiance, injuries, knowledge, or status, and explicit visual/panel references. Create separate proposals when the message supports distinct facts. Return JSON exactly: {"memories":[{"kind":"chapter|event|character-change|visual-reference|panel-template","title":"short title","evidence":"an exact contiguous quote copied from the user message","entities":["exact entity names appearing in evidence"]}],"visualStates":[{"characterName":"exact character name","evidence":"exact contiguous quote copied from the user message","chapterNumber":12,"storyOrder":12,"age":"exact substring or empty","hair":"exact substring or empty","eyes":"exact substring or empty","scars":"exact substring or empty","outfit":"exact substring or empty","body":"exact substring or empty","accessories":"exact substring or empty","injuries":"exact substring or empty","other":"exact substring or empty"}]}. Only create visualStates for explicit appearance changes or a clearly described first visual design, and only when the evidence explicitly names a chapter number. Every non-empty appearance field must be an exact substring of evidence, and characterName must appear verbatim in evidence. chapterNumber must be explicitly stated in evidence. storyOrder may default to chapterNumber but is only a proposal for user correction, especially for flashbacks. Never infer a scar, age, hair, outfit, injury, or other visual detail. If there are no supported details, return empty arrays. Never approve canon; every result is only a proposal for human review.'},
       {role:'user',content:text}
     ],temperature:0,maxOutputTokens:1000,responseFormat:'json'},model);
-    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>};
+    const parsed=JSON.parse(extraction.text) as {memories?:Array<{kind?:string;title?:string;evidence?:string;entities?:string[]}>;visualStates?:Array<{characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>};
     const candidates=Array.isArray(parsed.memories)?parsed.memories:[];
     let saved=0;
     for(const item of candidates.slice(0,8)){
@@ -71,8 +71,35 @@ if(activeProjectId && captureStory){
       await storyMemoryStorage.save({id:crypto.randomUUID(),projectId:activeProjectId,kind:item.kind as 'chapter'|'event'|'character-change'|'visual-reference'|'panel-template',title,summary:evidence,chapterNumber:chapterFromEvidence?Number(chapterFromEvidence[1]):undefined,entityIds,tags:[],source:'user',status:'proposed',assetRefs:[],supersedes:[],createdAt:now,updatedAt:now});
       saved++;
     }
-    if(saved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+' from your exact words and saved them in the Story Vault. They are not canon yet: review and approve them in Creative Vault. I kept each summary as a direct quote so I would not silently add details.'}]);
-    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail to capture from that message. Nothing was added to the Story Vault.'}]);
+    let visualSaved=0;
+    const visualCandidates=Array.isArray(parsed.visualStates)?parsed.visualStates:[];
+    if(visualCandidates.length){
+      const bible=await styleBibleStorage.load(activeProjectId) ?? createEmptyStyleBible(activeProjectId);
+      const additions:CharacterVisualState[]=[];
+      for(const item of visualCandidates.slice(0,8)){
+        const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
+        const characterName=typeof item.characterName==='string'?item.characterName.trim():'';
+        const chapterNumber=Number(item.chapterNumber);
+        const chapterInEvidence=evidence.match(/\\b(?:chapter|ch\\.?)\\s*#?\\s*(\\d+)\\b/i);
+        if(!evidence||!text.includes(evidence)||!characterName||!evidence.includes(characterName)||!chapterInEvidence||Number(chapterInEvidence[1])!==chapterNumber)continue;
+        const fields=['age','hair','eyes','scars','outfit','body','accessories','injuries','other'] as const;
+        const visual:Record<string,string>={};
+        for(const field of fields){
+          const value=typeof item[field]==='string'?item[field]!.trim():'';
+          if(value && evidence.includes(value))visual[field]=value;
+        }
+        if(!fields.some(field=>visual[field]))continue;
+        if(bible.characterStates.some(state=>state.status!=='superseded'&&state.characterName.toLocaleLowerCase()===characterName.toLocaleLowerCase()&&state.chapterNumber===chapterNumber&&state.sourceEvidence===evidence))continue;
+        const storyOrder=Number.isFinite(item.storyOrder)&&Number(item.storyOrder)>=0?Number(item.storyOrder):chapterNumber;
+        additions.push({id:crypto.randomUUID(),characterName,storyOrder,chapterNumber,chapterLabel:'Chapter '+chapterNumber,sourceEvidence:evidence,...visual,status:'proposed'});
+      }
+      if(additions.length){
+        await styleBibleStorage.save({...bible,characterStates:[...bible.characterStates,...additions],updatedAt:new Date().toISOString()});
+        visualSaved=additions.length;
+      }
+    }
+    if(saved||visualSaved) setMessages(m=>[...m,{role:'kuro',text:'I drafted '+saved+' story-memory proposal'+(saved===1?'':'s')+' and '+visualSaved+' character-visual proposal'+(visualSaved===1?'':'s')+' from exact quotes in your message. They are all unapproved proposals in Creative Vault, not canon. Check the chapter number and chronological story order—especially for flashbacks—before approving them.'}]);
+    else setMessages(m=>[...m,{role:'kuro',text:'I did not find a safe, exact story detail or chapter-specific visual change to capture. Nothing was added to the Story Vault or Style Bible.'}]);
   } catch { setMessages(m=>[...m,{role:'kuro',text:'I could not safely draft story-memory proposals from that message. Nothing was added; you can still record it directly in Creative Vault.'}]); }
 }
 }}catch(e){setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the provider settings and connection, then try again.'}]);}finally{setWorking(false);}}

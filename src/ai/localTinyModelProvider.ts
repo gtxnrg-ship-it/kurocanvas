@@ -58,7 +58,7 @@ export class LocalTinyModelProvider implements ModelProvider {
   private readonly pending = new Map<number, PendingRequest>();
 
   constructor(private readonly workerFactory: () => ModelWorker = () => {
-    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Tiny will not fall back to blocking the canvas thread.");
+    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Local will not fall back to blocking the canvas thread.");
     return new Worker(new URL("./localTinyModel.worker.ts", import.meta.url), { type: "module" }) as unknown as ModelWorker;
   }) {}
 
@@ -84,7 +84,7 @@ export class LocalTinyModelProvider implements ModelProvider {
     if (request.signal?.aborted) return this.cancelledResponse(model);
     const messages = request.messages.map(message => {
       if (typeof message.content !== "string") {
-        throw new Error("Kuro Tiny is text-only. Canvas-image inspection needs a vision-capable model and is not supported by this local model.");
+        throw new Error("Kuro Local is text-only. Canvas-image inspection needs a vision-capable model and is not supported by this local model.");
       }
       return { role: message.role, content: message.content };
     });

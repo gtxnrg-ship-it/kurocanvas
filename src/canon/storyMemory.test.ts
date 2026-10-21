@@ -44,11 +44,18 @@ describe("durable story memory", () => {
     expect(draft.status).toBe("proposed"); expect(draft.source).toBe("user");
   });
   it("validates project boundaries and required detail", () => expect(validateStoryMemoryRecord(record(), "series-b")).toContain("Memory belongs to a different project."));
-  it("keeps superseded character states available for chapter-specific flashbacks", () => {
+  it("keeps chapter-linked superseded history distinguishable from approved canon", () => {
     const oldState = record({ id: "mira-before", chapterNumber: 4, status: "superseded", summary: "Mira has a long braid before the bridge event." });
     const result = retrieveStoryMemory([oldState], { projectId: "series-a", chapterNumber: 4, text: "Mira flashback" });
     expect(result.records.map(item => item.id)).toContain("mira-before");
+    expect(result.warnings.join(" ")).toMatch(/no matching approved story memory/i);
+    expect(result.warnings.join(" ")).toMatch(/historical only/i);
     expect(retrieveStoryMemory([oldState], { projectId: "series-a", text: "Mira current appearance" }).records).toHaveLength(0);
+  });
+  it("marks superseded records as historical in the model context", () => {
+    const context = buildStoryMemoryContext({ records: [record({ status: "superseded" })], assetRefs: [], warnings: [] });
+    expect(context).toMatch(/SUPERSEDED records are old revisions, not active canon/i);
+    expect(context).toMatch(/only when the user explicitly asks/i);
   });
   it("does not treat visual asset IDs as evidence of image contents", () => {
     const context = buildStoryMemoryContext({ records: [record({ assetRefs: ["drawing:canvas-17"] })], assetRefs: ["drawing:canvas-17"], warnings: [] });

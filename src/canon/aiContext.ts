@@ -129,7 +129,7 @@ export function hasUnrevealedCharacterMention(
   const hiddenTokens = filterUnrevealedCanon(bundle, gate).hiddenTokens;
   if (!hiddenTokens.length) return false;
   const normalizePhrase = (value: string) =>
-    value.normalize("NFKC").toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+    value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const haystack = " " + normalizePhrase(output) + " ";
   return hiddenTokens.some(token => {
     const phrase = normalizePhrase(token);

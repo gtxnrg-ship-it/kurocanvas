@@ -6,10 +6,22 @@ import { Box, Plus, RefreshCw, RotateCcw, ShieldAlert, Trash2, Upload } from "lu
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
 import { resolveActiveScarOverlays, selectCharacterModelVariant, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
+import { describeCharacterModelAgentCommand, type CharacterCameraPreset, type CharacterModelAgentCommand } from "./characterModelAgentTools";
 import "./characterModelStudio.css";
 
 type ProjectChoice = { id: string; name: string };
 const timestamp = () => new Date().toISOString();
+const CAMERA_PRESETS: Record<CharacterCameraPreset, { position: [number, number, number]; target: [number, number, number] }> = {
+  front: { position: [0, 1.45, 5.8], target: [0, 1.25, 0] },
+  "three-quarter-left": { position: [3.8, 1.55, 4.5], target: [0, 1.25, 0] },
+  "three-quarter-right": { position: [-3.8, 1.55, 4.5], target: [0, 1.25, 0] },
+  "profile-left": { position: [5.8, 1.4, 0], target: [0, 1.25, 0] },
+  "profile-right": { position: [-5.8, 1.4, 0], target: [0, 1.25, 0] },
+  back: { position: [0, 1.45, -5.8], target: [0, 1.25, 0] },
+  "close-up": { position: [0, 2.05, 2.8], target: [0, 1.92, 0] },
+  "full-body": { position: [0, 1.45, 7.8], target: [0, 1.2, 0] },
+  "high-angle": { position: [0, 5.7, 3.6], target: [0, 1.1, 0] },
+};
 const normalizeName = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
 const scarsAreAbsent = (value?: string) => !value?.trim() || /^(none|no scars?|removed|cleared|not present|no visible scars?)$/i.test(value.trim());
 
@@ -80,7 +92,14 @@ function normalizedModel(model: THREE.Object3D) {
   model.position.z -= center.z;
 }
 
-export default function CharacterModelStudio({ projectId, projects }: { projectId: string; projects: ProjectChoice[] }) {
+type PendingCharacterModelAction = { id: string; projectId: string; summary: string; commands: CharacterModelAgentCommand[] };
+type CharacterModelStudioProps = {
+  projectId: string;
+  projects: ProjectChoice[];
+  pendingAgentAction?: PendingCharacterModelAction | null;
+  onAgentActionResult?: (id: string, result: "success" | "error", message: string) => void;
+};
+export default function CharacterModelStudio({ projectId, projects, pendingAgentAction = null, onAgentActionResult }: CharacterModelStudioProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rootRef = useRef<THREE.Group | null>(null);
@@ -98,6 +117,8 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   const [modelRevision, setModelRevision] = useState(0);
   const [message, setMessage] = useState("Upload a GLB character model or create a 3D blockout. Approved chapter states determine which scars should be visible.");
   const [frontFace, setFrontFace] = useState<"positive-z"|"negative-z">("positive-z");
+  const [agentActionProgress, setAgentActionProgress] = useState<{ id: string; completed: number; total: number; command: string } | null>(null);
+  const handledAgentActionRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;

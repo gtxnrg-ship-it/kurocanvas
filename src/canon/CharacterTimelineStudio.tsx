@@ -378,7 +378,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
             <label>Previous body ID <input value={previousBodyInstanceId} onChange={event=>setPreviousBodyInstanceId(event.target.value)} placeholder="Auto-links when body changes"/></label>
             <label>Age of new body <input type="number" min="0" max="10000" value={ageAtIncarnation} onChange={event=>setAgeAtIncarnation(event.target.value)} placeholder="At reincarnation"/></label>
           </div>
-          <label className="timeline-unknown"><input type="checkbox" checked={explicitUnknowns.has("bodyIdentity")} onChange={event=>toggleUnknown("bodyIdentity",event.target.checked)}/> Body identity is explicitly unknown; do not assume this is the same body.</label>
+          <label className="timeline-unknown"><input type="checkbox" checked={unknownFields.includes("bodyIdentity")} onChange={event=>toggleUnknown("bodyIdentity",event.target.checked)}/> Body identity is explicitly unknown; do not assume this is the same body.</label>
         </div>
         <div className="timeline-fieldset"><h3><Activity size={16}/> Physical condition lifecycle</h3><p>Each condition keeps a stable ID across snapshots. Mark it healing or healed deliberately; omission does not mean the injury disappeared.</p>
           {conditions.length === 0 ? <p className="timeline-muted">No structured conditions in this draft. If there are no active injuries, use “Explicitly none”; otherwise leave unchanged to inherit the previous roster.</p> :
@@ -404,7 +404,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
           </div>
           <div className="timeline-condition-options">
             <label className="timeline-unknown"><input type="checkbox" checked={clearConditions} onChange={event=>{setClearConditions(event.target.checked);setConditionsTouched(true);setConditions(event.target.checked?[]:(baseState?.appearance.physicalConditions??[]));setUnknownFields(current=>current.filter(field=>field!=="physicalConditions"));}}/> Explicitly none at this story point</label>
-            <label className="timeline-unknown"><input type="checkbox" checked={explicitUnknowns.has("physicalConditions")} onChange={event=>{toggleUnknown("physicalConditions",event.target.checked);if(event.target.checked)setConditions([]);}}/> Injury state explicitly unknown</label>
+            <label className="timeline-unknown"><input type="checkbox" checked={unknownFields.includes("physicalConditions")} onChange={event=>{toggleUnknown("physicalConditions",event.target.checked);if(event.target.checked)setConditions([]);}}/> Injury state explicitly unknown</label>
           </div>
         </div>
         <div className="timeline-fieldset"><h3>Canon review</h3><p>New snapshots begin as proposals. Approving one makes it eligible for continuity retrieval, but the reveal gate and story order still apply.</p>

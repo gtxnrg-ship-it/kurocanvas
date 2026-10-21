@@ -130,7 +130,7 @@ describe("character evolution canon", () => {
     });
     expect(at50.appearance.physicalConditions?.find(item => item.id === "left-arm-fracture")?.healingProgressPercent).toBe(75);
     expect(buildCharacterStateBrief(at50, 50)).toContain("Body instance: body-reborn");
-    expect(buildCharacterStateBrief(at50, 50)).toContain("stage: healed");
+    expect(buildCharacterStateBrief(at50, 50)).toContain("[nose-bruise; bruise; healed]");
   });
 
   it("uses explicit unknowns to clear previously known details without silently inheriting them", () => {

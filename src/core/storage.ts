@@ -114,6 +114,11 @@ export interface LocalDrawingDocument {
     id: string;
     layerId?: string;
     tool: "brush" | "eraser";
+    shape?: "line" | "rectangle" | "ellipse" | "text" | "panel";
+    text?: string;
+    filled?: boolean;
+    rotation?: number;
+    brushPreset?: "ink" | "pencil" | "marker" | "airbrush";
     color: string;
     size: number;
     points: Array<{ x: number; y: number; pressure: number }>;

@@ -146,3 +146,6 @@
 
 .drawing-paper .canvas-selection-outline::before{content:"";position:absolute;left:50%;top:-24px;width:9px;height:9px;transform:translateX(-50%);border:2px solid #fff;background:#a78bfa;border-radius:50%;box-shadow:0 0 0 2px rgba(24,18,34,.85)}
 .drawing-paper .canvas-selection-outline::after{content:"";position:absolute;right:-5px;bottom:-5px;width:9px;height:9px;border:1px solid #fff;background:#a78bfa;border-radius:2px;box-shadow:0 0 0 2px rgba(24,18,34,.85)}
+
+.brush-preset-control{display:flex;align-items:center;gap:6px;color:#bfb3ce;font-size:11px;white-space:nowrap}
+.brush-preset-control select{max-width:118px;border:1px solid #443951;border-radius:7px;background:#17131f;color:#f1eafa;padding:7px 8px;font-size:11px}

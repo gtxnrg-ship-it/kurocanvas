@@ -61,7 +61,11 @@ export function filterStoryMemoryAtPoint(
     if (chapter !== undefined && record.chapterNumber !== undefined && record.chapterNumber > chapter) return false;
     if (chapter !== undefined && temporal && record.chapterNumber === undefined && order === undefined) return false;
     if (order !== undefined && record.storyOrder !== undefined && record.storyOrder > order) return false;
-    if (order !== undefined && temporal && record.storyOrder === undefined) return false;
+    if (order !== undefined && temporal && record.storyOrder === undefined) {
+      // A record from a strictly earlier numbered chapter is chronologically safe;
+      // same-chapter memories without story order remain ambiguous and are withheld.
+      if (chapter === undefined || record.chapterNumber === undefined || record.chapterNumber >= chapter) return false;
+    }
     return true;
   });
 }

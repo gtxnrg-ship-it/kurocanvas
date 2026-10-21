@@ -378,8 +378,8 @@ function notifyResearchCompletion(task: ResearchTaskRecord): void {
   try {
     new Notification("Kuro's research is ready", {
       body: task.sources.length
-        ? task.query + " · collected " + task.sources.length + " source summaries."
-        : "Research finished, but no matching Wikipedia pages were found.",
+        ? task.query + " · collected " + task.sources.length + (task.sourceProvider === "crossref" ? " scholarly metadata records." : " source summaries.")
+        : "Research finished, but no matching entries were found from " + ((task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref." : "Wikipedia."),
       tag: task.id,
       icon: "./kuro-icon.webp",
     });

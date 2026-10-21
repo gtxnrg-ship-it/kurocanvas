@@ -3,11 +3,12 @@ import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
 const DRAWINGS = "drawings";
+const DRAWING_REVISIONS = "drawingRevisions";
 const CANON = "canon";
 const STORY_MEMORY = "storyMemory";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
@@ -22,6 +23,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(TEMPLATES)) db.createObjectStore(TEMPLATES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(AUTOSAVE)) db.createObjectStore(AUTOSAVE, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(DRAWINGS)) db.createObjectStore(DRAWINGS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(DRAWING_REVISIONS)) db.createObjectStore(DRAWING_REVISIONS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STORY_MEMORY)) db.createObjectStore(STORY_MEMORY, { keyPath: "id" });
     };
@@ -130,6 +132,49 @@ export interface LocalDrawingDocument {
   updatedAt: string;
 }
 
+export interface DrawingRevision {
+  id: string;
+  drawingId: string;
+  title: string;
+  createdAt: string;
+  document: LocalDrawingDocument;
+}
+
+/** Named, immutable checkpoints separate from the current autosaved drawing. */
+export const drawingRevisionStorage = {
+  async create(drawingId: string, title: string, document: LocalDrawingDocument): Promise<DrawingRevision> {
+    if (!drawingId.trim() || !title.trim() || document.version !== 1 || !Array.isArray(document.strokes)) {
+      throw new Error("A version checkpoint needs a drawing, title, and valid document.");
+    }
+    const createdAt = new Date().toISOString();
+    const revision: DrawingRevision = {
+      id: crypto.randomUUID(), drawingId, title: title.trim(), createdAt,
+      document: JSON.parse(JSON.stringify({ ...document, id: drawingId, updatedAt: createdAt })) as LocalDrawingDocument,
+    };
+    await requestValue<IDBValidKey>(DRAWING_REVISIONS, "readwrite", store => store.put(revision));
+    const all = await requestValue<DrawingRevision[]>(DRAWING_REVISIONS, "readonly", store => store.getAll());
+    const older = all.filter(item => item.drawingId === drawingId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(20);
+    for (const item of older) await requestValue<undefined>(DRAWING_REVISIONS, "readwrite", store => store.delete(item.id));
+    return revision;
+  },
+  async list(drawingId: string): Promise<Array<Omit<DrawingRevision, "document">>> {
+    const all = await requestValue<DrawingRevision[]>(DRAWING_REVISIONS, "readonly", store => store.getAll());
+    return all.filter(item => item.drawingId === drawingId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(({ document: _document, ...meta }) => meta);
+  },
+  async load(revisionId: string, drawingId: string): Promise<DrawingRevision | undefined> {
+    const revision = await requestValue<DrawingRevision | undefined>(DRAWING_REVISIONS, "readonly", store => store.get(revisionId));
+    if (!revision || revision.drawingId !== drawingId) return undefined;
+    if (revision.document.version !== 1 || !Array.isArray(revision.document.strokes)) throw new Error("This drawing version is damaged or unsupported.");
+    return revision;
+  },
+  async removeDrawing(drawingId: string): Promise<void> {
+    const all = await requestValue<DrawingRevision[]>(DRAWING_REVISIONS, "readonly", store => store.getAll());
+    for (const revision of all) if (revision.drawingId === drawingId) await requestValue<undefined>(DRAWING_REVISIONS, "readwrite", store => store.delete(revision.id));
+  },
+};
+
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
 export const drawingStorage = {
   async save(document: LocalDrawingDocument): Promise<void> {
@@ -152,6 +197,7 @@ export const drawingStorage = {
   },
   async remove(id: string): Promise<void> {
     await requestValue<undefined>(DRAWINGS, "readwrite", store => store.delete(id));
+    await drawingRevisionStorage.removeDrawing(id);
   },
 };
 

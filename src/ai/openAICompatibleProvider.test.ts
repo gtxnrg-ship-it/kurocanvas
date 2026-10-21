@@ -58,6 +58,40 @@ describe("OpenAICompatibleProvider", () => {
     expect(fetchImpl).toHaveBeenCalledWith("http://localhost:8000/v1/models", expect.any(Object));
   });
 
+  it("exposes Qwen hardware estimates and license for device-aware selection", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      data: [
+        { id: "Qwen/Qwen3.8-27B" },
+        { id: "Qwen/Qwen3.8-27B-FP8" },
+        { id: "Inferact/Qwen3.8-27B-NVFP4" },
+      ],
+    })) as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      fetchImpl,
+    });
+
+    const models = await provider.listModels();
+
+    expect(models[0]).toMatchObject({
+      downloadBytes: 55_563_006_776,
+      memoryBytes: 67 * 1024 ** 3,
+      license: "Apache-2.0",
+    });
+    expect(models[1]).toMatchObject({
+      downloadBytes: 30_866_866_928,
+      memoryBytes: 38 * 1024 ** 3,
+      license: "Apache-2.0",
+    });
+    expect(models[2]).toMatchObject({
+      downloadBytes: 26_381_249_312,
+      memoryBytes: 32 * 1024 ** 3,
+      license: "Apache-2.0",
+    });
+  });
+
   it("sends the selected model and messages to chat completions", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
       model: "model-a",

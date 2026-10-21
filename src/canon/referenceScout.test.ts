@@ -62,6 +62,7 @@ describe("reference scout", () => {
       attribution: "Credit the creator",
     };
     expect(normalizeReferenceSearchResults([trusted])).toEqual([trusted]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, licenseUrl: "" }])).toMatchObject([{ title: "Rain", licenseUrl: "" }]);
     expect(normalizeReferenceSearchResults([{ ...trusted, thumbnailUrl: "https://untrusted.example/image.jpg" }])).toEqual([]);
     expect(normalizeReferenceSearchResults([{ ...trusted, sourceUrl: "https://untrusted.example/page" }])).toEqual([]);
   });

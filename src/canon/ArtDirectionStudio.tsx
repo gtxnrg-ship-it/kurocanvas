@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Palette, Plus, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { Palette, Plus, Save, ShieldCheck, Trash2, WandSparkles } from "lucide-react";
 import { artDirectionStorage } from "../core/storage";
 import { ART_DIRECTION_FIELDS, createEmptyArtDirection, type ArtDirectionBible, type ArtDirectionField, type ArtDirectionInfluence } from "./artDirection";
 import "./artDirectionStudio.css";
@@ -7,7 +7,7 @@ import "./artDirectionStudio.css";
 type ProjectChoice = { id: string; name: string };
 const makeId = () => crypto.randomUUID();
 
-export default function ArtDirectionStudio({ projectId, projects }: { projectId: string; projects: ProjectChoice[] }) {
+export default function ArtDirectionStudio({ projectId, projects, onSynthesize }: { projectId: string; projects: ProjectChoice[]; onSynthesize?: (bible: ArtDirectionBible) => Promise<Partial<ArtDirectionBible>> }) {
   const [bible, setBible] = useState<ArtDirectionBible | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Choose a project to define its consistent story and visual language.");
@@ -43,12 +43,23 @@ export default function ArtDirectionStudio({ projectId, projects }: { projectId:
     finally { setBusy(false); }
   }
 
+  async function synthesize() {
+    if (!bible || !onSynthesize) { setMessage("Connect a model in Preferences to synthesize a cohesive style."); return; }
+    setBusy(true);
+    try {
+      const draft = await onSynthesize(bible);
+      setBible(current => current ? { ...current, ...draft, projectId: current.projectId, schemaVersion: 1, influences: current.influences, updatedAt: new Date().toISOString() } : current);
+      setMessage("Kuro drafted a cohesive original art direction. Review every field, adjust anything you disagree with, then save to lock it in.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not synthesize art direction."); }
+    finally { setBusy(false); }
+  }
+
   const activeProject = projects.find(project => project.id === projectId);
   return <section className="art-direction-studio">
     <header className="art-direction-head">
       <div><small>STYLE DNA · PROJECT-LOCKED</small><h2><Palette size={20}/> Art direction bible</h2>
         <p>Blend story, relationship, ensemble, and visual inspirations into one original style. Kuro receives these rules alongside approved canon and chapter history.</p></div>
-      <button className="art-direction-save" disabled={!bible || !projectId || busy} onClick={() => void save()}><Save size={15}/>{busy ? "Saving…" : "Save art direction"}</button>
+      <div className="art-direction-header-actions"><button disabled={!bible || !projectId || busy || !onSynthesize} onClick={() => void synthesize()}><WandSparkles size={15}/>{busy ? "Working…" : "Synthesize with Kuro"}</button><button className="art-direction-save" disabled={!bible || !projectId || busy} onClick={() => void save()}><Save size={15}/>{busy ? "Saving…" : "Save art direction"}</button></div>
     </header>
     {!projectId ? <p className="art-direction-message">{message}</p> : <>
       <div className="art-direction-project"><ShieldCheck size={15}/><span><b>{activeProject?.name ?? "Active project"}</b><small>Separate style memory · no cross-project mixing</small></span></div>

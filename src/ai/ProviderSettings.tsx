@@ -58,7 +58,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
         role: "reasoning",
         messages: [
           { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance(voiceIntensity) },
-          { role: "user", content: "Give me a natural, short reply to this: \\"I want to draw a whole manga scene, but I'm overwhelmed and don't know where to start.\\" Be playfully tsundere if it fits, then offer one genuinely useful first step. Keep it to 2–4 sentences." },
+          { role: "user", content: "Reply naturally to a manga creator who feels overwhelmed and does not know where to start drawing a scene. Be playfully tsundere if it fits, then offer one useful first step. Keep it to 2–4 sentences." },
         ],
         temperature: 0.75,
         maxOutputTokens: 220,

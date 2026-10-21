@@ -18,7 +18,7 @@ type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; opacity?: number; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
-type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
+type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string; activeLayerId: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
@@ -408,7 +408,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     let cancelled = false;
     (async () => {
       try {
-        const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background };
+        const beforePlan: PlanSnapshot = { planId: pendingPlan.id, strokes: docRef.current.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background: docRef.current.background, activeLayerId };
         const current: LocalDrawingDocument = {
           id: drawingId, name: drawingName, version: 1, width: docRef.current.width,
           height: docRef.current.height, background: docRef.current.background,
@@ -594,12 +594,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const action = historyOrder[historyOrder.length - 1];
     if (action === 'plan' && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
       setHistoryOrder(old => old.slice(0, -1)); setRedoOrder(old => [...old, 'plan']);
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
-      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan undone as one step'); return;
+      setStrokes(snapshot.strokes); setLayers(snapshot.layers); setActiveLayerId(snapshot.activeLayerId || snapshot.layers.find(layer => !layer.locked)?.id || snapshot.layers[0]?.id || DEFAULT_LAYER.id); setBackground(snapshot.background); setRedoStack([]);
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit undone' : 'AI drawing plan undone as one step'); return;
     }
     if (action === 'edit' && editUndoStack.length) {
       const previous = editUndoStack[editUndoStack.length - 1];
@@ -609,7 +609,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!action && planUndoStack.length) {
       const snapshot = planUndoStack[planUndoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanRedoStack(old => [...old, current]); setPlanUndoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
@@ -622,12 +622,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const action = redoOrder[redoOrder.length - 1];
     if (action === 'plan' && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       setHistoryOrder(old => [...old, 'plan']); setRedoOrder(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
-      setNotice('AI drawing plan restored as one step'); return;
+      setNotice(snapshot.planId.startsWith('layer-edit:') ? 'Layer edit restored' : 'AI drawing plan restored as one step'); return;
     }
     if (action === 'edit' && editRedoStack.length) {
       const next = editRedoStack[editRedoStack.length - 1];
@@ -637,7 +637,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!action && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background, activeLayerId };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);
@@ -813,10 +813,22 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setNotice('Created ' + frames.length + ' editable comic panel frames as one undoable layout.');
   };
 
+  const checkpointLayerEdit = (label: string) => {
+    const snapshot: PlanSnapshot = {
+      planId: 'layer-edit:' + label,
+      strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })),
+      layers: layers.map(layer => ({ ...layer })),
+      background,
+      activeLayerId,
+    };
+    setPlanUndoStack(old => [...old, snapshot]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]);
+    setEditRedoStack([]); setRedoStack([]);
+  };
   const addLayer = () => {
     const name = globalThis.prompt('Layer name', 'New layer');
     if (!name?.trim()) return;
     const layer: Layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false, opacity: 1, blendMode: 'normal' };
+    checkpointLayerEdit('add layer');
     setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name);
   };
   const duplicateActiveLayer = () => {
@@ -824,6 +836,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!source) return;
     const id = crypto.randomUUID();
     const copy: Layer = { ...source, id, name: source.name + ' copy', locked: false };
+    checkpointLayerEdit('duplicate layer');
     const duplicated = strokes.filter(stroke => (stroke.layerId || layers[0]?.id) === source.id).map(stroke => ({ ...stroke, id: crypto.randomUUID(), layerId: id, points: stroke.points.map(point => ({ ...point })) }));
     setLayers(old => [...old, copy]); setStrokes(old => [...old, ...duplicated]); setActiveLayerId(id); setRedoStack([]);
     setNotice('Duplicated layer and its artwork');
@@ -832,6 +845,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (layers.length <= 1) { setNotice('Keep at least one layer in the drawing'); return; }
     const current = layers.find(layer => layer.id === activeLayerId);
     if (!current || !globalThis.confirm('Delete layer "' + current.name + '" and its artwork?')) return;
+    checkpointLayerEdit('delete layer');
     const nextLayers = layers.filter(layer => layer.id !== current.id);
     setLayers(nextLayers); setStrokes(old => old.filter(stroke => (stroke.layerId || layers[0]?.id) !== current.id));
     setActiveLayerId(nextLayers.find(layer => !layer.locked)?.id || nextLayers[0].id); setRedoStack([]);
@@ -841,7 +855,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const current = layers.find(layer => layer.id === id);
     if (!current) return;
     const name = globalThis.prompt('Rename layer', current.name);
-    if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
+    if (name?.trim() && name.trim() !== current.name) { checkpointLayerEdit('rename layer'); setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); }
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
   useEffect(() => {

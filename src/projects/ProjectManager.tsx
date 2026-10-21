@@ -61,7 +61,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
       const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
         .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length).trim()).filter(Boolean))];
-      const availableDrawings = await drawingStorage.list();
+      const availableDrawings = await drawingStorage.list(id);
       const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
       if (missingDrawings.length) {
         const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.memoryTitles.join(', ') + ')').join('; ');
@@ -69,7 +69,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       }
       let linkedDrawings = 0;
       for (const drawingId of drawingIds) {
-        const drawing = await drawingStorage.load(drawingId);
+        const drawing = await drawingStorage.load(drawingId, id);
         if (!drawing) throw new Error('Export cancelled because drawing "' + drawingId + '" disappeared during packaging. Nothing was downloaded; retry after checking local storage.');
         assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
         linkedDrawings++;
@@ -236,7 +236,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (styleBible) await styleBibleStorage.save(styleBible);
         for (const reference of references) await referenceSourceStorage.save(reference);
         for (const model of characterModels) await characterModelStorage.save(model);
-        for (const drawing of drawings) { await drawingStorage.save(drawing); savedDrawingIds.push(drawing.id); }
+        for (const drawing of drawings) { await drawingStorage.save({ ...drawing, projectId: project.id }); savedDrawingIds.push(drawing.id); }
         for (const memory of memories) await storyMemoryStorage.save(memory);
       } catch (error) {
         await Promise.allSettled(savedDrawingIds.map(id => drawingStorage.remove(id)));

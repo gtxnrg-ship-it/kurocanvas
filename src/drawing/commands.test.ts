@@ -15,6 +15,12 @@ describe("drawing command validation", () => {
   it("rejects duplicate command IDs in one plan", () => {
     expect(validateDrawingPlan([validStroke, { ...validStroke }], bounds).errors.some(e => e.includes("Duplicate command ID"))).toBe(true);
   });
+  it("parses editable shape and lettering metadata", () => {
+    const bubble = { ...validStroke, shape: "bubble", fillColor: "#fffdfb", points: [{x:20,y:30},{x:220,y:140}] };
+    expect(validateDrawingCommand(bubble, bounds).valid).toBe(true);
+    expect(validateDrawingCommand({ ...validStroke, shape: "text" }, bounds).errors.join(" ")).toMatch(/non-empty text/);
+    expect(validateDrawingCommand({ ...validStroke, shape: "text", text: "Hello", fontFamily: "comic" }, bounds).valid).toBe(true);
+  });
   it("parses valid JSON and rejects malformed JSON", () => {
     expect(parseDrawingPlan(JSON.stringify([validStroke]), bounds)).toHaveLength(1);
     expect(() => parseDrawingPlan("{", bounds)).toThrow(/valid JSON/);

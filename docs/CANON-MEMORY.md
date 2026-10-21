@@ -58,3 +58,22 @@ Do not automatically rewrite approved canon or existing artwork without explicit
 
 ## Testing requirements
 Test unknown-vs-false, conflicting facts, superseded facts, character knowledge, timeline ordering, provenance links, retcon impact reports, project isolation and export/import round trips.
+
+## Relationship continuity and emotional state
+
+Relationships are first-class temporal canon, not a one-word label or a vague summary. Kuro must remember both the relationship's history and its current state. If two characters move from enemies to friends, their current interactions must reflect friendship while preserving the betrayal, emotional cost, boundaries, habits, and unresolved wounds that still matter. They must not revert to acting like enemies unless a later approved event changes the relationship again.
+
+A relationship record should include:
+- stable IDs for both characters and the universe; directionality when feelings or knowledge differ;
+- current state plus bounded trust, warmth, and tension values, used as guidance rather than fake psychological precision;
+- emotional notes, recurring interaction patterns, boundaries, sensitivities, unresolved wounds, shared jokes, promises, and important acts of care or betrayal;
+- a chronological sequence of before/after snapshots with cause, consequences, story order, source-message IDs, and approval status;
+- separate current truth from proposed transitions and superseded history.
+
+Dialogue and scene planning must retrieve the relevant relationship snapshot for the scene's story time, not blindly use the latest state for flashbacks. A proposed reconciliation does not become canon until approved. If the evidence is missing or contradictory, Kuro must say so and ask rather than invent a memory.
+
+### Anti-hallucination contract
+
+“Never forget” is an engineering goal, not a guarantee that any model can achieve perfect recall. Kuro must mitigate failure by persisting the source conversation and approved canon, indexing relationships/events with stable IDs, retrieving evidence for relevant scene details, and validating generated plans against that evidence. Important claims should point back to a source message, approved event, or asset revision. Unknown, proposed, inferred, contradicted, and approved facts must remain distinct. If retrieval finds no evidence, Kuro must not fill the gap with confident invention.
+
+For long sessions, the transcript remains durable while summaries are only indexes/accelerators and never replace source records. Memory updates must be idempotent, versioned, reviewable, and recoverable. Retcons require a visible impact report and explicit approval. Every lookup, cache entry, queued task, and generated asset must remain scoped to the active universe.

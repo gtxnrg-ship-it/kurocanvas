@@ -8,6 +8,15 @@ export interface NativeStroke {
   color: string;
   size: number;
   points: Array<{ x: number; y: number; pressure: number }>;
+  shape?: "line" | "rectangle" | "ellipse" | "text" | "panel" | "bubble" | "image";
+  imageDataUrl?: string;
+  imageName?: string;
+  text?: string;
+  fontFamily?: "comic" | "sans" | "serif";
+  filled?: boolean;
+  fillColor?: string;
+  rotation?: number;
+  brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
 }
 
 export interface NativeDrawingState {
@@ -45,6 +54,13 @@ export function applyNativeDrawingCommand(
       color: command.color,
       size: command.size,
       points: command.points.map(point => ({ x: point.x, y: point.y, pressure: point.pressure ?? 0.5 })),
+      ...(command.shape ? { shape: command.shape } : {}),
+      ...(command.text !== undefined ? { text: command.text } : {}),
+      ...(command.fontFamily ? { fontFamily: command.fontFamily } : {}),
+      ...(command.filled !== undefined ? { filled: command.filled } : {}),
+      ...(command.fillColor ? { fillColor: command.fillColor } : {}),
+      ...(command.rotation !== undefined ? { rotation: command.rotation } : {}),
+      ...(command.brushPreset ? { brushPreset: command.brushPreset } : {}),
     };
     return {
       state: { ...state, layers, strokes: [...strokes, stroke] },
@@ -71,6 +87,15 @@ export function applyNativeDrawingCommand(
           color: removed.color,
           size: removed.size,
           points: removed.points,
+          ...(removed.shape ? { shape: removed.shape } : {}),
+          ...(removed.imageDataUrl ? { imageDataUrl: removed.imageDataUrl } : {}),
+          ...(removed.imageName ? { imageName: removed.imageName } : {}),
+          ...(removed.text !== undefined ? { text: removed.text } : {}),
+          ...(removed.fontFamily ? { fontFamily: removed.fontFamily } : {}),
+          ...(removed.filled !== undefined ? { filled: removed.filled } : {}),
+          ...(removed.fillColor ? { fillColor: removed.fillColor } : {}),
+          ...(removed.rotation !== undefined ? { rotation: removed.rotation } : {}),
+          ...(removed.brushPreset ? { brushPreset: removed.brushPreset } : {}),
         },
         index,
       }],

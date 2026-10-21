@@ -7,7 +7,7 @@ Status: selected browser-local model and download flow under implementation; qua
 **Selected model for the next integrated build:** `onnx-community/Qwen3-0.6B-DQ-ONNX`, the browser-compatible ONNX Community export of Qwen3-0.6B.
 
 - **Model:** Qwen3-0.6B, approximately 0.6 billion parameters, with a model-card context length of 32,768 tokens.
-- **Download target:** approximately **450 MB (estimate)** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
+- **Download target:** approximately **370 MB (estimate)** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
 - **Runtime:** Transformers.js with ONNX Runtime Web, running in the browser. The model is fetched on the user's explicit request and stored in the browser-managed cache.
 - **License:** Apache-2.0 for Qwen3-0.6B, according to its official model card. Verify the exact model repository's license and revision before any repackaging/distribution.
 - **Capabilities:** text-only instruction following. No image input, and no claim that the base model is already specialized for Kuro's tool schemas.
@@ -17,7 +17,7 @@ This is a **practical integration choice, not a claim that 135M parameters can e
 
 ### Download and runtime behavior
 
-In Preferences, the user explicitly chooses **Download ~450 MB model & connect**. The app reports download progress and initializes the model before connecting. Transformers.js caches the downloaded artifacts in the browser cache. This is not an APK install or permanent file-library download: browser storage can be evicted, so the app may need to fetch the model again later. The first download requires internet; inference runs locally once the files and runtime are available.
+In Preferences, the user explicitly chooses **Download ~370 MB model & connect**. The app reports download progress and initializes the model before connecting. Transformers.js caches the downloaded artifacts in the browser cache. This is not an APK install or permanent file-library download: browser storage can be evicted, so the app may need to fetch the model again later. The first download requires internet; inference runs locally once the files and runtime are available.
 
 The app must never silently download this model on first launch. The download is opt-in, and prompts/story content are not sent to a model provider when using this local provider. This model is text-only: canvas images are not attached to its requests.
 

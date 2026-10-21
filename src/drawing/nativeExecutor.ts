@@ -5,6 +5,7 @@ export interface NativeStroke {
   id: string;
   layerId?: string;
   tool: "brush" | "eraser";
+  opacity?: number;
   color: string;
   size: number;
   points: Array<{ x: number; y: number; pressure: number }>;
@@ -51,6 +52,7 @@ export function applyNativeDrawingCommand(
       id: command.id,
       layerId: command.layerId,
       tool: command.tool,
+      ...(command.opacity !== undefined ? { opacity: command.opacity } : {}),
       color: command.color,
       size: command.size,
       points: command.points.map(point => ({ x: point.x, y: point.y, pressure: point.pressure ?? 0.5 })),
@@ -113,16 +115,18 @@ export function applyNativeDrawingCommand(
     const layer = layers.find(item => item.id === (current.layerId || layers[0]?.id));
     if (!layer) throw new Error("Cannot update stroke: its layer does not exist.");
     if (layer.locked) throw new Error("Cannot update stroke: its layer is locked.");
-    const previousPatch: { tool?: NativeStroke["tool"]; color?: string; size?: number } = {};
+    const previousPatch: { tool?: NativeStroke["tool"]; color?: string; size?: number; opacity?: number; brushPreset?: NativeStroke["brushPreset"] } = {};
     if (command.patch.tool !== undefined) previousPatch.tool = current.tool;
     if (command.patch.color !== undefined) previousPatch.color = current.color;
     if (command.patch.size !== undefined) previousPatch.size = current.size;
+    if (command.patch.opacity !== undefined) previousPatch.opacity = current.opacity ?? 1;
+    if (command.patch.brushPreset !== undefined) previousPatch.brushPreset = current.brushPreset ?? "ink";
     const updated = { ...current, ...command.patch };
     strokes[index] = updated;
     return {
       state: { ...state, layers, strokes },
       inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.update", strokeId: current.id, patch: previousPatch }],
-      changed: (command.patch.tool !== undefined && current.tool !== command.patch.tool) || (command.patch.color !== undefined && current.color !== command.patch.color) || (command.patch.size !== undefined && current.size !== command.patch.size),
+      changed: (command.patch.tool !== undefined && current.tool !== command.patch.tool) || (command.patch.color !== undefined && current.color !== command.patch.color) || (command.patch.size !== undefined && current.size !== command.patch.size) || (command.patch.opacity !== undefined && (current.opacity ?? 1) !== command.patch.opacity) || (command.patch.brushPreset !== undefined && (current.brushPreset ?? "ink") !== command.patch.brushPreset),
     };
   }
 

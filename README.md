@@ -8,7 +8,11 @@ Kuro Canvas is planned as a chat-first, AI-assisted creative studio for manga, m
 
 Kuro Canvas is an actively developed, local-first creative application built with React, TypeScript, and Vite. The repository already contains a native editable 2D canvas, layers and drawing tools, local project/drawing/revision storage, project packaging, canon and visual-reference studios, story-memory retrieval, and an optional OpenAI-compatible model-provider interface.
 
-The optional `npm run model:smoke` command checks a running OpenAI-compatible endpoint for model discovery, text generation, and image-input response. By default it targets `http://127.0.0.1:8000/v1`; set `KURO_MODEL_BASE_URL`, `KURO_MODEL_ID`, and optionally `KURO_MODEL_API_KEY` to override it. It sends a tiny synthetic test image—not your project artwork—and does not measure creative quality.\n\nThe model connection settings include a recommended local Qwen3.8-27B endpoint preset for a capable desktop/server. The app can connect to an OpenAI-compatible inference server, but model weights and the inference runtime are still installed separately; see [the local model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md) for the setup command and limitations. Use [the model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md) to verify actual inference and Kuro-specific quality before calling the integration production-ready. This does not make the model run on the hosting website or automatically on a phone.\n\nThe universe-first workspace is being developed on an open pull request. That work adds isolated universe and conversation records, locally persisted transcripts, resume flows, relationship-state history, evidence-linked relationship proposals, and a more explicit native-action planning contract. The latest branch also adds recent-conversation navigation and explicitly attached conversations within a universe.
+The optional `npm run model:smoke` command checks a running OpenAI-compatible endpoint for model discovery, text generation, and image-input response. By default it targets `http://127.0.0.1:8000/v1`; set `KURO_MODEL_BASE_URL`, `KURO_MODEL_ID`, and optionally `KURO_MODEL_API_KEY` to override it. It sends a tiny synthetic test image—not your project artwork—and does not measure creative quality.
+
+The model connection settings include a recommended local Qwen3.8-27B endpoint preset for a capable desktop/server. The app can connect to an OpenAI-compatible inference server, but model weights and the inference runtime are still installed separately; see [the local model strategy](docs/KURO-LOCAL-INTELLIGENCE-MODEL-STRATEGY.md) for the setup command and limitations. Use [the model acceptance gate](docs/KURO-MODEL-ACCEPTANCE.md) to verify actual inference and Kuro-specific quality before calling the integration production-ready. This does not make the model run on the hosting website or automatically on a phone.
+
+The universe-first workspace is being developed on an open pull request. That work adds isolated universe and conversation records, locally persisted transcripts, resume flows, relationship-state history, evidence-linked relationship proposals, and a more explicit native-action planning contract. The latest branch also adds recent-conversation navigation and explicitly attached conversations within a universe.
 
 **Do not treat this status as a release claim.** The universe branch has not yet been verified by a successful latest-head CI run, and it must not be merged until typecheck, build, tests, and review pass. Kuro's native-tool loop is still incomplete: the goal is for Kuro to operate the same editable canvas tools as a human, inspect the resulting document, and revise it safely. No image generator may stand in for that workflow. Local model packaging, full native action coverage, robust end-to-end verification, and platform-specific performance testing remain unfinished.
 
@@ -54,7 +58,6 @@ Useful checks:
 npm run typecheck
 npm test
 npm run build
-npm run model:smoke
 npm run preview
 ```
 

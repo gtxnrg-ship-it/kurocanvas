@@ -4,6 +4,8 @@ import { createConfiguredProvider, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, pr
 import type { ModelDescriptor } from "./modelRegistry";
 import type { KuroVoiceIntensity } from "./kuroPersona";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
+import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatingLabel, saveLocalModelBenchmark, type LocalModelBenchmark } from "./modelBenchmark";
+import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
 
 export interface ActiveProviderConfig {
   baseUrl: string;
@@ -33,6 +35,10 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
   const [voiceTesting, setVoiceTesting] = useState(false);
   const [voicePreview, setVoicePreview] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
+  const [localModelPrepared, setLocalModelPrepared] = useState(false);
+  const [localBenchmark, setLocalBenchmark] = useState<LocalModelBenchmark | undefined>(
+    () => loadLocalModelBenchmark(KURO_TINY_MODEL_DESCRIPTOR_ID),
+  );
 
   async function downloadAndConnectLocalModel() {
     setBusy(true); setError(""); setStatus("Preparing Kuro Tiny model…"); setModelProgress(0);
@@ -42,13 +48,56 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
         setStatus(progress.status + (progress.percent > 0 ? " · " + progress.percent + "%" : ""));
       });
       setModels(found);
+      setBaseUrl(LOCAL_TINY_BASE_URL);
       setModelUri(LOCAL_TINY_MODEL_URI);
+      setLocalModelPrepared(true);
       onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false });
-      setStatus("Model downloaded and connected.");
-      onClose();
+      setStatus("Kuro Tiny is prepared and connected. You can now measure its warm generation speed on this device.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not download or initialize the local model.");
     } finally { setBusy(false); }
+  }
+
+  async function benchmarkLocalModel() {
+    if (!localModelPrepared) {
+      setError("Download and prepare Kuro Tiny first. Benchmarking never starts a model download by itself.");
+      return;
+    }
+    setBusy(true); setError(""); setStatus("Warming up local inference before the measured run…");
+    try {
+      const provider = createConfiguredProvider({
+        baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false,
+      });
+      const model = (await provider.listModels()).find(item => item.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
+      if (!model) throw new Error("Kuro Tiny is not registered with the local provider.");
+      // Exclude one warm-up request so initial worker/model setup does not distort the speed figure.
+      await provider.generate({
+        role: "fast-helper",
+        messages: [{ role: "user", content: "Reply with one short greeting." }],
+        temperature: 0,
+        maxOutputTokens: 16,
+      }, model);
+      setStatus("Measuring real output-token speed locally…");
+      const started = performance.now();
+      const response = await provider.generate({
+        role: "fast-helper",
+        messages: [{ role: "user", content: "Write exactly two useful sentences for a new manga creator. Be clear, specific, and encouraging. Do not stop after a greeting." }],
+        temperature: 0,
+        maxOutputTokens: 64,
+      }, model);
+      const elapsedMs = performance.now() - started;
+      if (response.finishReason === "cancelled" || response.finishReason === "error") {
+        throw new Error("The local benchmark did not complete.");
+      }
+      const result = createLocalModelBenchmark(model.id, response.usage?.outputTokens ?? 0, elapsedMs);
+      setLocalBenchmark(result);
+      saveLocalModelBenchmark(result);
+      setStatus(localBenchmarkRatingLabel(result.rating) + " · " + result.tokensPerSecond.toFixed(1) + " output tokens/s · " + result.elapsedMs + " ms for " + result.outputTokens + " tokens. This measures text generation speed only, not story quality, visual reasoning, or overall canvas frame rate.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The on-device speed benchmark failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function discoverModels() {
@@ -101,12 +150,14 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
     <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local inference servers. Model weights and inference software are installed separately.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
-    <ModelAdvisor />
+    <ModelAdvisor benchmark={localBenchmark} />
     <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
     <div className="provider-recommended-model">
       <strong>Recommended local model: SmolLM2 135M Instruct</strong>
       <p>A compact, text-only instruction model for Kuro's first on-device harness. The browser-ready quantized ONNX weights are about 137 MB; runtime memory is higher and varies by device. The first download needs internet, then Transformers.js caches the files in this browser. Browser cache can be evicted, so this is not a guarantee of permanent offline storage. This model is small and general-purpose—not a vision model or a fine-tuned Kuro expert—so every drawing plan must still pass the app's validation and approval flow.</p>
-      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{busy ? "Downloading / preparing… " + modelProgress + "%" : "Download ~137 MB model & connect"}</button>
+      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{busy ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~137 MB model & connect"}</button>
+      <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark warm generation on this device"}</button>
+      <p className="provider-muted">The benchmark uses a short local text prompt after a warm-up. It sends no benchmark prompt to a hosted provider and does not measure drawing quality or guarantee smooth performance in every task.</p>
       <a href="https://huggingface.co/onnx-community/SmolLM2-135M-Instruct-ONNX-MHA" target="_blank" rel="noreferrer">Model files and license ↗</a>
       {status && baseUrl === LOCAL_TINY_BASE_URL && <p className="provider-status" role="status">{status}</p>}
     </div>

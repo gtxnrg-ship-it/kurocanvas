@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStoryMemoryContext, filterStoryMemoryAtPoint, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryForApproval, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
+import { buildStoryMemoryContext, createStoryThreadProposal, filterStoryMemoryAtPoint, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryForApproval, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
 describe("story memory capture triggers", () => {
   it.each([
     "A new character named Mira joins the team.",
@@ -111,6 +111,54 @@ describe("durable story memory", () => {
     expect(result.warnings.join(" ")).toMatch(/historical only/i);
     expect(retrieveStoryMemory([oldState], { projectId: "series-a", text: "Mira current appearance" }).records).toHaveLength(0);
   });
+  it("creates narrative-thread proposals only from exact quotes and evidence-backed coordinates", () => {
+    const source = "Please track this. In Chapter 1 on timeline main, a stranger bumps into Mira. In Chapter 20, she learns the stranger is the future captain. Story order 10 is the plant; story order 200 is the payoff.";
+    const evidence = "In Chapter 1 on timeline main, a stranger bumps into Mira. In Chapter 20, she learns the stranger is the future captain. Story order 10 is the plant; story order 200 is the payoff.";
+    const proposal = createStoryThreadProposal({
+      type: "easter-egg",
+      title: "The hallway stranger",
+      evidence,
+      clueDescription: "A stranger briefly bumps into Mira in the academy hallway.",
+      plannedPayoff: "The stranger is later revealed as the future captain.",
+      audienceTreatment: "background-only",
+      plantChapterNumber: 1,
+      payoffChapterNumber: 20,
+      plantStoryOrder: 10,
+      payoffStoryOrder: 200,
+      plantTimelineId: "main",
+      payoffTimelineId: "main",
+      linkedEntities: ["Mira", "The future captain"],
+    }, source, "series-a", "2026-10-21T00:00:00.000Z", () => "thread-1");
+    expect(proposal?.id).toBe("thread-1");
+    expect(proposal?.status).toBe("proposed");
+    expect(proposal?.chapterNumber).toBe(1);
+    expect(proposal?.storyOrder).toBe(10);
+    expect(proposal?.timelineId).toBe("main");
+    expect(proposal?.storyThread?.payoffChapterNumber).toBe(20);
+    expect(proposal?.storyThread?.payoffStoryOrder).toBe(200);
+    expect(proposal?.storyThread?.linkedEntityIds).toEqual(["mira"]);
+    expect(proposal?.status).not.toBe("approved");
+  });
+
+  it("rejects invented evidence and discards chapter/order/timeline claims absent from the quote", () => {
+    const source = "A stranger bumps into Mira in the hallway. Later, the stranger is revealed as the future captain.";
+    const base = {
+      type: "cameo", title: "Hallway stranger", evidence: source,
+      clueDescription: "A stranger bumps into Mira.", plannedPayoff: "Future captain reveal.",
+      audienceTreatment: "subtle-hint", plantChapterNumber: 1, payoffChapterNumber: 99,
+      plantStoryOrder: 10, payoffStoryOrder: 500, plantTimelineId: "main", payoffTimelineId: "echo",
+      linkedEntities: ["Mira"],
+    };
+    expect(createStoryThreadProposal({ ...base, evidence: "Invented quote that is not in the user's message." }, source, "series-a")).toBeUndefined();
+    const proposal = createStoryThreadProposal(base, source, "series-a", "2026-10-21T00:00:00.000Z", () => "thread-2");
+    expect(proposal?.chapterNumber).toBeUndefined();
+    expect(proposal?.storyOrder).toBeUndefined();
+    expect(proposal?.timelineId).toBeUndefined();
+    expect(proposal?.storyThread?.payoffChapterNumber).toBeUndefined();
+    expect(proposal?.storyThread?.payoffStoryOrder).toBeUndefined();
+    expect(proposal?.storyThread?.payoffTimelineId).toBeUndefined();
+  });
+
   it("stores narrative-thread intent separately from reader-facing canon", () => {
     const thread = record({
       id: "hallway-easter-egg", chapterNumber: 1, storyOrder: 10, timelineId: "main",

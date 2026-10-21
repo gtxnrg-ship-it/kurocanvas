@@ -86,4 +86,15 @@ describe("atomic project import preflight", () => {
     value.drawingRevisions[0] = { ...revision, drawingId: "missing-drawing" };
     expect(validateImportedProjectBundle(value)).toContain("Imported drawing revision is invalid or references a missing drawing.");
   });
+
+  it("rejects packages that put multiple isolated universes inside one project", () => {
+    const value = bundle();
+    const first = createChatUniverse("First story", value.project.id);
+    const second = createChatUniverse("Second story", value.project.id);
+    value.universes.push(first.universe, second.universe);
+    value.conversations.push(first.homeConversation, second.homeConversation);
+    expect(validateImportedProjectBundle(value)).toContain(
+      "A project cannot own multiple isolated universes. Create a separate project for each universe to keep story memory and canon isolated.",
+    );
+  });
 });

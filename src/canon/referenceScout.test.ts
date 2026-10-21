@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReferenceContext, extractReferenceSearchQuery, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
+import { buildReferenceContext, extractReferenceSearchQuery, normalizeReferenceSearchResults, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSearchResult, type ReferenceSourceRecord } from "./referenceScout";
 
 const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSourceRecord => ({
   id: "ref-1", projectId: "project-1", title: "Rainy city street", description: "Night street with reflections",
@@ -46,6 +46,24 @@ describe("reference scout", () => {
       } },
     }, "external");
     expect(results).toEqual([]);
+  });
+
+  it("validates persisted reference cards and drops non-Wikimedia image URLs", () => {
+    const trusted: ReferenceSearchResult = {
+      title: "Rain",
+      description: "Rain over a street",
+      query: "rain",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Rain.jpg",
+      imageUrl: "https://upload.wikimedia.org/full.jpg",
+      thumbnailUrl: "https://upload.wikimedia.org/thumb.jpg",
+      creator: "Photographer",
+      license: "CC BY 4.0",
+      licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+      attribution: "Credit the creator",
+    };
+    expect(normalizeReferenceSearchResults([trusted])).toEqual([trusted]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, thumbnailUrl: "https://untrusted.example/image.jpg" }])).toEqual([]);
+    expect(normalizeReferenceSearchResults([{ ...trusted, sourceUrl: "https://untrusted.example/page" }])).toEqual([]);
   });
 
   it("validates HTTPS source, image, and license links plus project isolation", () => {

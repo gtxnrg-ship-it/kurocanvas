@@ -34,11 +34,25 @@ function addMesh(group: THREE.Group, geometry: THREE.BufferGeometry, color: stri
   if (scale) mesh.scale.set(...scale);
   mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh;
 }
-function createProceduralCharacter(group: THREE.Group) {
-  const skin = "#d5ad92", hair = "#282638", clothes = "#536d9d", trousers = "#292f42", shoes = "#171b24";
+function createProceduralCharacter(group: THREE.Group, traits?: { hair?: string; age?: string; outfit?: string }) {
+  const hairText = traits?.hair?.toLocaleLowerCase() ?? "";
+  const outfitText = traits?.outfit?.toLocaleLowerCase() ?? "";
+  const longHair = /long|shoulder|grown.?out|waist|flowing|back.?length/i.test(hairText);
+  const shavedHair = /shaved|buzz.?cut|bald/i.test(hairText);
+  const hair = /silver|white|grey|gray/i.test(hairText) ? "#c7cad5"
+    : /blond|golden|yellow/i.test(hairText) ? "#d1ad62"
+    : /red|ginger|auburn/i.test(hairText) ? "#9d5140"
+    : /blue/i.test(hairText) ? "#3e5797"
+    : /brown|chestnut/i.test(hairText) ? "#51392f" : "#282638";
+  const clothes = /red|crimson/i.test(outfitText) ? "#8f3c4a"
+    : /white|cream/i.test(outfitText) ? "#d7d7d2"
+    : /green|emerald/i.test(outfitText) ? "#3d796a"
+    : /black/i.test(outfitText) ? "#252632"
+    : /red|crimson/i.test(outfitText) ? "#8f3c4a" : "#536d9d";
+  const skin = "#d5ad92", trousers = "#292f42", shoes = "#171b24";
   addMesh(group,new THREE.SphereGeometry(.32,32,24),skin,[0,2.04,0],[.82,1.08,.78]);
-  addMesh(group,new THREE.SphereGeometry(.335,32,24),hair,[0,2.245,-.035],[1.04,.63,.93]);
-  addMesh(group,new THREE.SphereGeometry(.25,24,20),hair,[0,1.99,-.19],[1.15,1.1,.8]);
+  addMesh(group,new THREE.SphereGeometry(.335,32,24),hair,[0,shavedHair?2.2:2.245,-.035],[1.04,shavedHair?.32:longHair?.66:.52,.93]);
+  addMesh(group,new THREE.SphereGeometry(.25,24,20),hair,[0,longHair?1.86:1.99,-.19],[longHair?1.2:1.15,longHair?1.55:1.1,.8]);
   addMesh(group,new THREE.CapsuleGeometry(.29,.57,5,12),clothes,[0,1.34,0],[1.02,1,0.75]);
   addMesh(group,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[-.4,1.36,0],[1,1,.85]).rotation.z=-.17;
   addMesh(group,new THREE.CylinderGeometry(.105,.13,.62,16),skin,[.4,1.36,0],[1,1,.85]).rotation.z=.17;
@@ -180,17 +194,17 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
       new GLTFLoader().load(objectUrl, gltf => {
         if (cancelled) { disposeObject(gltf.scene); return; }
         try { normalizedModel(gltf.scene); inner.add(gltf.scene); finish("Loaded " + selectedModel.fileName + ". Orbit to inspect the model; adjust scar overlays below."); }
-        catch (error) { createProceduralCharacter(inner); finish(error instanceof Error ? error.message + " Showing a blockout instead." : "Invalid model. Showing a blockout instead."); }
+        catch (error) { createProceduralCharacter(inner, resolved?.traits); finish(error instanceof Error ? error.message + " Showing a blockout instead." : "Invalid model. Showing a blockout instead."); }
       }, undefined, () => {
         if (cancelled) return;
-        createProceduralCharacter(inner); finish("The GLB could not be loaded. Showing the procedural blockout; try a self-contained GLB.");
+        createProceduralCharacter(inner, resolved?.traits); finish("The GLB could not be loaded. Showing the procedural blockout; try a self-contained GLB.");
       });
     } else {
-      createProceduralCharacter(inner);
-      finish(selectedModel ? "Showing the procedural 3D blockout for " + selectedModel.characterName + ". Upload a GLB for the actual character model." : selectedProfile && selectedState ? "No model variant exists at " + selectedState.chapterLabel + ". Showing a blockout; upload a GLB while this chapter is selected to add a chapter-specific model." : "Create a character blockout or upload a GLB model to begin.");
+      createProceduralCharacter(inner, resolved?.traits);
+      finish(selectedModel ? "Showing the procedural 3D blockout for " + selectedModel.characterName + ". Hair silhouette and outfit colors reflect approved notes where recognizable; upload a GLB for a finished sculpt." : selectedProfile && selectedState ? "No model variant exists at " + selectedState.chapterLabel + ". Showing a blockout; upload a GLB while this chapter is selected to add a chapter-specific model." : "Create a character blockout or upload a GLB model to begin.");
     }
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [selectedModel?.id, selectedModel?.sourceType, selectedModel?.modelBlob, selectedProfile?.id, selectedState?.id]);
+  }, [selectedModel?.id, selectedModel?.sourceType, selectedModel?.modelBlob, selectedProfile?.id, selectedState?.id, selectedModel?.sourceType === "procedural" ? resolved?.traits.hair : undefined, selectedModel?.sourceType === "procedural" ? resolved?.traits.outfit : undefined]);
 
   useEffect(() => {
     const scarRoot = scarRootRef.current;

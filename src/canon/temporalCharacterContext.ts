@@ -119,7 +119,8 @@ export function resolveTemporalCharacterContext(
     const chapterStates = relevant.filter(state =>
       withTimeline(state)
       && state.chapterNumber === options.chapterNumber
-      && (options.sceneNumber === undefined || state.sceneNumber === options.sceneNumber));
+      && (options.sceneNumber === undefined || state.sceneNumber === options.sceneNumber)
+      && characterRevealStatusAt(states, options.universeId, state.characterId, state.timelineId, state.storyOrder) !== "hidden");
     if (!chapterStates.length) {
       return {
         status: "unknown",
@@ -148,9 +149,10 @@ export function resolveTemporalCharacterContext(
   }
 
   if (!timelineId) {
-    const timelineIds = [...new Set(relevant
-      .filter(state => storyOrder === undefined || state.storyOrder <= storyOrder)
-      .map(state => state.timelineId))];
+    const timelineEligibleStates = relevant.filter(state =>
+      (storyOrder === undefined || state.storyOrder <= storyOrder)
+      && characterRevealStatusAt(states, options.universeId, state.characterId, state.timelineId, storyOrder ?? state.storyOrder) !== "hidden");
+    const timelineIds = [...new Set(timelineEligibleStates.map(state => state.timelineId))];
     if (timelineIds.length > 1) {
       return {
         status: "ambiguous",

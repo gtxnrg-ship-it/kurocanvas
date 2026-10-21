@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History, Pipette } from 'lucide-react';
 import { drawingRevisionStorage, drawingStorage, storyMemoryStorage } from '../core/storage';
 import { buildSvgDocument } from './svgExport';
 import type { LocalDrawingDocument } from '../core/storage';
@@ -8,7 +8,7 @@ import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
@@ -433,6 +433,22 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
   };
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (tool === 'eyedropper') {
+      const at = pointFromEvent(e);
+      const ctx = e.currentTarget.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { setNotice('Color sampling is unavailable in this browser.'); return; }
+      try {
+        const pixel = ctx.getImageData(Math.max(0, Math.min(e.currentTarget.width - 1, Math.round(at.x))), Math.max(0, Math.min(e.currentTarget.height - 1, Math.round(at.y))), 1, 1).data;
+        if (pixel[3] === 0) { setNotice('That pixel is transparent; the selected color was not changed.'); return; }
+        const hex = '#' + [pixel[0], pixel[1], pixel[2]].map(value => value.toString(16).padStart(2, '0')).join('');
+        setColor(hex);
+        setTool('brush');
+        setNotice('Sampled ' + hex.toUpperCase() + ' from the visible canvas.');
+      } catch {
+        setNotice('Could not sample this pixel. Try a visible mark on the canvas.');
+      }
+      return;
+    }
     if (tool === 'pan') {
       e.currentTarget.setPointerCapture(e.pointerId);
       panRef.current = { pointerX: e.clientX, pointerY: e.clientY, originX: panOffset.x, originY: panOffset.y };
@@ -835,6 +851,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
         <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>
+        <button className={tool==='eyedropper'?'chosen':''} onClick={() => setTool('eyedropper')} title="Sample a color from the visible canvas"><Pipette size={16}/><span>Eyedropper</span></button>
         <button className={tool==='eraser'?'chosen':''} onClick={() => setTool('eraser')} title="Eraser"><Eraser size={16}/><span>Eraser</span></button>
         <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
         <button className={tool==='line'?'chosen':''} onClick={() => setTool('line')} title="Line"><Minus size={16}/><span>Line</span></button>
@@ -854,8 +871,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       {tool==='text' && <><label className="text-draft-control">Lettering <textarea rows={2} value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type dialogue; use new lines, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>}
-      {tool!=='select' && tool!=='pan' && <label className="stroke-opacity-control">Opacity <input aria-label="Stroke opacity" type="range" min="1" max="100" value={strokeOpacity} onChange={e => setStrokeOpacity(Number(e.target.value))}/><b>{strokeOpacity}%</b></label>}
-      <label className="size-control">Size <input aria-label="Brush or shape size" type="range" min="1" max="200" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
+      {tool!=='select' && tool!=='pan' && tool!=='eyedropper' && <label className="stroke-opacity-control">Opacity <input aria-label="Stroke opacity" type="range" min="1" max="100" value={strokeOpacity} onChange={e => setStrokeOpacity(Number(e.target.value))}/><b>{strokeOpacity}%</b></label>}
+      {tool!=='eyedropper' && <label className="size-control">Size <input aria-label="Brush or shape size" type="range" min="1" max="200" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>}
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.25, +(z-.1).toFixed(2)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Fit canvas to view" onClick={() => { setZoom(1); setPanOffset({x:0,y:0}); }}>Fit</button><button title="Zoom in" onClick={() => setZoom(z => Math.min(4, +(z+.1).toFixed(2)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<label className="export-scale-control">Resolution <select aria-label="PNG export resolution" value={exportScale} onChange={e => setExportScale(Number(e.target.value) as 1 | 1.5 | 2)}><option value={1}>1×</option><option value={1.5}>1.5×</option><option value={2}>2×</option></select></label><label className="transparent-export-control" title="Export without the paper background"><input type="checkbox" checked={transparentExport} onChange={e => setTransparentExport(e.target.checked)}/> Transparent export</label><button onClick={createVersionCheckpoint} title="Create a named recoverable checkpoint"><History size={15}/> Save version</button><button onClick={exportSvg} title="Export vector artwork as SVG"><Download size={15}/> Export SVG</button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
     <div className="version-history-panel"><div className="version-history-head"><b><History size={14}/> Version history</b><span>{revisions.length}/20 checkpoints</span><button onClick={() => void refreshRevisions()}>Refresh</button></div>{revisions.length===0?<p>No named versions yet. Save a checkpoint before a major edit to make it easy to recover later.</p>:<div className="version-history-list">{revisions.map(revision=><div className="version-history-row" key={revision.id}><span><b>{revision.title}</b><small>{new Date(revision.createdAt).toLocaleString()}</small></span><button onClick={() => void restoreVersionCheckpoint(revision.id,revision.title)}>Restore</button></div>)}</div>}</div><div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>

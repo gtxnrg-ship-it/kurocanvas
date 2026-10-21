@@ -24,6 +24,15 @@ describe("Kuro request-aware response quality", () => {
     expect(getKuroResponseTokenBudget("Hello", "kuro-local-browser")).toBe(700);
   });
 
+  it("encourages readable Markdown without over-formatting simple replies", () => {
+    const guidance = getKuroResponseQualityGuidance("Write a detailed design review.");
+    expect(guidance).toMatch(/readable Markdown/i);
+    expect(guidance).toMatch(/descriptive headings/i);
+    expect(guidance).toMatch(/fenced code blocks/i);
+    expect(guidance).toMatch(/avoid a heading on every paragraph/i);
+    expect(guidance).toMatch(/Do not emit raw HTML/i);
+  });
+
   it("asks Kuro to understand imperfect English and distinguish author intent from reader-facing reveals", () => {
     const guidance = getKuroResponseQualityGuidance("Write a story with an Easter egg cameo.");
     expect(guidance).toMatch(/grammatically imperfect/i);

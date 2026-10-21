@@ -39,6 +39,81 @@ export interface StoryMemoryQuery {
 }
 export interface StoryMemoryResult { records: StoryMemoryRecord[]; assetRefs: string[]; warnings: string[] }
 
+export interface StoryThreadCaptureCandidate {
+  type?: string;
+  title?: string;
+  evidence?: string;
+  clueDescription?: string;
+  plannedPayoff?: string;
+  audienceTreatment?: string;
+  plantChapterNumber?: number;
+  plantStoryOrder?: number;
+  plantTimelineId?: string;
+  payoffChapterNumber?: number;
+  payoffStoryOrder?: number;
+  payoffTimelineId?: string;
+  linkedEntities?: string[];
+}
+
+/**
+ * Convert a model-extracted clue into a reviewable proposal, not approved canon.
+ * Metadata coordinates are accepted only when the exact evidence also contains
+ * a corresponding explicit chapter/order/timeline reference.
+ */
+export function createStoryThreadProposal(
+  candidate: StoryThreadCaptureCandidate,
+  userText: string,
+  projectId: string,
+  now = new Date().toISOString(),
+  idFactory: () => string = () => crypto.randomUUID(),
+): StoryMemoryRecord | undefined {
+  if (!projectId.trim()) return undefined;
+  const evidence = typeof candidate.evidence === "string" ? candidate.evidence.trim() : "";
+  const title = typeof candidate.title === "string" ? candidate.title.trim().slice(0, 180) : "";
+  const clueDescription = typeof candidate.clueDescription === "string" ? candidate.clueDescription.trim().slice(0, 1600) : "";
+  const plannedPayoff = typeof candidate.plannedPayoff === "string" ? candidate.plannedPayoff.trim().slice(0, 1600) : "";
+  const types: StoryThreadType[] = ["foreshadowing", "easter-egg", "cameo", "callback", "mystery", "red-herring", "recurring-motif"];
+  const treatments: StoryThreadAudienceTreatment[] = ["background-only", "subtle-hint", "visible-callback", "explicit-reveal", "author-only"];
+  if (!evidence || !userText.includes(evidence) || !title || !clueDescription || !plannedPayoff) return undefined;
+  if (!types.includes(candidate.type as StoryThreadType) || !treatments.includes(candidate.audienceTreatment as StoryThreadAudienceTreatment)) return undefined;
+
+  const chapters = [...evidence.matchAll(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/gi)].map(match => Number(match[1]));
+  const orders = [...evidence.matchAll(/\b(?:story\s+order|storyOrder)\s*[:#]?\s*(\d+)\b/gi)].map(match => Number(match[1]));
+  const timelines = [...evidence.matchAll(/\b(?:plant|payoff)?\s*timeline(?:\s+id)?\s*[:#]?\s*([A-Za-z0-9_-]+)\b/gi)].map(match => match[1]);
+  const verifiedChapter = (value: unknown) => Number.isInteger(value) && chapters.includes(Number(value)) ? Number(value) : undefined;
+  const verifiedOrder = (value: unknown) => Number.isFinite(value) && orders.includes(Number(value)) ? Number(value) : undefined;
+  const verifiedTimeline = (value: unknown) => typeof value === "string" && timelines.includes(value) ? value : undefined;
+  const chapterNumber = verifiedChapter(candidate.plantChapterNumber);
+  const storyOrder = verifiedOrder(candidate.plantStoryOrder);
+  const timelineId = verifiedTimeline(candidate.plantTimelineId);
+  const payoffChapterNumber = verifiedChapter(candidate.payoffChapterNumber);
+  const payoffStoryOrder = verifiedOrder(candidate.payoffStoryOrder);
+  const payoffTimelineId = verifiedTimeline(candidate.payoffTimelineId);
+  const linkedEntityIds = (Array.isArray(candidate.linkedEntities) ? candidate.linkedEntities : [])
+    .filter((name): name is string => typeof name === "string" && !!name.trim() && evidence.toLocaleLowerCase().includes(name.toLocaleLowerCase()))
+    .slice(0, 12)
+    .map(name => name.trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, ""));
+  const record: StoryMemoryRecord = {
+    id: idFactory(), projectId, kind: "event", title, summary: evidence,
+    ...(chapterNumber === undefined ? {} : { chapterNumber }),
+    ...(storyOrder === undefined ? {} : { storyOrder }),
+    ...(timelineId ? { timelineId } : {}),
+    entityIds: linkedEntityIds, tags: ["narrative-thread", candidate.type, candidate.audienceTreatment],
+    source: "user", status: "proposed", assetRefs: [], supersedes: [],
+    storyThread: {
+      type: candidate.type as StoryThreadType,
+      audienceTreatment: candidate.audienceTreatment as StoryThreadAudienceTreatment,
+      clueDescription, plannedPayoff,
+      ...(payoffChapterNumber === undefined ? {} : { payoffChapterNumber }),
+      ...(payoffStoryOrder === undefined ? {} : { payoffStoryOrder }),
+      ...(payoffTimelineId ? { payoffTimelineId } : {}),
+      linkedEntityIds,
+    },
+    createdAt: now, updatedAt: now,
+  };
+  return validateStoryMemoryRecord(record, projectId).length ? undefined : record;
+}
+
 export interface StoryMemoryTemporalTarget {
   productionRequest: boolean;
   chapterNumber?: number;

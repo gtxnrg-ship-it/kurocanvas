@@ -1,4 +1,4 @@
-import type { NativeDrawingCommand } from "./commands";
+import type { NativeDrawingCommand, RestoreStrokeCommand } from "./commands";
 import type { DrawingLayer } from "./layers";
 
 export interface NativeStroke {
@@ -139,7 +139,6 @@ export function applyNativeDrawingCommand(
     const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
     const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
     const radians = command.rotationDegrees * Math.PI / 180;
-    const cosine = Math.cos(radians), sine = Math.sin(radians);
     const transformed = current.points.map(point => ({
       ...point,
       x: centerX + (point.x - centerX) * command.scaleX + command.translateX,

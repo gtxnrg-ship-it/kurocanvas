@@ -56,6 +56,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
+  const panRef = useRef<{ pointerX: number; pointerY: number; originX: number; originY: number } | null>(null);
   const docRef = useRef<Doc>({ version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] });
   const [documents, setDocuments] = useState<Array<{id:string;name?:string;updatedAt:string}>>([]);
   const [drawingId, setDrawingId] = useState('default-canvas-v1');
@@ -70,6 +71,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [planUndoStack, setPlanUndoStack] = useState<PlanSnapshot[]>([]);
   const [planRedoStack, setPlanRedoStack] = useState<PlanSnapshot[]>([]);
   const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [background, setBackground] = useState('#fffdfb');
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
   const [showHelp, setShowHelp] = useState(false);
@@ -230,7 +232,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
   };
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (tool === 'pan') { setNotice('Pan mode selected · pinch/zoom controls are available below'); return; }
+    if (tool === 'pan') {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      panRef.current = { pointerX: e.clientX, pointerY: e.clientY, originX: panOffset.x, originY: panOffset.y };
+      setNotice('Drag to move the canvas · zoom controls remain available');
+      return;
+    }
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
     const start = pointFromEvent(e);
@@ -238,6 +245,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     render([...strokes, activeRef.current], background);
   };
   const pointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (panRef.current) {
+      const pan = panRef.current;
+      setPanOffset({ x: pan.originX + e.clientX - pan.pointerX, y: pan.originY + e.clientY - pan.pointerY });
+      return;
+    }
     if (!activeRef.current) return;
     const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
     activeRef.current.points.push(...events.map(ev => {
@@ -247,6 +259,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     render([...strokes, activeRef.current], background);
   };
   const pointerUp = () => {
+    if (panRef.current) { panRef.current = null; return; }
     if (!activeRef.current) return;
     setStrokes(old => [...old, activeRef.current!]);
     activeRef.current = null;
@@ -323,7 +336,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     const name = globalThis.prompt('Rename layer', current.name);
     if (name?.trim()) setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer));
   };
-  const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); };
+  const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
+  const resetView = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); setNotice('Canvas view centered at 100%'); };
   const createDrawing = () => {
     const name = globalThis.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
@@ -375,7 +389,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     </div>
     <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><button onClick={addLayer}>＋ Add layer</button></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>
-      <div className="drawing-paper" style={{ transform: 'scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
+      <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
     </div>
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
   </section>;

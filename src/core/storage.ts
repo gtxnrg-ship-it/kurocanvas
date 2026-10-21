@@ -12,6 +12,7 @@ import {
   type UniverseRecord,
   type ConversationRecord,
   type ChatMessageRecord,
+  type ChatUniverseBundle,
 } from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
@@ -441,6 +442,25 @@ export const storyMemoryStorage = {
  * conversations do not require rewriting a growing conversation record on every send.
  */
 export const universeStorage = {
+  /** Persist a new universe and its first conversation atomically. */
+  async create(bundle: ChatUniverseBundle): Promise<void> {
+    if (!validateUniverseRecord(bundle.universe)
+      || !validateConversationRecord(bundle.homeConversation, bundle.universe.id)
+      || bundle.universe.homeConversationId !== bundle.homeConversation.id) {
+      throw new Error("Refusing to create an invalid chat universe bundle.");
+    }
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([UNIVERSES, CONVERSATIONS], "readwrite");
+        tx.objectStore(UNIVERSES).add(bundle.universe);
+        tx.objectStore(CONVERSATIONS).add(bundle.homeConversation);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not create chat universe."));
+        tx.onabort = () => reject(tx.error ?? new Error("Chat universe creation was cancelled."));
+      });
+    } finally { db.close(); }
+  },
   async save(universe: UniverseRecord): Promise<void> {
     if (!validateUniverseRecord(universe)) throw new Error("Refusing to save an invalid universe.");
     await requestValue<IDBValidKey>(UNIVERSES, "readwrite", store => store.put(universe));

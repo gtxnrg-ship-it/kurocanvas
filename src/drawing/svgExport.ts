@@ -1,4 +1,3 @@
-import type { BrushPreset } from "./brushProfiles";
 export type SvgExportPoint = { x: number; y: number; pressure?: number };
 export type SvgExportStroke = {
   id: string;
@@ -13,7 +12,7 @@ export type SvgExportStroke = {
   filled?: boolean;
   fillColor?: string;
   rotation?: number;
-  brushPreset?: BrushPreset;
+  brushPreset?: 'ink' | 'pencil' | 'marker' | 'airbrush' | 'watercolor' | 'dry-brush' | 'calligraphy';
   imageDataUrl?: string;
   imageName?: string;
 };

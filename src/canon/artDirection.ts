@@ -132,7 +132,7 @@ export function parseArtDirectionSynthesis(rawText: string): Partial<ArtDirectio
   const result: Partial<ArtDirectionBible> = {};
   for (const field of ART_DIRECTION_FIELDS) {
     const candidate = source[field.key];
-    if (typeof candidate === "string") (result as Record<string, unknown>)[field.key] = candidate.trim();
+    if (typeof candidate === "string") (result as unknown as Record<string, unknown>)[field.key] = candidate.trim();
   }
   if (!result.visualStyle?.trim() || !result.visualInvariants?.trim() || !result.linework?.trim()) {
     throw new Error("The draft is missing core visual rules. Retry or complete those fields manually.");

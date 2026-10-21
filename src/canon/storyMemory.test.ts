@@ -35,10 +35,10 @@ describe("durable story memory", () => {
   });
 
   it("prevents future chapter recaps from entering an earlier chapter prompt", () => {
-    const earlier = record({ id: "chapter-2", chapterNumber: 2, storyOrder: 20, title: "Old bridge", summary: "Mira visits the bridge." });
-    const current = record({ id: "chapter-3", chapterNumber: 3, storyOrder: 30, title: "Oath", summary: "Mira makes the oath." });
-    const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800, title: "Final emperor reveal", summary: "The Secret Emperor is defeated." });
-    const result = filterStoryMemoryAtPoint([earlier, current, future], "series-a", { productionRequest: true, chapterNumber: 3 });
+    const earlier = record({ id: "chapter-2", chapterNumber: 2, storyOrder: 20, timelineId: "main", title: "Old bridge", summary: "Mira visits the bridge." });
+    const current = record({ id: "chapter-3", chapterNumber: 3, storyOrder: 30, timelineId: "main", title: "Oath", summary: "Mira makes the oath." });
+    const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800, timelineId: "main", title: "Final emperor reveal", summary: "The Secret Emperor is defeated." });
+    const result = filterStoryMemoryAtPoint([earlier, current, future], "series-a", { productionRequest: true, chapterNumber: 3, timelineId: "main" });
     expect(result.map(item => item.id)).toEqual(["chapter-2", "chapter-3"]);
     expect(result.some(item => item.summary.includes("Secret Emperor"))).toBe(false);
   });
@@ -46,7 +46,7 @@ describe("durable story memory", () => {
     const first = record({ id: "s10", chapterNumber: 1, storyOrder: 10, timelineId: "main" });
     const second = record({ id: "s20", chapterNumber: 2, storyOrder: 20, timelineId: "main" });
     const future = record({ id: "s30", chapterNumber: 3, storyOrder: 30, timelineId: "main" });
-    const unknown = record({ id: "unknown-order", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: undefined });
+    const unknown = record({ id: "unknown-order", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: "main" });
     expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true }).map(item=>item.id)).toEqual([]);
     expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true, storyOrder: 20, timelineId: "main" }).map(item=>item.id)).toEqual(["s10", "s20"]);
   });

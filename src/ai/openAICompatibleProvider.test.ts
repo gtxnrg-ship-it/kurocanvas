@@ -85,7 +85,8 @@ describe("OpenAICompatibleProvider", () => {
       finishReason: "stop",
       usage: { inputTokens: 12, outputTokens: 4 },
     });
-    const [, init] = (fetchImpl.mock.calls[0] ?? []) as unknown as [RequestInfo | URL, RequestInit];
+    const recordedFetch = fetchImpl as unknown as { mock: { calls: unknown[][] } };
+    const [, init] = (recordedFetch.mock.calls[0] ?? []) as [RequestInfo | URL, RequestInit];
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toMatchObject({
       model: "model-a",

@@ -14,6 +14,13 @@ describe("Kuro request-aware response quality", () => {
     expect(getKuroResponseTokenBudget("Write a detailed chapter with foreshadowing and continuity.")).toBe(3800);
   });
 
+  it("gives continuation turns a deep budget unless the creator explicitly requests brevity", () => {
+    expect(inferKuroResponseDepth("continue")).toBe("deep");
+    expect(getKuroResponseTokenBudget("continue", "kuro-local-browser")).toBe(1024);
+    expect(inferKuroResponseDepth("continue that in one sentence")).toBe("quick");
+    expect(getKuroResponseTokenBudget("continue that in one sentence", "kuro-local-browser")).toBe(256);
+  });
+
   it("prioritizes comprehensive requests over generic brevity words", () => {
     expect(inferKuroResponseDepth("Give me a comprehensive end-to-end review, leave nothing out.")).toBe("exhaustive");
     expect(getKuroResponseTokenBudget("Fully finish the entire system, all edge cases included.")).toBe(6000);

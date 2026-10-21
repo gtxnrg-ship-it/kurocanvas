@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, isStoryProductionRequest } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, isStoryProductionRequest } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -69,6 +69,25 @@ describe("approved canon AI context", () => {
     });
     expect(result).toContain("The Secret Emperor");
     expect(result).toContain("Silver Sovereign");
+  });
+
+  it("removes prior transcript turns that name unrevealed cast while preserving unrelated discussion", () => {
+    const secret: CanonEntity = { id: "secret", projectId: "series-a", kind: "character", name: "The Secret Emperor", aliases: ["Silver Sovereign"], status: "approved" };
+    const secretState: CharacterEvolutionState = {
+      id: "secret-state", universeId: "u1", characterId: "secret", timelineId: "main", storyOrder: 3,
+      revealAtStoryOrder: 20, status: "approved", appearance: { hairColor: "silver" },
+      relationshipStateRefs: [], assetRefs: [], sourceMessageIds: [], changeSummary: "future", createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    const turns = [
+      { role: "user", content: "Let's design The Secret Emperor's silver armor." },
+      { role: "assistant", content: "The Silver Sovereign wears silver hair and an imperial mantle." },
+      { role: "user", content: "Our hero walks back to the school." },
+    ];
+    const result = filterConversationTurnsForRevealGate(turns, { ...bundle, entities: [entity, secret] }, {
+      enabled: true, universeId: "u1", states: [secretState],
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toContain("hero walks");
   });
 
   it("fails closed on an unresolved story point but leaves private brainstorming unrestricted", () => {

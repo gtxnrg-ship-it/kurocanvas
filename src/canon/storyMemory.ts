@@ -76,7 +76,7 @@ export function filterStoryMemoryAtPoint(
     // timeline and unscoped time-bound records must not silently contaminate it.
     return owned.filter(record => {
       const timeless = record.chapterNumber === undefined && record.sceneNumber === undefined
-        && record.storyOrder === undefined && record.timelineId === undefined;
+        && record.storyOrder === undefined && record.timelineId === undefined && record.storyThread === undefined;
       if (timeless) return true;
       if (!target.timelineId) return false;
       return record.timelineId === target.timelineId;
@@ -135,7 +135,7 @@ export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: 
 export function validateStoryMemoryForApproval(record: StoryMemoryRecord, projectId: string): string[] {
   const errors = validateStoryMemoryRecord(record, projectId);
   const timeBound = record.chapterNumber !== undefined || record.sceneNumber !== undefined
-    || record.storyOrder !== undefined || record.timelineId !== undefined;
+    || record.storyOrder !== undefined || record.timelineId !== undefined || record.storyThread !== undefined;
   if (timeBound && !record.timelineId?.trim()) {
     errors.push("Time-bound memories need a timeline ID before approval.");
   }

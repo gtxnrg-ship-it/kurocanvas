@@ -31,3 +31,8 @@
 .art-direction-influence label:last-child{grid-column:1/-1}
 .art-direction-footnote{margin:18px 0 0;padding:12px 14px;border-left:2px solid #9c7ad9;background:rgba(114,82,162,.1);color:#bcb2ce;font-size:11px;line-height:1.65}
 @media(max-width:720px){.art-direction-head,.art-direction-subhead{flex-direction:column}.art-direction-fields,.art-direction-influence{grid-template-columns:minmax(0,1fr)}.art-direction-wide,.art-direction-influence-title,.art-direction-influence label:last-child{grid-column:1}.art-direction-save,.art-direction-subhead button{width:100%}}
+
+.art-direction-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.art-direction-header-actions>button{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(167,139,250,.28);border-radius:9px;padding:9px 12px;background:rgba(167,139,250,.08);color:#d8caff;font-size:12px;cursor:pointer}
+.art-direction-header-actions>button:hover{background:rgba(167,139,250,.15);border-color:#a78bfa}
+.art-direction-header-actions>button:disabled{opacity:.45;cursor:not-allowed}

@@ -36,10 +36,10 @@ jobs:
         run: npm test
       - name: Build website
         run: npm run build -- --mode pages
+      # Pages must be enabled once by a repository maintainer in Settings → Pages.
+      # The GitHub Actions integration does not have permission to create the Pages site.
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:

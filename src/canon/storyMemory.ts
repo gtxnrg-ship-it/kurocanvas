@@ -89,6 +89,8 @@ export function createStoryThreadProposal(
   const payoffChapterNumber = verifiedChapter(candidate.payoffChapterNumber);
   const payoffStoryOrder = verifiedOrder(candidate.payoffStoryOrder);
   const payoffTimelineId = verifiedTimeline(candidate.payoffTimelineId);
+  const threadType = candidate.type as StoryThreadType;
+  const audienceTreatment = candidate.audienceTreatment as StoryThreadAudienceTreatment;
   const linkedEntityIds = (Array.isArray(candidate.linkedEntities) ? candidate.linkedEntities : [])
     .filter((name): name is string => typeof name === "string" && !!name.trim() && evidence.toLocaleLowerCase().includes(name.toLocaleLowerCase()))
     .slice(0, 12)
@@ -98,11 +100,11 @@ export function createStoryThreadProposal(
     ...(chapterNumber === undefined ? {} : { chapterNumber }),
     ...(storyOrder === undefined ? {} : { storyOrder }),
     ...(timelineId ? { timelineId } : {}),
-    entityIds: linkedEntityIds, tags: ["narrative-thread", candidate.type, candidate.audienceTreatment],
+    entityIds: linkedEntityIds, tags: ["narrative-thread", threadType, audienceTreatment],
     source: "user", status: "proposed", assetRefs: [], supersedes: [],
     storyThread: {
-      type: candidate.type as StoryThreadType,
-      audienceTreatment: candidate.audienceTreatment as StoryThreadAudienceTreatment,
+      type: threadType,
+      audienceTreatment,
       clueDescription, plannedPayoff,
       ...(payoffChapterNumber === undefined ? {} : { payoffChapterNumber }),
       ...(payoffStoryOrder === undefined ? {} : { payoffStoryOrder }),

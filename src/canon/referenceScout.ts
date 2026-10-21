@@ -1,0 +1,131 @@
+export type ReferenceStatus = "proposed" | "approved" | "rejected";
+
+export interface ReferenceSourceRecord {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  query: string;
+  sourceUrl: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  creator: string;
+  license: string;
+  licenseUrl: string;
+  attribution: string;
+  notes: string;
+  tags: string[];
+  status: ReferenceStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+export type ReferenceSearchResult = Omit<ReferenceSourceRecord, "id" | "projectId" | "notes" | "tags" | "status" | "createdAt" | "updatedAt">;
+
+const plain = (value: unknown): string => typeof value === "string"
+  ? value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim()
+  : "";
+const safeHttps = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  try { const url = new URL(value); return url.protocol === "https:" ? url.toString() : ""; }
+  catch { return ""; }
+};
+
+export function parseWikimediaSearchResponse(payload: unknown, query: string): ReferenceSearchResult[] {
+  if (!payload || typeof payload !== "object") return [];
+  const root = payload as { query?: { pages?: Record<string, unknown> } };
+  const pages = root.query?.pages;
+  if (!pages || typeof pages !== "object") return [];
+  const results: ReferenceSearchResult[] = [];
+  for (const raw of Object.values(pages)) {
+    if (!raw || typeof raw !== "object") continue;
+    const page = raw as { title?: unknown; imageinfo?: Array<{ url?: unknown; thumburl?: unknown; descriptionurl?: unknown; extmetadata?: Record<string, { value?: unknown }> }> };
+    const info = page.imageinfo?.[0];
+    if (!info) continue;
+    const imageUrl = safeHttps(info.url);
+    const sourceUrl = safeHttps(info.descriptionurl);
+    const thumbnailUrl = safeHttps(info.thumburl) || imageUrl;
+    if (!imageUrl || !sourceUrl || !thumbnailUrl) continue;
+    const meta = info.extmetadata ?? {};
+    results.push({
+      title: plain(page.title).replace(/^File:/i, "") || "Untitled reference",
+      description: plain(meta.ImageDescription?.value),
+      query: query.trim(),
+      sourceUrl, imageUrl, thumbnailUrl,
+      creator: plain(meta.Artist?.value) || "Creator not listed",
+      license: plain(meta.LicenseShortName?.value) || "License not identified — review source page",
+      licenseUrl: safeHttps(plain(meta.LicenseUrl?.value)),
+      attribution: plain(meta.AttributionRequired?.value) || "Check source page for attribution requirements",
+    });
+  }
+  return results;
+}
+
+/** Searches Wikimedia Commons directly. The user's query is sent to Wikimedia; project data is not. */
+export async function searchWikimediaCommons(query: string, signal?: AbortSignal): Promise<ReferenceSearchResult[]> {
+  const normalized = query.trim().slice(0, 180);
+  if (normalized.length < 2) throw new Error("Enter at least two characters to search for references.");
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrsearch: "filetype:bitmap " + normalized,
+    gsrnamespace: "6",
+    gsrlimit: "18",
+    prop: "imageinfo",
+    iiprop: "url|extmetadata",
+    iiurlwidth: "480",
+    format: "json",
+    origin: "*",
+  });
+  const response = await fetch("https://commons.wikimedia.org/w/api.php?" + params.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  if (!response.ok) throw new Error("Wikimedia Commons search failed (HTTP " + response.status + ").");
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error("Wikimedia Commons returned an unreadable search response."); }
+  return parseWikimediaSearchResponse(payload, normalized);
+}
+
+export function validateReferenceSource(value: unknown, projectId?: string): string[] {
+  if (!value || typeof value !== "object") return ["Reference source must be an object."];
+  const record = value as Partial<ReferenceSourceRecord>;
+  const errors: string[] = [];
+  if (typeof record.id !== "string" || !record.id.trim()) errors.push("A reference needs an ID.");
+  if (typeof record.projectId !== "string" || !record.projectId.trim()) errors.push("A reference needs a project ID.");
+  if (projectId && record.projectId !== projectId) errors.push("Reference belongs to a different project.");
+  for (const key of ["title", "description", "query", "creator", "license", "licenseUrl", "attribution", "notes"] as const) {
+    if (typeof record[key] !== "string") errors.push("Reference field " + key + " must be text.");
+  }
+  for (const key of ["sourceUrl", "imageUrl", "thumbnailUrl"] as const) {
+    if (!safeHttps(record[key])) errors.push("Reference field " + key + " must be a valid HTTPS URL.");
+  }
+  if (record.licenseUrl && !safeHttps(record.licenseUrl)) errors.push("Reference license URL must use HTTPS.");
+  if (!Array.isArray(record.tags) || record.tags.some(tag => typeof tag !== "string")) errors.push("Reference tags must be a list of text values.");
+  if (!["proposed", "approved", "rejected"].includes(record.status ?? "")) errors.push("Reference status is invalid.");
+  if (typeof record.createdAt !== "string" || typeof record.updatedAt !== "string") errors.push("Reference timestamps are required.");
+  return [...new Set(errors)];
+}
+
+export function buildReferenceContext(records: ReferenceSourceRecord[], projectId: string, userMessage: string, maxCharacters = 3000): string {
+  const relevant = records.filter(record => {
+    const errors = validateReferenceSource(record, projectId);
+    if (errors.length) throw new Error("Saved reference validation failed: " + errors.join(" "));
+    if (record.status !== "approved") return false;
+    const haystack = (record.title + " " + record.description + " " + record.query + " " + record.notes + " " + record.tags.join(" ")).toLocaleLowerCase();
+    const terms = userMessage.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(term => term.length > 2);
+    return !terms.length || terms.some(term => haystack.includes(term));
+  }).slice(0, 10);
+  if (!relevant.length) return "";
+  const lines = [
+    "PROJECT REFERENCE LIBRARY — USER-APPROVED SOURCE METADATA",
+    "These are approved reference records. Use their descriptions and notes as source metadata only; the actual image pixels are not attached to this text prompt, so never claim to have visually inspected them.",
+    "Respect each source's license and attribution terms. A saved reference is visual inspiration, not permission to copy protected characters, panels, or signature designs.",
+  ];
+  for (const record of relevant) lines.push("- " + record.title + " | " + record.notes + " | Source: " + record.sourceUrl + " | License: " + record.license + (record.creator ? " | Creator: " + record.creator : ""));
+  const limit = Math.max(500, Math.min(8000, Math.floor(maxCharacters)));
+  let context = lines.join("\n");
+  if (context.length > limit) context = context.slice(0, limit - 28).trimEnd() + "\n[Reference context truncated.]";
+  return context;
+}

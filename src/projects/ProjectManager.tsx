@@ -140,6 +140,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         drawingIdMap.set(drawing.id, nextId);
         drawings.push({ ...drawing, id: nextId, name: drawing.name || 'Imported drawing', version: 1, width: drawing.width!, height: drawing.height!, background: drawing.background || '#fffdfb', strokes: drawing.strokes, updatedAt: now } as LocalDrawingDocument);
       }
+      const universePackage = rehomeUniversePackage(importedAssets, project.id, drawingIdMap);
 
       let canon: CanonBundle | undefined;
       if (importedAssets['kuro/canon.v1.json']) {
@@ -259,13 +260,18 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         for (const model of characterModels) await characterModelStorage.save(model);
         for (const drawing of drawings) { await drawingStorage.save({ ...drawing, projectId: project.id }); savedDrawingIds.push(drawing.id); }
         for (const memory of memories) await storyMemoryStorage.save(memory);
+        for (const universe of universePackage.universes) await universeStorage.save(universe);
+        for (const conversation of universePackage.conversations) await conversationStorage.save(conversation);
+        for (const message of universePackage.messages) await chatMessageStorage.save(message);
+        for (const relationship of universePackage.relationships) await relationshipStorage.save(relationship);
+        for (const state of universePackage.characterStates) await characterEvolutionStorage.save(state);
       } catch (error) {
         await Promise.allSettled(savedDrawingIds.map(id => drawingStorage.remove(id)));
         if (projectSaved) await projectStorage.remove(project.id);
         throw error;
       }
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, and ' + drawings.length + ' linked drawings.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + drawings.length + ' drawings, ' + universePackage.universes.length + ' universes, ' + universePackage.conversations.length + ' conversations, ' + universePackage.messages.length + ' chat messages, ' + universePackage.relationships.length + ' relationship records, and ' + universePackage.characterStates.length + ' character timeline states.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {

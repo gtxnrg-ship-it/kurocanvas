@@ -47,3 +47,40 @@ function stableSerialize(value: unknown): string {
   const record = value as Record<string, unknown>;
   return "{" + Object.keys(record).sort().map(key => JSON.stringify(key) + ":" + stableSerialize(record[key])).join(",") + "}";
 }
+
+export interface DrawingReadbackStorage {
+  save(document: LocalDrawingDocument): Promise<void>;
+  load(id: string, projectId?: string): Promise<LocalDrawingDocument | undefined>;
+}
+
+/**
+ * Persist then read back a plan result. If either step fails, restore and verify the
+ * previous document before surfacing the original failure. A caller must not report
+ * success unless the durable state matches the proposed output.
+ */
+export async function saveDrawingWithReadback(
+  storage: DrawingReadbackStorage,
+  previous: LocalDrawingDocument,
+  intended: LocalDrawingDocument,
+): Promise<void> {
+  try {
+    await storage.save(intended);
+    const actual = await storage.load(intended.id, intended.projectId);
+    const verification = verifyDrawingReadback(intended, actual);
+    if (!verification.ok) throw new Error(verification.reason);
+  } catch (error) {
+    const originalMessage = error instanceof Error ? error.message : "Unknown drawing persistence failure.";
+    try {
+      await storage.save(previous);
+      const restored = await storage.load(previous.id, previous.projectId);
+      const restorationCheck = verifyDrawingReadback(previous, restored);
+      if (!restorationCheck.ok) {
+        throw new Error(restorationCheck.reason);
+      }
+    } catch (restoreError) {
+      const restoreMessage = restoreError instanceof Error ? restoreError.message : "Unknown recovery failure.";
+      throw new Error("Canvas save verification failed: " + originalMessage + ". Automatic rollback could not be verified: " + restoreMessage + ". Keep the pre-plan revision as a recovery point.");
+    }
+    throw new Error("Canvas save verification failed; the previous artwork was restored and read back successfully. " + originalMessage);
+  }
+}

@@ -132,3 +132,6 @@
 @media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input{width:100%}}
 
 .story-editor-title>button{border:1px solid #443951;border-radius:7px;background:#1b1725;color:#cfc4df;padding:6px 8px;font-size:9px;cursor:pointer}
+
+/* Visible transform affordance for manual object selection */
+.drawing-paper .canvas-selection-outline{position:absolute;z-index:4;border:1px solid #a78bfa;outline:1px solid rgba(255,255,255,.75);outline-offset:2px;box-shadow:0 0 0 1px rgba(10,8,16,.5);pointer-events:none;min-width:2px;min-height:2px}

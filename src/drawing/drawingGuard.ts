@@ -5,7 +5,7 @@ export interface DrawingGuardState {
 }
 export function drawingGuardSignature(doc:DrawingGuardState):string {
  const layers=(doc.layers?.length?doc.layers:[{id:"layer-default",name:"Sketch",visible:true,locked:false}]).map(layer=>({...layer,opacity:layer.opacity??1,blendMode:layer.blendMode??"normal"}));
- const strokes=doc.strokes.map(s=>({id:s.id,layerId:s.layerId,tool:s.tool,color:s.color,size:s.size,shape:s.shape,imageName:s.imageName,text:s.text,fontFamily:s.fontFamily,filled:s.filled,fillColor:s.fillColor,rotation:s.rotation,brushPreset:s.brushPreset,points:s.points}));
+ const strokes=doc.strokes.map(s=>({id:s.id,layerId:s.layerId,tool:s.tool,color:s.color,size:s.size,shape:s.shape,imageName:s.imageName,text:s.text,fontFamily:s.fontFamily,filled:s.filled,fillColor:s.fillColor,rotation:s.rotation,brushPreset:s.brushPreset,points:s.points.map(p=>({x:p.x,y:p.y,pressure:p.pressure}))}));
  const input=JSON.stringify({id:doc.id,projectId:doc.projectId??"",width:doc.width,height:doc.height,background:doc.background,layers,strokes});
  let h=2166136261;
  for(let i=0;i<input.length;i++) h=Math.imul(h^input.charCodeAt(i),16777619)>>>0;

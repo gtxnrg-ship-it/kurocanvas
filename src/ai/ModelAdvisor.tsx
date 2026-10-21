@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { assessDevice, type DeviceAssessment } from "./deviceAssessment";
 import { KURO_MODEL_CATALOG, type KuroModelOption } from "./modelCatalog";
+import { validateLocalModelBenchmark, type LocalModelBenchmark, localBenchmarkRatingLabel } from "./modelBenchmark";
 
 function formatBytes(bytes?: number): string {
   if (bytes === undefined) return "Size not verified";
@@ -13,10 +14,16 @@ function platformMatches(model: KuroModelOption, device: DeviceAssessment): bool
   if (device.environment === "desktop") return model.platforms.includes("desktop") || model.platforms.includes("web");
   return model.platforms.includes("web");
 }
-function statusLabel(model: KuroModelOption, device: DeviceAssessment): { label: string; color: string } {
+function statusLabel(model: KuroModelOption, device: DeviceAssessment, benchmark?: LocalModelBenchmark): { label: string; color: string } {
   if (model.status === "available-in-web-build") {
+    if (model.id === "smollm2-135m-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:smollm2-135m-instruct") {
+      if (benchmark.rating === "fast") return { label: "Fast local text speed · measured", color: "#21864b" };
+      if (benchmark.rating === "usable") return { label: "Usable, slower · measured", color: "#b7791f" };
+      if (benchmark.rating === "slow") return { label: "Slow local text speed · measured", color: "#c53030" };
+      return { label: "Benchmark inconclusive", color: "#b7791f" };
+    }
     if (device.deviceMemoryGiB !== undefined && device.deviceMemoryGiB < 2) return { label: "Test cautiously", color: "#d99a16" };
-    return { label: "Available · benchmark needed", color: "#d99a16" };
+    return { label: "Available · speed unmeasured", color: "#d99a16" };
   }
   if (model.status === "remote-provider-needed") return { label: "Needs provider", color: "#6b7280" };
   if (model.minMemoryBytes && device.deviceMemoryGiB !== undefined && device.deviceMemoryGiB * 1024 ** 3 < model.minMemoryBytes) {
@@ -24,7 +31,7 @@ function statusLabel(model: KuroModelOption, device: DeviceAssessment): { label:
   }
   return { label: "Needs native runtime", color: "#6b7280" };
 }
-export default function ModelAdvisor() {
+export default function ModelAdvisor({ benchmark }: { benchmark?: LocalModelBenchmark }) {
   const [device, setDevice] = useState<DeviceAssessment>();
   const [showAll, setShowAll] = useState(false);
   useEffect(() => { let active = true; void assessDevice().then(value => { if (active) setDevice(value); }); return () => { active = false; }; }, []);
@@ -39,7 +46,7 @@ export default function ModelAdvisor() {
       <p style={{ margin: "6px 0", fontSize: 12, opacity: .8 }}>WebAssembly: {device.webAssembly ? "yes" : "no"} · WebGPU: {device.webGPU ? "available (not yet benchmarked)" : "not detected"} · estimate confidence: {device.confidence}.</p>
       <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
         {models.map(model => {
-          const status = statusLabel(model, device);
+          const status = statusLabel(model, device, benchmark);
           return <article key={model.id} style={{ border: "1px solid var(--border, #444)", borderRadius: 10, padding: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 }}>
               <strong>{model.name}</strong>
@@ -48,6 +55,7 @@ export default function ModelAdvisor() {
             <div style={{ fontSize: 12, opacity: .8, marginTop: 4 }}>{model.tier} tier · {formatBytes(model.downloadBytes)} · {model.modalities.join(" + ")} · {model.runtime}</div>
             <p style={{ fontSize: 13, margin: "6px 0" }}>{model.bestFor}</p>
             <p style={{ fontSize: 12, opacity: .75, margin: 0 }}>{model.notes}</p>
+            {model.id === "smollm2-135m-web" && benchmark && validateLocalModelBenchmark(benchmark) && benchmark.modelId === "kuro-local:smollm2-135m-instruct" && <p role="status" style={{ fontSize: 12, margin: "8px 0 0", padding: "8px", borderRadius: 8, background: "rgba(125,125,125,.09)" }}><strong>{localBenchmarkRatingLabel(benchmark.rating)}</strong><br />{benchmark.tokensPerSecond.toFixed(1)} generated tokens/s · {benchmark.outputTokens} tokens in {benchmark.elapsedMs} ms<br /><span style={{ opacity: .75 }}>Measured locally on {new Date(benchmark.measuredAt).toLocaleString()}. This measures warm text generation, not canvas frame rate or drawing quality.</span></p>}
             <a href={model.sourceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 7, fontSize: 12 }}>Model details ↗</a>
           </article>;
         })}

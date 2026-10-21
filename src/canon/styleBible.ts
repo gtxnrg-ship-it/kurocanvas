@@ -47,6 +47,28 @@ export function validateStyleBible(value: unknown, projectId?: string): string[]
 
 const norm = (s: string) => s.normalize("NFKC").toLocaleLowerCase().trim();
 const stateSignature = (s: CharacterVisualState) => JSON.stringify([s.age ?? "", s.hair ?? "", s.scars ?? "", s.outfit ?? "", s.body ?? "", s.eyes ?? "", s.accessories ?? "", s.injuries ?? "", s.other ?? ""]);
+
+export type CharacterVisualTraitKey = "age" | "hair" | "scars" | "outfit" | "body" | "eyes" | "accessories" | "injuries" | "other";
+export interface ResolvedCharacterVisualState {
+  latest: CharacterVisualState;
+  traits: Partial<Record<CharacterVisualTraitKey, string>>;
+}
+/** Resolve approved visual changes chronologically; omitted traits persist, explicit values replace them. */
+export function resolveCharacterVisualState(
+  states: CharacterVisualState[], characterName: string, targetStoryOrder: number,
+): ResolvedCharacterVisualState | undefined {
+  const traitKeys: CharacterVisualTraitKey[] = ["age","hair","scars","outfit","body","eyes","accessories","injuries","other"];
+  const ordered = states.filter(state => state.status === "approved"
+    && norm(state.characterName) === norm(characterName)
+    && state.storyOrder <= targetStoryOrder).sort((a,b)=>a.storyOrder-b.storyOrder);
+  if (!ordered.length) return undefined;
+  const traits: Partial<Record<CharacterVisualTraitKey,string>> = {};
+  for (const state of ordered) for (const trait of traitKeys) {
+    const value = state[trait];
+    if (typeof value === "string" && value.trim()) traits[trait] = value.trim();
+  }
+  return { latest: ordered[ordered.length - 1], traits };
+}
 export function findStyleConflicts(bible: ProjectStyleBible): StyleConflict[] {
   const approved = bible.characterStates.filter(s => s.status === "approved");
   const conflicts: StyleConflict[] = [];

@@ -3,7 +3,7 @@ import { KURO_TINY_MODEL_ID } from "./localTinyModelConfig";
 type ProgressEvent = { status?: string; progress?: number; file?: string; loaded?: number; total?: number };
 type WorkerRequest =
   | { id: number; type: "prepare" }
-  | { id: number; type: "generate"; messages: Array<{ role: string; content: string }>; maxOutputTokens: number };
+  | { id: number; type: "generate"; messages: Array<{ role: string; content: string }>; maxOutputTokens: number; temperature: number };
 type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
@@ -66,7 +66,11 @@ async function handleRequest(request: WorkerRequest): Promise<void> {
     }) as { input_ids?: { dims?: number[] }; [key: string]: unknown };
     const promptLength = Number(inputs.input_ids?.dims?.[1] ?? 0);
     const maxNewTokens = Math.max(16, Math.min(request.maxOutputTokens, 512));
-    const output = await runtime.model.generate({ ...inputs, max_new_tokens: maxNewTokens, do_sample: true, temperature: 0.7, top_p: 0.8, top_k: 20 });
+    const temperature = Number.isFinite(request.temperature) ? Math.max(0, Math.min(2, request.temperature)) : 0.7;
+    const sampling = temperature > 0
+      ? { do_sample: true, temperature, top_p: 0.8, top_k: 20 }
+      : { do_sample: false };
+    const output = await runtime.model.generate({ ...inputs, max_new_tokens: maxNewTokens, ...sampling });
     const tokenIds = Array.from(output.data).slice(promptLength).map(Number);
     const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
     scope.postMessage({ id: request.id, type: "result", text, outputTokens: tokenIds.length, finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop" });

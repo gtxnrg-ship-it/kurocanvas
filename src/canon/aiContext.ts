@@ -100,6 +100,36 @@ export function resolveApprovedRevealPoint(options: CanonRevealGateOptions): { t
   return resolveRevealPoint(options);
 }
 
+/**
+ * Resolve the default position for sequential creation when the creator says
+ * "continue" but does not repeat the chapter. Only infer when the approved
+ * history has one unambiguous timeline; never silently choose between AUs.
+ *
+ * Explicit chapter/story-order values always win and are resolved by the
+ * normal mapping. With no approved temporal history, return an unresolved but
+ * non-ambiguous point so a fresh project is not blocked from creating its first scene.
+ */
+export function resolveDefaultProductionPoint(
+  options: CanonRevealGateOptions,
+): { timelineId?: string; storyOrder?: number; chapterNumber?: number; ambiguous: boolean } {
+  if (options.storyOrder !== undefined || options.chapterNumber !== undefined) return resolveRevealPoint(options);
+  const states = eligibleRevealStates(options);
+  const timelineIds = [...new Set(states
+    .filter(state => !options.timelineId || state.timelineId === options.timelineId)
+    .map(state => state.timelineId))];
+  if (!states.length) return { ...(options.timelineId ? { timelineId: options.timelineId } : {}), ambiguous: false };
+  if (!timelineIds.length) return { ...(options.timelineId ? { timelineId: options.timelineId } : {}), ambiguous: true };
+  if (!options.timelineId && timelineIds.length !== 1) return { ambiguous: true };
+  const timelineId = options.timelineId ?? timelineIds[0];
+  const onTimeline = states.filter(state => state.timelineId === timelineId);
+  if (!onTimeline.length) return { timelineId, ambiguous: true };
+  const storyOrder = Math.max(...onTimeline.map(state => state.storyOrder));
+  const chapters = [...new Set(onTimeline.filter(state => state.storyOrder === storyOrder)
+    .map(state => state.chapterNumber).filter((value): value is number => value !== undefined))];
+  if (chapters.length > 1) return { timelineId, storyOrder, ambiguous: true };
+  return { timelineId, storyOrder, ...(chapters.length ? { chapterNumber: chapters[0] } : {}), ambiguous: false };
+}
+
 function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions): {
   bundle: CanonBundle;
   hiddenCount: number;
@@ -110,6 +140,14 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
 } {
   const point = resolveRevealPoint(gate);
   const states = eligibleRevealStates(gate);
+  // A fresh project with approved world/character records but no approved temporal
+  // states has no reveal schedule to violate. Keep the canon usable and let the
+  // creator begin writing; do not treat every character as permanently hidden.
+  if (states.length === 0) return {
+    bundle, hiddenCount: 0, unresolvedTarget: false, hiddenTokens: [],
+    ...(point.storyOrder === undefined ? {} : { maxStoryOrder: point.storyOrder }),
+    ...(point.timelineId ? { timelineId: point.timelineId } : {}),
+  };
   if (gate.allowAuthorDirectedForeshadowing && !point.ambiguous) {
     // The author explicitly asked for an intentional early clue. Keep full author
     // knowledge available to Kuro, while response guidance keeps reader-facing

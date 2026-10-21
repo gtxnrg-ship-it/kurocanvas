@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, isLocalTinyModelPrepared, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
@@ -44,6 +44,18 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const localModelAbortController = useRef<AbortController | undefined>(undefined);
+  const inferenceAbortController = useRef<AbortController | undefined>(undefined);
+
+  useEffect(() => () => {
+    localModelAbortController.current?.abort();
+    inferenceAbortController.current?.abort();
+  }, []);
+
+  function closeSettings() {
+    localModelAbortController.current?.abort();
+    inferenceAbortController.current?.abort();
+    onClose();
+  }
   const [localBenchmark, setLocalBenchmark] = useState<LocalModelBenchmark | undefined>(
     () => loadLocalModelBenchmark(KURO_TINY_MODEL_DESCRIPTOR_ID),
   );
@@ -99,6 +111,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         setError(e instanceof Error ? e.message : "Could not download or initialize Qwen3-0.6B.");
       }
     } finally {
+      if (controller.signal.aborted) setLocalModelPrepared(false);
       if (localModelAbortController.current === controller) localModelAbortController.current = undefined;
       setLocalModelPreparing(false);
       setBusy(false);
@@ -113,6 +126,8 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   }
 
   async function benchmarkLocalModel() {
+    const controller = new AbortController();
+    inferenceAbortController.current = controller;
     setBusy(true);
     setError("");
     setStatus("Warming up local inference before the measured run…");
@@ -125,6 +140,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         messages: [{ role: "user", content: "Reply with one short greeting." }],
         temperature: 0,
         maxOutputTokens: 16,
+        signal: controller.signal,
       }, model);
       setStatus("Measuring local generation speed…");
       const started = performance.now();
@@ -133,6 +149,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         messages: [{ role: "user", content: "Write exactly two useful sentences for a new manga creator. Be clear, specific, and encouraging. Do not stop after a greeting." }],
         temperature: 0,
         maxOutputTokens: 64,
+        signal: controller.signal,
       }, model);
       const elapsedMs = performance.now() - started;
       if (response.finishReason === "cancelled" || response.finishReason === "error") {
@@ -143,8 +160,11 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       saveLocalModelBenchmark(result);
       setStatus(localBenchmarkRatingLabel(result.rating) + " · " + result.tokensPerSecond.toFixed(1) + " output tokens/s · " + result.elapsedMs + " ms for " + result.outputTokens + " tokens. This is a speed check, not a measure of story or drawing quality.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The on-device speed benchmark failed.");
+      if (controller.signal.aborted) setStatus("Speed benchmark cancelled.");
+      else setError(e instanceof Error ? e.message : "The on-device speed benchmark failed.");
     } finally {
+      if (controller.signal.aborted) setLocalModelPrepared(false);
+      if (inferenceAbortController.current === controller) inferenceAbortController.current = undefined;
       setBusy(false);
     }
   }
@@ -155,6 +175,8 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       setError("Prepare Qwen3-0.6B before previewing Kuro's voice. Checking the adapter alone does not load model weights.");
       return;
     }
+    const controller = new AbortController();
+    inferenceAbortController.current = controller;
     setVoiceTesting(true);
     setError("");
     setVoicePreview("");
@@ -168,11 +190,15 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         ],
         temperature: 0.75,
         maxOutputTokens: 220,
+        signal: controller.signal,
       }, selected);
       setVoicePreview(response.text.trim() || "The model returned an empty reply. Try again after checking model preparation.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Kuro's voice preview failed.");
+      if (controller.signal.aborted) setStatus("Kuro's voice preview was cancelled.");
+      else setError(e instanceof Error ? e.message : "Kuro's voice preview failed.");
     } finally {
+      if (controller.signal.aborted) setLocalModelPrepared(false);
+      if (inferenceAbortController.current === controller) inferenceAbortController.current = undefined;
       setVoiceTesting(false);
     }
   }
@@ -180,7 +206,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   function save() {
     onSave(canonicalConfig);
     setStatus("Saved: Qwen3-0.6B · on-device · text-only.");
-    onClose();
+    closeSettings();
   }
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
@@ -190,18 +216,18 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         <h2 id="provider-settings-title">Kuro's intelligence</h2>
         <p>Kuro currently runs one model: Qwen3-0.6B on your device. Her drawing, memory, canon, research, and workflow harnesses are app features—not separate models.</p>
       </div>
-      <button onClick={onClose} aria-label="Close settings">×</button>
+      <button onClick={closeSettings} aria-label="Close settings">×</button>
     </div>
     <ModelAdvisor benchmark={localBenchmark} />
     <div className="provider-recommended-model">
       <strong>Qwen3-0.6B · the only active model</strong>
       <p>The quantized ONNX weights are approximately 370 MB. Download and model initialization happen only when you explicitly choose “Download & prepare Qwen3-0.6B”; a normal chat message will not trigger a download. Transformers.js caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the model can see images.</p>
       <div className="provider-actions">
-        <button type="button" onClick={checkModelAdapter} disabled={busy}>{busy ? "Checking…" : "Check local adapter"}</button>
-        <button type="button" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Preparing… " + modelProgress + "%" : localModelPrepared ? "Prepare model again" : "Download & prepare Qwen3-0.6B"}</button>
+        <button type="button" onClick={checkModelAdapter} disabled={busy || voiceTesting}>{busy ? "Checking…" : "Check local adapter"}</button>
+        <button type="button" onClick={downloadAndConnectLocalModel} disabled={busy || voiceTesting}>{localModelPreparing ? "Preparing… " + modelProgress + "%" : localModelPrepared ? "Prepare model again" : "Download & prepare Qwen3-0.6B"}</button>
         {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel preparation</button>}
       </div>
-      <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark generation speed"}</button>
+      <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || voiceTesting || !localModelPrepared}>{busy ? "Working…" : "Benchmark generation speed"}</button>
       <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
     </div>
@@ -213,15 +239,15 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         <option value="expressive">Expressive · dramatic anime energy</option>
       </select></label>
       <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
-      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting || !localModelPrepared}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
       {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
     <p className="provider-warning">No hosted provider or API key is configured by this screen, and no remote model fallback is used. If local inference is unavailable, Kuro reports the problem rather than sending your prompts or project data elsewhere. Image understanding is not supported by Qwen3-0.6B here.</p>
     <div className="provider-actions">
-      <button className="provider-secondary" onClick={onClose}>Close</button>
-      <button onClick={save}>Use Qwen3-0.6B</button>
+      <button className="provider-secondary" onClick={closeSettings}>Close</button>
+      <button onClick={save} disabled={busy || voiceTesting}>Use Qwen3-0.6B</button>
     </div>
   </section>;
 }

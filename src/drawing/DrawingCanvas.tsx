@@ -54,12 +54,17 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5), 0, Math.PI * 2);
     ctx.fill();
   } else {
-    for (let i = 1; i < stroke.points.length; i++) {
-      const a = stroke.points[i - 1], b = stroke.points[i];
+    const points = stroke.points;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const start = i === 1 ? points[0] : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const next = points[i + 1];
+      const end = next ? { x: (b.x + next.x) / 2, y: (b.y + next.y) / 2 } : b;
+      const pressure = Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
       ctx.beginPath();
-      ctx.lineWidth = stroke.size * Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.lineWidth = stroke.size * pressure;
+      ctx.moveTo(start.x, start.y);
+      ctx.quadraticCurveTo(b.x, b.y, end.x, end.y);
       ctx.stroke();
     }
   }

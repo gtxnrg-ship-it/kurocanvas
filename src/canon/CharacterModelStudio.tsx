@@ -474,13 +474,13 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         <label><span>Character model</span><select value={modelId} onChange={event=>{setModelId(event.target.value);const model=models.find(item=>item.id===event.target.value);if(model){setCharacterName(model.characterName);setFrontFace(model.frontFace);}}}><option value="">Choose a model…</option>{models.map(model=><option key={model.id} value={model.id}>{model.characterName}{model.characterStateId ? " · " + (styleBible?.characterStates.find(state=>state.id===model.characterStateId)?.chapterLabel ?? "chapter variant") : " · base"}{model.sourceType==="procedural"?" · blockout":" · GLB"}</option>)}</select></label>
         <label><span>Approved chapter state</span><select value={selectedState?.id ?? ""} onChange={event=>setStateId(event.target.value)} disabled={!stateOptions.length}><option value="">No approved state</option>{stateOptions.map(state=><option key={state.id} value={state.id}>{state.chapterLabel} · order {state.storyOrder}</option>)}</select></label>
         <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label>
-        <button disabled={!selectedModel} onClick={()=>void resetView()}><RotateCcw size={14}/> Reset view</button>
+        <button disabled={!selectedModel} onClick={()=>void resetView()}><RotateCcw size={14}/> Reset view</button><button type="button" onClick={()=>void applyCameraPreset("front")}>Front</button><button type="button" onClick={()=>void applyCameraPreset("three-quarter-right")}>3/4 view</button><button type="button" onClick={()=>void applyCameraPreset("profile-left")}>Profile</button><button type="button" onClick={()=>void applyCameraPreset("back")}>Back</button><button type="button" onClick={()=>void applyCameraPreset("full-body")}>Full body</button>
       </div>
       <p className="character-model-message" role="status">{message}</p>
       <div className="character-model-layout">
         <div className="character-model-viewer">
           <div ref={hostRef} className="character-model-canvas" />
-          <div className="character-model-viewer-hint">Drag to orbit · scroll to zoom · touch supported</div>
+          <div className="character-model-viewer-hint">Drag to orbit · scroll to zoom · touch supported</div>{agentActionProgress && <div className="character-model-viewer-hint" role="status" aria-live="polite">Kuro using native 3D tools · {agentActionProgress.completed}/{agentActionProgress.total} · {agentActionProgress.command}<progress value={agentActionProgress.completed} max={Math.max(1,agentActionProgress.total)} aria-label="3D tool progress"/></div>}
           {selectedModel && (
             <div className="character-model-viewer-label">
               <b>{selectedModel.characterName}</b>

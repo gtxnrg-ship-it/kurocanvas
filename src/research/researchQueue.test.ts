@@ -38,6 +38,9 @@ describe("Kuro research queue records", () => {
     expect(isResearchFollowUpRequest("What did the sources find about panel pacing?")).toBe(true);
     expect(isResearchFollowUpRequest("What did you discover about the temple in this scene?")).toBe(false);
     expect(isResearchFollowUpRequest("Write a scene where the detective finds a clue.")).toBe(false);
+    expect(isResearchFollowUpRequest("The research student finds a clue in chapter two.")).toBe(false);
+    expect(isResearchFollowUpRequest("The sources of magic are six ancient clans.")).toBe(false);
+    expect(isResearchFollowUpRequest("Cite the sources when you summarize the findings.")).toBe(true);
   });
 
   it("routes explicit research commands into scoped tasks and preserves source/depth choices", () => {

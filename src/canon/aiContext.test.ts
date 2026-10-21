@@ -112,6 +112,8 @@ describe("approved canon AI context", () => {
     expect(isStoryProductionRequest("Make panel 2")).toBe(true);
     expect(isStoryProductionRequest("Draw panel 3")).toBe(true);
     expect(isStoryProductionRequest("Let's brainstorm the emperor privately")).toBe(false);
+    expect(isStoryProductionRequest("Let's brainstorm Chapter 1")).toBe(false);
+    expect(isStoryProductionRequest("Brainstorm and write Chapter 1")).toBe(true);
   });
 
   it("bounds the context size", () => {

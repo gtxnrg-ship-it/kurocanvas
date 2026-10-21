@@ -3,7 +3,7 @@
  * Chat transcripts are not a reliable canon database. Missing history remains unknown.
  */
 
-const STORY_MEMORY_CAPTURE_PATTERN = /\b(?:remember(?:\s+that)?|chapter|ch\.?|scene|flashback|backstory|character|new\s+character|introduc(?:e|es|ed|ing)|first\s+appearance|reveal(?:s|ed)?|becomes?|became|transform(?:s|ed)?|dies|died|killed|injur(?:ed|y)|betray(?:s|ed|al)|relationship|alliance|event|canon|story\s+vault|visual\s+reference|outfit|appearance|design|power|ability|loses|gains|learns|discovers|meets?|met|born|returns?|vanishes?|disappears?|named|renamed|no\s+longer|is\s+now|has\s+changed|changed\s+from)\b/i;
+const STORY_MEMORY_CAPTURE_PATTERN = /\b(?:remember(?:\s+that)?|chapter|ch\.?|scene|flashback|backstory|character|new\s+character|introduc(?:e|es|ed|ing)|first\s+appearance|reveal(?:s|ed)?|becomes?|became|transform(?:s|ed)?|dies|died|killed|injur(?:ed|y)|betray(?:s|ed|al)|relationship|alliance|event|canon|story\s+vault|visual\s+reference|outfit|appearance|design|power|ability|loses|gains|learns|discovers|meets?|met|born|returns?|vanishes?|disappears?|named|renamed|no\s+longer|is\s+now|has\s+changed|changed\s+from|easter[-\s]?egg|cameo|foreshadow(?:ing)?|callback|red\s+herring|recurring\s+motif|hidden\s+clue|plant(?:ed|ing)?\s+(?:a\s+)?clue|planned\s+payoff)\b/i;
 
 export function shouldCaptureStoryMemory(text: string): boolean {
   return STORY_MEMORY_CAPTURE_PATTERN.test(text);
@@ -11,12 +11,26 @@ export function shouldCaptureStoryMemory(text: string): boolean {
 
 export type MemorySource = "user" | "approved-chapter" | "imported";
 export type MemoryStatus = "approved" | "proposed" | "superseded";
+export type StoryThreadType = "foreshadowing" | "easter-egg" | "cameo" | "callback" | "mystery" | "red-herring" | "recurring-motif";
+export type StoryThreadAudienceTreatment = "background-only" | "subtle-hint" | "visible-callback" | "explicit-reveal" | "author-only";
+
+/** Author-facing structure for a clue, cameo, motif, mystery, or planned callback. */
+export interface StoryThreadPlan {
+  type: StoryThreadType;
+  audienceTreatment: StoryThreadAudienceTreatment;
+  clueDescription: string;
+  plannedPayoff: string;
+  payoffChapterNumber?: number;
+  payoffStoryOrder?: number;
+  payoffTimelineId?: string;
+  linkedEntityIds: string[];
+}
 export interface StoryMemoryRecord {
   id: string; projectId: string;
   kind: "chapter" | "event" | "character-change" | "visual-reference" | "panel-template";
   title: string; summary: string;
   chapterNumber?: number; sceneNumber?: number; storyOrder?: number; timelineId?: string; occurredAt?: string;
-  entityIds: string[]; tags: string[]; source: MemorySource; status: MemoryStatus;
+  entityIds: string[]; tags: string[]; source: MemorySource; status: MemoryStatus; storyThread?: StoryThreadPlan;
   assetRefs: string[]; supersedes: string[]; createdAt: string; updatedAt: string;
 }
 export interface StoryMemoryQuery {
@@ -96,6 +110,21 @@ export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: 
   if (record.storyOrder !== undefined && (!Number.isFinite(record.storyOrder) || record.storyOrder < 0)) errors.push("Story order must be a non-negative finite number.");
   if (record.timelineId !== undefined && (typeof record.timelineId !== "string" || !record.timelineId.trim())) errors.push("Timeline ID must be a non-empty string when supplied.");
   if (!Array.isArray(record.entityIds) || !Array.isArray(record.tags) || !Array.isArray(record.assetRefs) || !Array.isArray(record.supersedes)) errors.push("Memory links and tags must be arrays.");
+  if (record.storyThread !== undefined) {
+    const thread = record.storyThread;
+    const threadTypes: StoryThreadType[] = ["foreshadowing", "easter-egg", "cameo", "callback", "mystery", "red-herring", "recurring-motif"];
+    const audienceTreatments: StoryThreadAudienceTreatment[] = ["background-only", "subtle-hint", "visible-callback", "explicit-reveal", "author-only"];
+    if (!thread || typeof thread !== "object" || !threadTypes.includes(thread.type) || !audienceTreatments.includes(thread.audienceTreatment)) {
+      errors.push("Narrative thread needs a supported type and reader-facing treatment.");
+    } else {
+      if (typeof thread.clueDescription !== "string" || !thread.clueDescription.trim()) errors.push("Narrative thread needs a concrete clue description.");
+      if (typeof thread.plannedPayoff !== "string" || !thread.plannedPayoff.trim()) errors.push("Narrative thread needs an intended payoff or an explicit unknown value.");
+      if (!Array.isArray(thread.linkedEntityIds) || thread.linkedEntityIds.some(id => typeof id !== "string")) errors.push("Narrative thread linked entities must be a list of strings.");
+      if (thread.payoffChapterNumber !== undefined && (!Number.isInteger(thread.payoffChapterNumber) || thread.payoffChapterNumber < 0)) errors.push("Narrative thread payoff chapter must be a non-negative integer.");
+      if (thread.payoffStoryOrder !== undefined && (!Number.isFinite(thread.payoffStoryOrder) || thread.payoffStoryOrder < 0)) errors.push("Narrative thread payoff story order must be non-negative and finite.");
+      if (thread.payoffTimelineId !== undefined && (typeof thread.payoffTimelineId !== "string" || !thread.payoffTimelineId.trim())) errors.push("Narrative thread payoff timeline must be a non-empty string when supplied.");
+    }
+  }
   return errors;
 }
 /**
@@ -125,7 +154,11 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
     (!query.kinds || query.kinds.includes(record.kind)) &&
     (!query.entityIds?.length || query.entityIds.some(id => record.entityIds.includes(id))));
   const ranked = eligible.map(record => {
-    const searchable = tokenize([record.title, record.summary, ...record.tags, ...record.entityIds].join(" "));
+    const threadSearch = record.storyThread ? [
+      record.storyThread.type, record.storyThread.audienceTreatment, record.storyThread.clueDescription,
+      record.storyThread.plannedPayoff, ...record.storyThread.linkedEntityIds,
+    ] : [];
+    const searchable = tokenize([record.title, record.summary, ...record.tags, ...record.entityIds, ...threadSearch].join(" "));
     const score = tokens.size ? Array.from(tokens).reduce((sum, token) => sum + (searchable.includes(token) ? 1 : 0), 0) : 1;
     const chapterBoost = query.chapterNumber !== undefined && record.chapterNumber === query.chapterNumber ? 100 : 0;
     const entityBoost = query.entityIds?.some(id => record.entityIds.includes(id)) ? 20 : 0;
@@ -149,6 +182,7 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
     "Use approved records for current continuity. A proposed or superseded record must never override, silently retcon, or be presented as established fact.",
     "Use a superseded record only when the user explicitly asks to reconstruct that old version; clearly identify it as superseded and distinguish it from current approved history.",
     "Keep chapter order, character state, who knows what, and referenced visual assets consistent. Missing or conflicting evidence means unknown, not permission to invent.",
+    "NARRATIVE THREADS are author-facing continuity plans. Their intended future payoff is not automatically dialogue, narration, or visible chapter content. Before the payoff, show only the approved clue treatment; preserve the mystery unless the author explicitly requests a reveal or full-series outline.",
     "Asset references are handles for the app to open; they are not visual evidence by themselves. Never describe an unseen drawing based only on its ID."];
   for (const record of result.records) {
     let chapter = "";
@@ -158,6 +192,16 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
     if (record.entityIds.length) lines.push("Entities: " + record.entityIds.join(", "));
     if (record.assetRefs.length) lines.push("Reusable asset references: " + record.assetRefs.join(", "));
     if (record.supersedes.length) lines.push("Supersedes/changes records: " + record.supersedes.join(", "));
+    if (record.storyThread) {
+      const thread = record.storyThread;
+      lines.push("AUTHOR-ONLY STORY THREAD: " + thread.type + " · reader treatment: " + thread.audienceTreatment);
+      lines.push("Intended visible clue/plant: " + thread.clueDescription);
+      lines.push("Planned payoff (not for early on-page disclosure): " + thread.plannedPayoff);
+      if (thread.payoffChapterNumber !== undefined) lines.push("Planned payoff chapter: " + thread.payoffChapterNumber);
+      if (thread.payoffStoryOrder !== undefined) lines.push("Planned payoff story order: " + thread.payoffStoryOrder);
+      if (thread.payoffTimelineId) lines.push("Payoff timeline: " + thread.payoffTimelineId);
+      if (thread.linkedEntityIds.length) lines.push("Linked story entities: " + thread.linkedEntityIds.join(", "));
+    }
   }
   for (const warning of result.warnings) lines.push("CONTINUITY WARNING: " + warning);
   const output = lines.join("\n");

@@ -296,7 +296,7 @@ export const characterModelStorage = {
       const errors = validateCharacterModel(record, projectId);
       if (errors.length) throw new Error("Saved character model is invalid: " + errors.join(" "));
     }
-    return scoped.sort((a,b) => a.characterName.localeCompare(b.characterName));
+    return scoped.sort((a,b) => a.characterName.localeCompare(b.characterName) || (a.storyOrder ?? 0) - (b.storyOrder ?? 0));
   },
   async load(id: string, projectId: string): Promise<CharacterModelRecord | undefined> {
     const record = await requestValue<CharacterModelRecord | undefined>(CHARACTER_MODELS, "readonly", store => store.get(id));

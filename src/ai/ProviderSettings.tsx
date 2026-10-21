@@ -32,6 +32,15 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
   const [voiceTesting, setVoiceTesting] = useState(false);
   const [voicePreview, setVoicePreview] = useState("");
 
+  function useRecommendedQwenLocalEndpoint() {
+    setBaseUrl("http://localhost:8000/v1");
+    setModelUri("Qwen/Qwen3.8-27B");
+    setAllowInsecureLocalhost(true);
+    setModels([]);
+    setError("");
+    setStatus("Preset selected. Start the separate Qwen3.8-27B inference server first, then test the connection.");
+  }
+
   async function discoverModels() {
     setBusy(true); setError(""); setStatus("");
     try {
@@ -80,8 +89,14 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
   }
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
-    <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local endpoints such as LM Studio or llama.cpp.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
+    <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local inference servers. Model weights and inference software are installed separately.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
     <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
+    <div className="provider-recommended-model">
+      <strong>Recommended open-weight candidate: Qwen3.8-27B</strong>
+      <p>Multimodal, agent-focused, Apache-2.0 model. Its official full-precision download is about 55.6 GB, so this is for a capable desktop/server—not a typical phone. Kuro's current chat path is not yet wired to send canvas images to the model.</p>
+      <button type="button" className="provider-secondary" onClick={useRecommendedQwenLocalEndpoint}>Use local Qwen3.8 endpoint</button>
+      <a href="https://huggingface.co/Qwen/Qwen3.8-27B" target="_blank" rel="noreferrer">Official model card ↗</a>
+    </div>
     <label>API base URL<input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" autoComplete="url" /></label>
     <label>API key <span className="provider-muted">(kept in memory only; re-enter after refresh)</span><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="new-password" placeholder="Optional for local endpoints" /></label>
     <label className="provider-check"><input type="checkbox" checked={allowInsecureLocalhost} onChange={e=>setAllowInsecureLocalhost(e.target.checked)} /> Allow HTTP only for a localhost model endpoint</label>
@@ -90,7 +105,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
     {!models.length && <label>Model ID<input value={modelUri} onChange={e=>setModelUri(e.target.value)} placeholder="e.g. gpt-4.1-mini or local model ID" /></label>}
     {status && <p className="provider-status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">Privacy note: requests are sent to the provider you configure. In a browser app, hosted API keys are exposed to the client while in use; use a trusted provider and avoid shared devices. Kuro does not save the key to local storage or project files.</p>
+    <p className="provider-warning">Local-model setup: run an OpenAI-compatible server for Qwen3.8-27B on this computer at <code>http://localhost:8000/v1</code>, then select the returned model ID. This preset does not download or start the model. <a href="https://huggingface.co/Qwen/Qwen3.8-27B" target="_blank" rel="noreferrer">Official install instructions</a>. Privacy note: requests are sent to the provider you configure. In a browser app, hosted API keys are exposed to the client while in use; use a trusted provider and avoid shared devices. Kuro does not save the key to local storage or project files.</p>
     <div className="provider-actions"><button className="provider-secondary" onClick={onClose}>Cancel</button><button onClick={save}>Connect model</button></div>
   </section>;
 }

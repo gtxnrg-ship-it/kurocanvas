@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && node --check scripts/model-smoke-test.mjs",
     "test": "vitest run",
     "model:smoke": "node scripts/model-smoke-test.mjs"
   },

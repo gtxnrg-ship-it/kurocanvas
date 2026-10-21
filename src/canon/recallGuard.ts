@@ -4,6 +4,8 @@
  */
 export function missingChapterRecallMessage(query: string, hasMatchingApprovedMemory: boolean): string | undefined {
   if (hasMatchingApprovedMemory) return undefined;
+  const carriesSourceText = query.length > 120 && (/\b(?:here(?:'s| is)|recap|summary|notes|excerpt|text below)\b/i.test(query) || /\bchapter\s*#?\d+\s*[:—-]/i.test(query));
+  if (carriesSourceText) return undefined;
   const chapter = query.match(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/i);
   if (!chapter) return undefined;
   const asksRecall = /\b(?:what happened|what was established|recap|summari[sz]e|remember what happened|do you remember|recall|bring back|retrieve|show me (?:the )?(?:exact|original|previous)|find (?:the )?(?:exact|original|previous)|flashback of (?:that|the|chapter)|previous panel|same panel|panel from)\b/i.test(query);

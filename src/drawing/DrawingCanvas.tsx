@@ -7,6 +7,7 @@ import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
+import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
@@ -780,9 +781,10 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const applyPanelLayout = () => {
     const layer = layers.find(item => item.id === activeLayerId);
     if (!layer || layer.locked) { setNotice('Unlock or select an unlocked layer before creating panel frames.'); return; }
+    const scaleX = docRef.current.width / 1600, scaleY = docRef.current.height / 1200;
     const frames: Stroke[] = PANEL_LAYOUTS[panelLayout].map(([x1,y1,x2,y2]) => ({
       id: crypto.randomUUID(), layerId: layer.id, tool: 'brush', shape: 'panel', color, size: 6,
-      points: [{ x: x1, y: y1, pressure: 0.5 }, { x: x2, y: y2, pressure: 0.5 }],
+      points: [{ x: x1 * scaleX, y: y1 * scaleY, pressure: 0.5 }, { x: x2 * scaleX, y: y2 * scaleY, pressure: 0.5 }],
     }));
     const before = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
     setEditUndoStack(old => [...old, before]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]);
@@ -830,11 +832,30 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const createDrawing = () => {
     const name = globalThis.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
+    const presetChoice = globalThis.prompt('Canvas preset: landscape, portrait, square, webtoon, manga, A4, or custom', 'landscape');
+    if (!presetChoice?.trim()) return;
+    const preset = presetChoice.trim().toLowerCase();
+    let dimensions = CANVAS_PRESETS[preset];
+    if (preset === 'custom') {
+      const widthInput = globalThis.prompt('Canvas width in pixels (256–6000)', '1600');
+      if (widthInput === null) return;
+      const heightInput = globalThis.prompt('Canvas height in pixels (256–6000)', '1200');
+      if (heightInput === null) return;
+      dimensions = [Number(widthInput), Number(heightInput)];
+    }
+    if (!dimensions) { setNotice('Unknown canvas preset. Choose landscape, portrait, square, webtoon, manga, A4, or custom.'); return; }
+    const [width, height] = dimensions;
+    if (!isValidCanvasDimensions(width, height)) {
+      setNotice('Canvas dimensions must be 256–6000 px per side and no more than 16 megapixels. Nothing was created.'); return;
+    }
     const id = crypto.randomUUID();
     setLoaded(false); setSaveState('loading');
-    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]); setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
-    setBackground('#fffdfb'); docRef.current = { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
-    setNotice('Creating ' + name.trim());
+    setDrawingId(id); setDrawingName(name.trim()); setStrokes([]); setRedoStack([]);
+    setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id); setSelectedStrokeId(null);
+    setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setPlanUndoStack([]); setPlanRedoStack([]);
+    setBackground('#fffdfb'); setZoom(1); setPanOffset({x:0,y:0});
+    docRef.current = { version: 1, width, height, background: '#fffdfb', strokes: [] };
+    setNotice('Creating ' + name.trim() + ' · ' + width + ' × ' + height);
   };
   const renameDrawing = async () => {
     const name = globalThis.prompt('Rename drawing', drawingName);
@@ -862,7 +883,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
 
   return <section className="alt drawing-alt">
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
+    {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
@@ -906,9 +927,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       }
       setZoom(nextZoom);
     }}>
-      <div className="drawing-paper" ref={paperRef} style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / 1600 * 100) + '%', top: (bounds.y / 1200 * 100) + '%', width: (bounds.width / 1600 * 100) + '%', height: (bounds.height / 1200 * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
+      <div className="drawing-paper" ref={paperRef} style={{ aspectRatio: docRef.current.width + ' / ' + docRef.current.height, transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / docRef.current.width * 100) + '%', top: (bounds.y / docRef.current.height * 100) + '%', width: (bounds.width / docRef.current.width * 100) + '%', height: (bounds.height / docRef.current.height * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
     </div>
     {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>AI action · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}
-    <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>
+    <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · {docRef.current.width} × {docRef.current.height}</span></div>
   </section>;
 }

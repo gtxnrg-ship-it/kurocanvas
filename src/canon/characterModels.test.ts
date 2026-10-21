@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataUrlToBlob, selectCharacterModelVariant, validateCharacterModel, type CharacterModelRecord } from "./characterModels";
+import { dataUrlToBlob, resolveActiveScarOverlays, selectCharacterModelVariant, validateCharacterModel, type CharacterModelRecord } from "./characterModels";
 
 const base = (overrides: Partial<CharacterModelRecord> = {}): CharacterModelRecord => ({
   id: "model-1", projectId: "project-1", characterName: "Ren", sourceType: "procedural", fileName: "",
@@ -39,6 +39,20 @@ describe("3D character model records", () => {
     const scar = { id: "scar-1", characterStateId: "state-12", introducedAtOrder: 12, removedAtOrder: 14, label: "Left eyebrow", x: 0.1, y: 0.34, z: 0.5, length: 0.08, angle: 45, color: "#8b343b" };
     expect(validateCharacterModel(base({ scarOverlays: [scar] }))).toEqual([]);
     expect(validateCharacterModel(base({ scarOverlays: [{ ...scar, removedAtOrder: 12 }] })).join(" ")).toContain("scar overlay");
+  });
+
+  it("keeps scars visible after introduction, hides them after an approved removal, and never resurrects old scars", () => {
+    const oldScar = { id:"scar-old", characterStateId:"state-12", introducedAtOrder:12, label:"Old scar", x:0, y:0.3, z:0.5, length:0.08, angle:30, color:"#8b343b" };
+    const newScar = { ...oldScar, id:"scar-new", characterStateId:"state-15", introducedAtOrder:15, label:"New scar" };
+    const states = [
+      { characterName:"Ren", storyOrder:1, chapterLabel:"Chapter 1", status:"approved", scars:"none" },
+      { characterName:"Ren", storyOrder:12, chapterLabel:"Chapter 12", status:"approved", scars:"thin scar across left eyebrow" },
+      { characterName:"Ren", storyOrder:14, chapterLabel:"Chapter 14", status:"approved", scars:"none" },
+      { characterName:"Ren", storyOrder:15, chapterLabel:"Chapter 15", status:"approved", scars:"small scar on cheek" },
+    ];
+    expect(resolveActiveScarOverlays([oldScar], states, "Ren", 13, "thin scar across left eyebrow")).toHaveLength(1);
+    expect(resolveActiveScarOverlays([oldScar], states, "Ren", 14, "none")).toHaveLength(0);
+    expect(resolveActiveScarOverlays([oldScar,newScar], states, "Ren", 15, "small scar on cheek").map(scar=>scar.id)).toEqual(["scar-new"]);
   });
 
   it("decodes portable base64 model blobs without losing their MIME type", () => {

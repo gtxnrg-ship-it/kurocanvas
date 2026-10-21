@@ -943,6 +943,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (name?.trim() && name.trim() !== current.name) { checkpointLayerEdit('rename layer'); setLayers(old => old.map(layer => layer.id === id ? { ...layer, name: name.trim() } : layer)); }
   };
   const switchDrawing = (id: string) => { setLoaded(false); setDrawingId(id); setPanOffset({ x: 0, y: 0 }); setZoom(1); };
+  useEffect(() => { if (!projectId || requestedDrawingId) return; const scopedDefaultId = 'default-canvas-' + projectId; if (drawingId !== scopedDefaultId) switchDrawing(scopedDefaultId); }, [projectId]);
   useEffect(() => {
     if (!requestedDrawingId) return;
     if (requestedDrawingId !== drawingId) switchDrawing(requestedDrawingId);

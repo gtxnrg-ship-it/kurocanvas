@@ -462,3 +462,24 @@
 .research-task-link{display:inline-flex;align-items:center;gap:6px;margin:9px 0 0 2px;border:1px solid #554372;border-radius:8px;padding:7px 9px;background:#20162f;color:#e7d9ff;font-size:10px}
 .research-task-link:hover{background:#2a1e3c;border-color:#8065aa}
 .research-task-link svg{color:#c5aaff}
+
+
+/* Inspectable per-command native drawing timeline. */
+.drawing-step-timeline{display:grid;gap:3px;max-height:220px;overflow:auto;margin:8px 0 12px;padding:8px;list-style:none;border:1px solid #30283d;border-radius:11px;background:#111019}
+.drawing-step{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:start;gap:8px;padding:7px 5px;border-bottom:1px solid rgba(130,112,158,.16);border-radius:6px;font-size:11px}
+.drawing-step:last-child{border-bottom:0}
+.drawing-step-icon{display:grid;place-items:center;width:19px;height:19px;border:1px solid #40364f;border-radius:50%;color:#9990a9;font-size:11px;font-weight:750;line-height:1}
+.drawing-step-copy{display:grid;gap:4px;min-width:0}
+.drawing-step-copy b{color:#d9cfea;font-size:11px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.drawing-step-copy small{color:#8f869e;font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+.drawing-step.status-running{background:rgba(139,92,246,.09)}
+.drawing-step.status-running .drawing-step-icon{border-color:#9b83d4;color:#d4bdff;animation:drawing-step-pulse 1.15s ease-in-out infinite}
+.drawing-step.status-completed .drawing-step-icon{border-color:#3a795e;color:#92e0b8;background:rgba(49,122,85,.12)}
+.drawing-step.status-completed .drawing-step-copy small{color:#83c9a4}
+.drawing-step.status-failed .drawing-step-icon{border-color:#9c4d62;color:#ffabb9;background:rgba(156,77,98,.12)}
+.drawing-step.status-failed .drawing-step-copy small{color:#f0a0ae}
+.drawing-step.status-cancelled .drawing-step-icon{color:#a39aaf;border-style:dashed}
+.drawing-step.status-rolled-back .drawing-step-icon{border-color:#8b6b40;color:#e3c28e;background:rgba(139,107,64,.12)}
+.drawing-step.status-rolled-back .drawing-step-copy small{color:#c9a875}
+@keyframes drawing-step-pulse{0%,100%{opacity:1}50%{opacity:.48}}
+@media(max-width:780px){.drawing-step-timeline{max-height:175px;padding:6px}.drawing-step{gap:6px;padding:6px 3px}.drawing-step-copy b{font-size:10px}.drawing-step-copy small{font-size:9px}}

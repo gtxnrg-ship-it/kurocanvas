@@ -288,7 +288,7 @@ export function validateDrawingCommand(
       if (!nonEmptyString(value.layerId) || !bounds.layerIds.includes(String(value.layerId))) errors.push("Removal command targets an unknown layer.");
       if (bounds.layerIds.length <= 1) errors.push("The last remaining layer cannot be removed.");
       if (!bounds.strokeLayerById) errors.push("Removing a layer requires the active document's stroke-to-layer map.");
-      else if (Object.values(bounds.strokeLayerById).includes(String(value.layerId))) errors.push("Only an empty layer can be removed; move or remove its strokes first.");
+      else if (Object.values(bounds.strokeLayerById).includes(String(value.layerId))) errors.push("Cannot remove a layer that contains strokes; only an empty layer can be removed. Move or remove its strokes first.");
       break;
     case "layer.restore": {
       if (!record(value.layer)) { errors.push("Restored layer must be an object."); break; }

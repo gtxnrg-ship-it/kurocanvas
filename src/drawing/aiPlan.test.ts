@@ -28,8 +28,10 @@ describe("parseAIStrokePlan", () => {
     const bounds = { width: 800, height: 600, layerIds: ["ink"], lockedLayerIds: [], strokeLayerById: { "existing-1": "ink" } };
     const remove = { version: 1, id: "remove-1", type: "stroke.remove", strokeId: "existing-1" };
     const opacity = { version: 1, id: "opacity-1", type: "layer.setOpacity", layerId: "ink", opacity: 0.5 };
-    expect(parseAIStrokePlan(JSON.stringify({ summary: "Clean up", commands: [remove, opacity] }), bounds).commands).toHaveLength(2);
+    const update = { version: 1, id: "edit-1", type: "stroke.update", strokeId: "existing-1", patch: { color: "#abcdef" } };
+    expect(parseAIStrokePlan(JSON.stringify({ summary: "Clean up", commands: [remove, opacity, update] }), bounds).commands).toHaveLength(3);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...remove, strokeId: "missing" }] }), bounds)).toThrow(/not in the active document/i);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...update, strokeId: "missing" }] }), bounds)).toThrow(/not in the active document/i);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...remove, id: "remove-2" }] }), { ...bounds, lockedLayerIds: ["ink"] })).toThrow(/locked layer/i);
   });
   it("rejects out-of-bounds points and unknown layers", () => {

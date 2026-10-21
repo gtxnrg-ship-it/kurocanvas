@@ -5,6 +5,7 @@ import { validateArtDirection, type ArtDirectionBible } from "../canon/artDirect
 import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible";
 import { validateReferenceSource, type ReferenceSourceRecord } from "../canon/referenceScout";
 import { validateCharacterModel, type CharacterModelRecord } from "../canon/characterModels";
+import { validateRelationshipRecord, type RelationshipRecord } from "../canon/relationshipMemory";
 import {
   validateUniverseRecord,
   validateConversationRecord,
@@ -16,7 +17,7 @@ import {
 } from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -31,6 +32,7 @@ const CHARACTER_MODELS = "characterModels";
 const UNIVERSES = "universes";
 const CONVERSATIONS = "conversations";
 const CHAT_MESSAGES = "chatMessages";
+const RELATIONSHIPS = "relationships";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -59,6 +61,10 @@ function openDatabase(): Promise<IDBDatabase> {
         const messages = db.createObjectStore(CHAT_MESSAGES, { keyPath: "id" });
         messages.createIndex("byUniverseId", "universeId", { unique: false });
         messages.createIndex("byConversationId", "conversationId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RELATIONSHIPS)) {
+        const relationships = db.createObjectStore(RELATIONSHIPS, { keyPath: "id" });
+        relationships.createIndex("byUniverseId", "universeId", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -541,5 +547,29 @@ export const chatMessageStorage = {
     }
     if (scoped.length !== values.length) throw new Error("Universe isolation violation: foreign messages were found in this conversation.");
     return scoped.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+};
+
+
+/** Durable relationship canon, indexed and validated within one universe. */
+export const relationshipStorage = {
+  async save(record: RelationshipRecord): Promise<void> {
+    if (!validateRelationshipRecord(record)) throw new Error("Refusing to save an invalid relationship record.");
+    const universe = await universeStorage.load(record.universeId);
+    if (!universe) throw new Error("Cannot save relationship memory without its owning universe.");
+    await requestValue<IDBValidKey>(RELATIONSHIPS, "readwrite", store => store.put(record));
+  },
+  async load(id: string, universeId: string): Promise<RelationshipRecord | undefined> {
+    if (!universeId.trim()) throw new Error("Choose a universe before loading relationship memory.");
+    const record = await requestValue<RelationshipRecord | undefined>(RELATIONSHIPS, "readonly", store => store.get(id));
+    if (record && record.universeId !== universeId) throw new Error("Universe isolation violation: relationship belongs to another universe.");
+    if (record && !validateRelationshipRecord(record, universeId)) throw new Error("Saved relationship record is invalid.");
+    return record;
+  },
+  async list(universeId: string): Promise<RelationshipRecord[]> {
+    if (!universeId.trim()) throw new Error("Choose a universe before listing relationship memory.");
+    const records = await requestValue<RelationshipRecord[]>(RELATIONSHIPS, "readonly", store => store.index("byUniverseId").getAll(universeId));
+    if (records.some(record => !validateRelationshipRecord(record, universeId))) throw new Error("Saved relationships contain invalid or cross-universe records.");
+    return records.sort((a,b) => a.updatedAt.localeCompare(b.updatedAt));
   },
 };

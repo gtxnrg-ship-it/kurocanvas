@@ -9,14 +9,18 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc -b && node --check scripts/model-smoke-test.mjs",
     "test": "vitest run",
-    "model:smoke": "node scripts/model-smoke-test.mjs"
+    "model:smoke": "node scripts/model-smoke-test.mjs",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.180.0",
-    "@huggingface/transformers": "^4.3.1"
+    "@huggingface/transformers": "^4.3.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -25,6 +29,7 @@
     "typescript": "~5.6.2",
     "vite": "^6.4.5",
     "vitest": "^4.1.12",
-    "@types/three": "^0.180.0"
+    "@types/three": "^0.180.0",
+    "@capacitor/cli": "8.5.3"
   }
 }

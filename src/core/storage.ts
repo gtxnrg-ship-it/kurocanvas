@@ -269,7 +269,7 @@ export const projectStorage = {
 
     // Delete related records in one write transaction, while leaving unrelated universes
     // and unassigned legacy drawings untouched.
-    const stores = [PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION, STYLE_BIBLE,
+    const stores = [PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, STORY_MEMORY_TOKENS, ART_DIRECTION, STYLE_BIBLE,
       REFERENCE_SOURCES, CHARACTER_MODELS, DRAWINGS, DRAWING_REVISIONS, UNIVERSES,
       CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION];
     const db = await openDatabase();
@@ -284,6 +284,15 @@ export const projectStorage = {
         for (const record of referenceRecords) if (ids.references.has(record.id)) tx.objectStore(REFERENCE_SOURCES).delete(record.id);
         for (const record of characterModels) if (ids.models.has(record.id)) tx.objectStore(CHARACTER_MODELS).delete(record.id);
         for (const record of memoryRecords) if (ids.memories.has(record.id)) tx.objectStore(STORY_MEMORY).delete(record.id);
+        // The inverted search index contains project-scoped tokens; delete it atomically
+        // with the canonical records so removed worlds leave no searchable residue.
+        const memoryTokenCursor = tx.objectStore(STORY_MEMORY_TOKENS).index("byProjectId").openCursor(IDBKeyRange.only(id));
+        memoryTokenCursor.onsuccess = () => {
+          const cursor = memoryTokenCursor.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
         for (const drawing of drawings) if (ids.drawings.has(drawing.id)) tx.objectStore(DRAWINGS).delete(drawing.id);
         for (const revision of revisions) if (ids.revisions.has(revision.id)) tx.objectStore(DRAWING_REVISIONS).delete(revision.id);
         for (const universe of universes) if (ids.universes.has(universe.id)) tx.objectStore(UNIVERSES).delete(universe.id);
@@ -787,8 +796,8 @@ export const storyMemoryStorage = {
     } finally { db.close(); }
   },
   async removeProject(projectId: string): Promise<void> {
+    if (!projectId.trim()) throw new Error("Choose a project before deleting story memory.");
     const records = await this.list(projectId);
-    if (!records.length) return;
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {

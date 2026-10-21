@@ -288,7 +288,8 @@ export function buildApprovedCanonContext(
     // can suggest a fitting cameo, not only facts lexically named in the request.
     text: authorPlanning ? "" : options.userMessage,
     statuses: ["approved"],
-    ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder, ...(revealTimelineId ? { timelineId: revealTimelineId } : {}) }),
+    ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder }),
+    ...(revealTimelineId ? { timelineId: revealTimelineId } : {}),
     limit: maxFacts,
   });
   if ((!retrieved.entities.length || !retrieved.facts.length) && !revealNotice) return "";

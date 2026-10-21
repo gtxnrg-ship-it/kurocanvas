@@ -52,13 +52,15 @@ describe("durable story memory", () => {
   });
   it("isolates chapter memories by timeline and withholds untagged temporal history", () => {
     const main = record({ id: "main-2", chapterNumber: 2, storyOrder: 20, timelineId: "main" });
+    const mainPastNoOrder = record({ id: "main-1", chapterNumber: 1, storyOrder: undefined, timelineId: "main" });
+    const sameChapterUnknownOrder = record({ id: "main-3-unknown", chapterNumber: 3, storyOrder: undefined, timelineId: "main" });
     const echo = record({ id: "echo-2", chapterNumber: 2, storyOrder: 20, timelineId: "echo" });
     const untagged = record({ id: "legacy-unscoped", chapterNumber: 1, storyOrder: 10, timelineId: undefined });
     const timeless = record({ id: "world-note", chapterNumber: undefined, storyOrder: undefined, timelineId: undefined });
-    const selected = filterStoryMemoryAtPoint([main, echo, untagged, timeless], "series-a", {
+    const selected = filterStoryMemoryAtPoint([main, mainPastNoOrder, sameChapterUnknownOrder, echo, untagged, timeless], "series-a", {
       productionRequest: true, chapterNumber: 3, storyOrder: 30, timelineId: "main",
     });
-    expect(selected.map(item => item.id)).toEqual(["main-2", "world-note"]);
+    expect(selected.map(item => item.id)).toEqual(["main-2", "main-1", "world-note"]);
     expect(filterStoryMemoryAtPoint([main, echo, untagged, timeless], "series-a", {
       productionRequest: true, chapterNumber: 3, storyOrder: 30,
     }).map(item => item.id)).toEqual(["world-note"]);

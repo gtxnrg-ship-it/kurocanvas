@@ -136,7 +136,7 @@ describe("durable story memory", () => {
     expect(proposal?.timelineId).toBe("main");
     expect(proposal?.storyThread?.payoffChapterNumber).toBe(20);
     expect(proposal?.storyThread?.payoffStoryOrder).toBe(200);
-    expect(proposal?.storyThread?.linkedEntityIds).toEqual(["mira"]);
+    expect(proposal?.storyThread?.linkedEntityIds).toEqual(["mira", "the-future-captain"]);
     expect(proposal?.status).not.toBe("approved");
   });
 

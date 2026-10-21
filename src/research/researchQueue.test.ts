@@ -135,6 +135,8 @@ describe("Kuro research queue records", () => {
     expect(relevant).toContain(task.sources[0].url);
     expect(relevant).toContain("1368 to 1644");
     expect(relevant.toLocaleLowerCase()).toContain("not automatic canon");
+    const followUp = await buildResearchContext([task], "brotherhood", "Summarize those findings with citations.");
+    expect(followUp).toContain(task.sources[0].url);
     expect(await buildResearchContext([task], "another-series", "Ming dynasty military hierarchy")).toBe("");
     expect(await buildResearchContext([{ ...task, status: "queued", sources: [] }], "brotherhood", "Ming dynasty")).toBe("");
   });

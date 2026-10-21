@@ -15,6 +15,7 @@ import { rehomeUniversePackage, serializeUniversePackage } from '../core/univers
 import type { ChatMessageRecord, ConversationRecord } from '../core/universe';
 import type { RelationshipRecord } from '../canon/relationshipMemory';
 import type { CharacterEvolutionState } from '../canon/characterEvolution';
+import { researchTaskStorage, validateResearchTask, type ResearchTaskRecord } from '../research/researchQueue';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -53,6 +54,8 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       const assets: Record<string, string> = {};
       const memories = await storyMemoryStorage.list(id);
       assets['kuro/story-memory.v1.json'] = JSON.stringify(memories);
+      const researchTasks = await researchTaskStorage.list(id);
+      assets['kuro/research-tasks.v1.json'] = JSON.stringify(researchTasks);
       const artDirection = await artDirectionStorage.load(id);
       if (artDirection) assets['kuro/art-direction.v1.json'] = JSON.stringify(artDirection);
       const styleBible = await styleBibleStorage.load(id);
@@ -256,6 +259,41 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (errors.length) throw new Error('Bundled reference failed validation: ' + errors.join(' '));
       }
 
+      let oldResearchTasks: ResearchTaskRecord[] = [];
+      if (importedAssets['kuro/research-tasks.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/research-tasks.v1.json']); }
+        catch { throw new Error('The bundled research task history is not valid JSON.'); }
+        if (!Array.isArray(raw)) throw new Error('The bundled research task history must be a list.');
+        const seenResearchTaskIds = new Set<string>();
+        for (const candidate of raw) {
+          if (!candidate || typeof candidate !== 'object') throw new Error('The bundled research task history contains an invalid record.');
+          const task = candidate as Partial<ResearchTaskRecord>;
+          if (typeof task.id !== 'string' || !task.id.trim()) throw new Error('Every bundled research task needs a stable ID.');
+          if (seenResearchTaskIds.has(task.id)) throw new Error('The bundled research task history contains duplicate IDs.');
+          seenResearchTaskIds.add(task.id);
+          if (task.projectId !== imported.project.id) throw new Error('A bundled research task belongs to a different project.');
+          const errors = validateResearchTask(task);
+          if (errors.length) throw new Error('Bundled research task failed validation: ' + errors.join(' '));
+        }
+        oldResearchTasks = raw as ResearchTaskRecord[];
+      }
+      const researchTasks: ResearchTaskRecord[] = oldResearchTasks.map(task => {
+        const isCompleted = task.status === 'completed';
+        // Completed findings travel with the world. Incomplete work is preserved as
+        // cancelled history so opening an imported package never starts network work
+        // without the creator explicitly retrying it on this device.
+        return {
+          ...task,
+          id: crypto.randomUUID(),
+          projectId: project.id,
+          status: isCompleted ? 'completed' : 'cancelled',
+          progress: isCompleted ? 100 : Math.min(task.progress, 99),
+          stage: isCompleted ? task.stage : 'Imported unfinished research — retry to run on this device',
+          leaseUntil: undefined,
+          updatedAt: now,
+        };
+      });
       let oldMemories: StoryMemoryRecord[] = [];
       if (importedAssets['kuro/story-memory.v1.json']) {
         let raw: unknown;
@@ -293,12 +331,20 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (errors.length) throw new Error('Bundled story memory failed validation: ' + errors.join(' '));
       }
 
-      await saveImportedProjectBundle({
-        project, canon, artDirection, styleBible, references, characterModels, drawings, drawingRevisions, memories,
-        ...universePackage,
-      });
+      // Research uses its own IndexedDB database, so compensate if the main project
+      // transaction fails. The restored records are already normalized and validated.
+      await researchTaskStorage.saveMany(researchTasks, project.id);
+      try {
+        await saveImportedProjectBundle({
+          project, canon, artDirection, styleBible, references, characterModels, drawings, drawingRevisions, memories,
+          ...universePackage,
+        });
+      } catch (error) {
+        await researchTaskStorage.removeProject(project.id).catch(() => undefined);
+        throw error;
+      }
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + drawings.length + ' drawings and ' + drawingRevisions.length + ' revision checkpoints, ' + universePackage.universes.length + ' universes, ' + universePackage.conversations.length + ' conversations, ' + universePackage.messages.length + ' chat messages, ' + universePackage.relationships.length + ' relationship records, and ' + universePackage.characterStates.length + ' character timeline states.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + drawings.length + ' drawings and ' + drawingRevisions.length + ' revision checkpoints, ' + universePackage.universes.length + ' universes, ' + universePackage.conversations.length + ' conversations, ' + universePackage.messages.length + ' chat messages, ' + universePackage.relationships.length + ' relationship records, and ' + universePackage.characterStates.length + ' character timeline states, and ' + researchTasks.length + ' saved research tasks (unfinished tasks are paused for manual retry).');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {
@@ -323,7 +369,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <span className="project-manager-name"><b>{project.name}</b><small>Updated {new Date(project.updatedAt).toLocaleString()}</small></span>
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
       </article>)}</div>}
-    <p className="project-manager-note">The <code>.kuro.json</code> package now carries project data, World Bible facts, approved and proposed story memories, and drawings explicitly linked from the Story Vault. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
+    <p className="project-manager-note">The <code>.kuro.json</code> package carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models and drawings explicitly linked from the Story Vault. Completed research travels with its sources; unfinished research is imported paused. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
     <WorldStudio />
   </section>;
 }

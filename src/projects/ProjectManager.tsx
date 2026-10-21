@@ -15,7 +15,7 @@ import { rehomeUniversePackage, serializeUniversePackage } from '../core/univers
 import type { ChatMessageRecord, ConversationRecord } from '../core/universe';
 import type { RelationshipRecord } from '../canon/relationshipMemory';
 import type { CharacterEvolutionState } from '../canon/characterEvolution';
-import { researchTaskStorage, validateResearchTask, type ResearchTaskRecord } from '../research/researchQueue';
+import { normalizeImportedResearchTasks, researchTaskStorage } from '../research/researchQueue';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
@@ -259,41 +259,13 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (errors.length) throw new Error('Bundled reference failed validation: ' + errors.join(' '));
       }
 
-      let oldResearchTasks: ResearchTaskRecord[] = [];
+      let researchTasks = [];
       if (importedAssets['kuro/research-tasks.v1.json']) {
         let raw: unknown;
         try { raw = JSON.parse(importedAssets['kuro/research-tasks.v1.json']); }
         catch { throw new Error('The bundled research task history is not valid JSON.'); }
-        if (!Array.isArray(raw)) throw new Error('The bundled research task history must be a list.');
-        const seenResearchTaskIds = new Set<string>();
-        for (const candidate of raw) {
-          if (!candidate || typeof candidate !== 'object') throw new Error('The bundled research task history contains an invalid record.');
-          const task = candidate as Partial<ResearchTaskRecord>;
-          if (typeof task.id !== 'string' || !task.id.trim()) throw new Error('Every bundled research task needs a stable ID.');
-          if (seenResearchTaskIds.has(task.id)) throw new Error('The bundled research task history contains duplicate IDs.');
-          seenResearchTaskIds.add(task.id);
-          if (task.projectId !== imported.project.id) throw new Error('A bundled research task belongs to a different project.');
-          const errors = validateResearchTask(task);
-          if (errors.length) throw new Error('Bundled research task failed validation: ' + errors.join(' '));
-        }
-        oldResearchTasks = raw as ResearchTaskRecord[];
+        researchTasks = normalizeImportedResearchTasks(raw, imported.project.id, project.id, () => crypto.randomUUID(), now);
       }
-      const researchTasks: ResearchTaskRecord[] = oldResearchTasks.map(task => {
-        const isCompleted = task.status === 'completed';
-        // Completed findings travel with the world. Incomplete work is preserved as
-        // cancelled history so opening an imported package never starts network work
-        // without the creator explicitly retrying it on this device.
-        return {
-          ...task,
-          id: crypto.randomUUID(),
-          projectId: project.id,
-          status: isCompleted ? 'completed' : 'cancelled',
-          progress: isCompleted ? 100 : Math.min(task.progress, 99),
-          stage: isCompleted ? task.stage : 'Imported unfinished research — retry to run on this device',
-          leaseUntil: undefined,
-          updatedAt: now,
-        };
-      });
       let oldMemories: StoryMemoryRecord[] = [];
       if (importedAssets['kuro/story-memory.v1.json']) {
         let raw: unknown;

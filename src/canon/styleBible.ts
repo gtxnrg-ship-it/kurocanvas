@@ -75,9 +75,6 @@ export function buildStyleBibleContext(
   const errors = validateStyleBible(bible, projectId);
   if (errors.length) throw new Error("Style bible validation failed: " + errors.join(" "));
   const conflicts = findStyleConflicts(bible);
-  if (conflicts.some(conflict => conflict.severity === "error")) {
-    throw new Error("Style bible has unresolved approved visual conflicts. Resolve them before generating art.");
-  }
   const requestedOrder = targetStoryOrder ?? targetOrderFromMessage(userMessage);
   const lines = [
     "PROJECT STYLE BIBLE — APPROVED CONTINUITY ONLY",
@@ -89,6 +86,7 @@ export function buildStyleBibleContext(
   ];
   if (bible.title.trim()) lines.push("Style title: " + bible.title.trim());
   if (bible.styleSummary.trim()) lines.push("Unified original style: " + bible.styleSummary.trim());
+  if (conflicts.some(conflict => conflict.severity === "error")) lines.push("GENERATION BLOCK: conflicting approved character visual states exist at the same story order. Do not draw or finalize character designs until the user resolves the contradiction in the Style Bible.");
   for (const inspiration of statusApproved(bible.inspirations)) {
     lines.push(inspiration.aspect + " from " + inspiration.work + (inspiration.notes.trim() ? ": " + inspiration.notes.trim() : ""));
   }

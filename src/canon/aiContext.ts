@@ -25,10 +25,11 @@ function eligibleRevealStates(options: CanonRevealGateOptions): CharacterEvoluti
     && validateCharacterEvolutionState(state, options.universeId).length === 0);
 }
 
-function resolveRevealPoint(options: CanonRevealGateOptions): { timelineId?: string; storyOrder?: number; ambiguous: boolean } {
+function resolveRevealPoint(options: CanonRevealGateOptions): { timelineId?: string; storyOrder?: number; chapterNumber?: number; ambiguous: boolean } {
   const states = eligibleRevealStates(options);
   let timelineId = options.timelineId;
   let storyOrder = options.storyOrder;
+  let chapterNumber = options.chapterNumber;
   let ambiguous = false;
   if (storyOrder !== undefined && !Number.isFinite(storyOrder)) throw new Error("Canon reveal story order must be finite.");
   if (options.chapterNumber !== undefined && (!Number.isInteger(options.chapterNumber) || options.chapterNumber < 0)) {
@@ -56,12 +57,31 @@ function resolveRevealPoint(options: CanonRevealGateOptions): { timelineId?: str
     if (activeTimelines.length === 1) timelineId = activeTimelines[0];
     else if (activeTimelines.length > 1) ambiguous = true;
   }
-  if (timelineId && storyOrder !== undefined) return { timelineId, storyOrder, ambiguous };
+  // Resolve the containing chapter from the latest approved state at or before the
+  // target order. This lets chapter-level memories remain useful without guessing.
+  // Conflicting chapter mappings are ambiguous and therefore fail closed.
+  if (timelineId && storyOrder !== undefined) {
+    const priorStates = states.filter(state => state.timelineId === timelineId && state.storyOrder <= storyOrder!);
+    if (priorStates.length) {
+      const latestOrder = Math.max(...priorStates.map(state => state.storyOrder));
+      const chaptersAtLatestOrder = [...new Set(priorStates
+        .filter(state => state.storyOrder === latestOrder)
+        .map(state => state.chapterNumber)
+        .filter((value): value is number => value !== undefined))];
+      if (chaptersAtLatestOrder.length === 1) {
+        if (chapterNumber === undefined) chapterNumber = chaptersAtLatestOrder[0];
+        else if (chapterNumber !== chaptersAtLatestOrder[0]) ambiguous = true;
+      } else if (chaptersAtLatestOrder.length > 1) {
+        ambiguous = true;
+      }
+    }
+  }
+  if (timelineId && storyOrder !== undefined) return { timelineId, storyOrder, ...(chapterNumber === undefined ? {} : { chapterNumber }), ambiguous };
   if (ambiguous) return { timelineId, storyOrder, ambiguous: true };
   return { timelineId, storyOrder, ambiguous: false };
 }
 
-export function resolveApprovedRevealPoint(options: CanonRevealGateOptions): { timelineId?: string; storyOrder?: number; ambiguous: boolean } {
+export function resolveApprovedRevealPoint(options: CanonRevealGateOptions): { timelineId?: string; storyOrder?: number; chapterNumber?: number; ambiguous: boolean } {
   return resolveRevealPoint(options);
 }
 

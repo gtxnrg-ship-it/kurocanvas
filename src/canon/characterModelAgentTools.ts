@@ -55,7 +55,7 @@ export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPl
   if (raw.length > MAX_RESPONSE_CHARS) throw new Error("The 3D tool plan exceeds the response-size limit.");
   let parsed: unknown;
   try { parsed = parseModelJson(raw, MAX_RESPONSE_CHARS); }
-  catch { throw new Error("Kuro did not return valid structured JSON for the 3D tool plan."); }
+  catch { throw new Error("Kuro did not return valid JSON for the 3D tool plan (after structured-output recovery)."); }
   if (!isObject(parsed)) throw new Error("The 3D tool plan must be a JSON object.");
   if (typeof parsed.summary !== "string" || !parsed.summary.trim() || parsed.summary.length > 500) {
     throw new Error("The 3D tool plan needs a short, meaningful summary.");

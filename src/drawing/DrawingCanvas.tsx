@@ -177,6 +177,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [textDraft, setTextDraft] = useState('');
   const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
+  const [stabilizer, setStabilizer] = useState(0);
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
@@ -460,11 +461,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!activeRef.current) return;
     const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
-    activeRef.current.points.push(...events.map(ev => {
+    const active = activeRef.current;
+    for (const ev of events) {
       const rect = e.currentTarget.getBoundingClientRect();
-      return { x: ((ev.clientX - rect.left) / rect.width) * docRef.current.width, y: ((ev.clientY - rect.top) / rect.height) * docRef.current.height, pressure: ev.pressure > 0 ? ev.pressure : 0.5 };
-    }));
-    render([...strokes, activeRef.current], background);
+      const raw = { x: ((ev.clientX - rect.left) / rect.width) * docRef.current.width, y: ((ev.clientY - rect.top) / rect.height) * docRef.current.height, pressure: ev.pressure > 0 ? ev.pressure : 0.5 };
+      const previous = active.points[active.points.length - 1];
+      const strength = active.shape === undefined ? (stabilizer / 10) * 0.72 : 0;
+      active.points.push({ x: previous.x + (raw.x - previous.x) * (1 - strength), y: previous.y + (raw.y - previous.y) * (1 - strength), pressure: raw.pressure });
+    }
+    render([...strokes, active], background);
   };
   const pointerUp = () => {
     if (panRef.current) { panRef.current = null; return; }
@@ -725,7 +730,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
 
   return <section className="alt drawing-alt">
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Lettering supports comic, sans, and serif fonts. Pressure is used when your device reports it. The eraser only affects the active layer; Undo restores the last mark. PNG export excludes hidden layers.</div>}
+    {showHelp && <div className="drawing-help">Draw with mouse, finger, or stylus. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Lettering supports comic, sans, and serif fonts. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; Undo restores the last mark. PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
@@ -746,6 +751,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
       {tool==='text' && <><label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
+      {(tool==='brush' || tool==='eraser') && <label className="stabilizer-control">Stabilizer <input aria-label="Brush stabilization" type="range" min="0" max="10" value={stabilizer} onChange={e => setStabilizer(Number(e.target.value))}/><b>{stabilizer}</b></label>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>

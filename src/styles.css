@@ -149,3 +149,7 @@
 
 .brush-preset-control{display:flex;align-items:center;gap:6px;color:#bfb3ce;font-size:11px;white-space:nowrap}
 .brush-preset-control select{max-width:118px;border:1px solid #443951;border-radius:7px;background:#17131f;color:#f1eafa;padding:7px 8px;font-size:11px}
+
+.stabilizer-control{display:flex;align-items:center;gap:6px;color:#bfb3ce;font-size:11px;white-space:nowrap}
+.stabilizer-control input{width:72px;accent-color:#b69aff}
+.stabilizer-control b{min-width:10px;color:#eee5fa;font-variant-numeric:tabular-nums}

@@ -23,7 +23,7 @@ export function inferKuroResponseDepth(message: string): KuroResponseDepth {
 
 export function getKuroResponseQualityGuidance(message: string): string {
   const depth = inferKuroResponseDepth(message);
-  const continuationRequested = /\\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\\b/i.test(message.trim());
+  const continuationRequested = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i.test(message.trim());
   const continuationInstruction = continuationRequested
     ? "CONTINUATION REQUEST: The user is asking you to continue the immediately preceding assistant answer. Use the recent conversation as the source of where it stopped. Continue from the last unfinished point; do not restart the topic, repeat the finished sections, or write a new introduction. Preserve the existing structure and constraints, and complete any unfinished list, code block, or explanation."
     : "When a user asks for a revision or follow-up, apply it to the active subject and preserve the already established constraints unless they explicitly change them.";

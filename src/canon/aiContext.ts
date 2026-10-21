@@ -233,7 +233,7 @@ export function isStoryProductionRequest(message: string): boolean {
  * on outlining the ending, planning every chapter, or exploring alternate versions.
  */
 export function isAuthorDirectedFullScopeRequest(message: string): boolean {
-  return /\\b(?:full[- ]series outline|whole[- ]series outline|entire[- ]series outline|series[- ]wide outline|outline (?:the )?(?:entire|whole|full) (?:series|story|universe)|chapter[- ]by[- ]chapter outline|all chapters|every chapter|the complete (?:series|story|arc)|entire story|whole story|full story bible|all future reveals|show (?:me )?(?:the )?ending|write (?:the )?ending|the finale|alternate timeline|alternate history|alternate version|out[- ]of[- ]order scene|out of order|all characters (?:including|and) future|full cast list|all of the characters)\\b/i.test(message);
+  return /\b(?:full[- ]series outline|whole[- ]series outline|entire[- ]series outline|series[- ]wide outline|outline (?:the )?(?:entire|whole|full) (?:series|story|universe)|chapter[- ]by[- ]chapter outline|all chapters|every chapter|the complete (?:series|story|arc)|entire story|whole story|full story bible|all future reveals|show (?:me )?(?:the )?ending|write (?:the )?ending|the finale|alternate timeline|alternate history|alternate version|out[- ]of[- ]order scene|out of order|all characters (?:including|and) future|full cast list|all of the characters)\b/i.test(message);
 }
 
 /**

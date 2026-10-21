@@ -59,9 +59,13 @@ npm run preview
 
 ### Live hosted website and automatic updates
 
-The StackBlitz link above is the fastest way to see the current branch. A permanent public website needs a hosting target and deployment permissions. GitHub Pages is not considered configured or live just because this repository contains a workflow; repository Pages settings and a successful deployment must be verified first. Until that is confirmed, do not treat any URL as the production app.
+A GitHub Pages deployment workflow has been added for the development branch. Its intended public URL is:
 
-For ongoing development, the intended preview flow is: push a commit to the development branch → CI typecheck/build/tests → publish a preview → open the same preview URL to see the latest successful build. Do not deploy a failing build as the live preview.
+**https://gtxnrg-ship-it.github.io/kurocanvas/**
+
+The first deployment is **not yet confirmed**. If that URL does not load, a repository maintainer must enable GitHub Pages with **Settings → Pages → Build and deployment → Source: GitHub Actions**, then check the `Publish development preview` workflow under the Actions tab. The URL becomes a real preview only after that workflow succeeds.
+
+After setup, each push to `feat/universe-per-chat-foundation` runs typecheck, tests, and a production build before deploying the preview. Failed checks should prevent deployment. The page will show the latest successfully deployed branch build; refresh the same URL to see progress. This is a development preview, not a stable production release.
 
 
 ## Engineering decisions

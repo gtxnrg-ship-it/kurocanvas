@@ -38,6 +38,16 @@ describe("reference scout", () => {
     expect(results[0].description).toBe("Wet & shiny street");
   });
 
+  it("rejects external HTTPS image hosts from the Wikimedia API payload", () => {
+    const results = parseWikimediaSearchResponse({
+      query: { pages: {
+        "1": { title: "File:External.jpg", imageinfo: [{ url: "https://evil.example/full.jpg", thumburl: "https://evil.example/thumb.jpg", descriptionurl: "https://evil.example/source" }] },
+        "2": { title: "File:External source.jpg", imageinfo: [{ url: "https://upload.wikimedia.org/full.jpg", thumburl: "https://upload.wikimedia.org/thumb.jpg", descriptionurl: "https://evil.example/source" }] },
+      } },
+    }, "external");
+    expect(results).toEqual([]);
+  });
+
   it("validates HTTPS source, image, and license links plus project isolation", () => {
     expect(validateReferenceSource(record(), "project-1")).toEqual([]);
     expect(validateReferenceSource(record({ projectId: "other" }), "project-1").join(" ")).toContain("different project");

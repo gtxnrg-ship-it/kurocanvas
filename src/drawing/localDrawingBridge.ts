@@ -75,6 +75,7 @@ export function applyCommandsToLocalDrawing(
     height: document.height,
     layerIds: layers.map(layer => layer.id),
     lockedLayerIds: layers.filter(layer => layer.locked).map(layer => layer.id),
+    strokeLayerById: Object.fromEntries(normalizedDocument.strokes.map(stroke => [stroke.id, stroke.layerId || layers[0].id])),
   });
 
   const state: NativeDrawingState = {

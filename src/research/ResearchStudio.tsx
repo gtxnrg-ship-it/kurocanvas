@@ -7,7 +7,7 @@ import {
 import "./researchStudio.css";
 
 type ProjectChoice = { id: string; name: string };
-type Props = { projectId: string; projects: ProjectChoice[]; onProjectChange: (id: string) => void; onAskKuro: (message: string) => void };
+type Props = { projectId: string; projects: ProjectChoice[]; onAskKuro: (message: string) => void };
 const DEPTHS: Array<{ value: ResearchDepth; label: string; note: string }> = [
   { value: "quick", label: "Quick", note: "Up to 3 source summaries" },
   { value: "balanced", label: "Balanced", note: "Up to 5 source summaries" },

@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "Kuro Canvas",
+  "short_name": "Kuro",
+  "description": "A local-first creative partner for stories, manga, research and drawing.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#09080f",
+  "theme_color": "#09080f",
+  "categories": [
+    "productivity",
+    "graphics",
+    "education"
+  ],
+  "icons": [
+    {
+      "src": "./kuro-icon.webp",
+      "sizes": "any",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}

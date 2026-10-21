@@ -119,7 +119,7 @@ export function applyNativeDrawingCommand(
     return {
       state: { ...state, layers, strokes },
       inverse: [{ version: 1, id: command.id + ":undo", type: "stroke.update", strokeId: current.id, patch: previousPatch }],
-      changed: Object.keys(command.patch).length > 0,
+      changed: (command.patch.tool !== undefined && current.tool !== command.patch.tool) || (command.patch.color !== undefined && current.color !== command.patch.color) || (command.patch.size !== undefined && current.size !== command.patch.size),
     };
   }
 

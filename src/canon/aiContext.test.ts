@@ -60,7 +60,7 @@ describe("approved canon AI context", () => {
     });
     const testBundle = { ...bundle, entities: [entity, secret], facts: [secretFact] };
     const result = buildApprovedCanonContext(testBundle, {
-      projectId: "series-a", userMessage: "write chapter 4",
+      projectId: "series-a", userMessage: "write chapter 4 The Secret Emperor identity",
       revealGate: { enabled: true, universeId: "u1", states: [
         state("hero-ch1", "hero", 10, 1),
         state("secret-preload", "secret", 5, 1, 40),

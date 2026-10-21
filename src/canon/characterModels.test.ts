@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from "./characterModels";
+import { dataUrlToBlob, selectCharacterModelVariant, validateCharacterModel, type CharacterModelRecord } from "./characterModels";
 
 const base = (overrides: Partial<CharacterModelRecord> = {}): CharacterModelRecord => ({
   id: "model-1", projectId: "project-1", characterName: "Ren", sourceType: "procedural", fileName: "",
@@ -18,6 +18,15 @@ describe("3D character model records", () => {
     expect(validateCharacterModel(missing).join(" ")).toContain("GLB blobs");
     const blob = new Blob(["valid-ish-glb-payload"], { type: "model/gltf-binary" });
     expect(validateCharacterModel(base({ sourceType: "uploaded-glb", fileName: "ren.glb", modelBlob: blob }))).toEqual([]);
+  });
+
+  it("selects the latest available model variant without leaking future designs into flashbacks", () => {
+    const baseModel = base({ id: "base", storyOrder: 0 });
+    const chapter12 = base({ id: "chapter-12", characterStateId: "state-12", storyOrder: 12, fileName: "ren-18.glb", sourceType: "uploaded-glb", modelBlob: new Blob(["glb-data-12"]) });
+    const chapter20 = base({ id: "chapter-20", characterStateId: "state-20", storyOrder: 20, fileName: "ren-19.glb", sourceType: "uploaded-glb", modelBlob: new Blob(["glb-data-20"]) });
+    expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 1)?.id).toBe("base");
+    expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 15)?.id).toBe("chapter-12");
+    expect(selectCharacterModelVariant([chapter12, chapter20], "Ren", 1)).toBeUndefined();
   });
 
   it("requires chapter-specific model variants to link to a finite approved-state order", () => {

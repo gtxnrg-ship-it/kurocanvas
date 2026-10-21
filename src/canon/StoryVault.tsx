@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Check, Clock3, History, Plus, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { storyMemoryStorage } from '../core/storage';
 import type { StoryMemoryRecord } from './storyMemory';
@@ -44,7 +44,7 @@ export default function StoryVault({ projectId, projects, onProjectChange }: Pro
       .sort((a,b) => (b.chapterNumber ?? -1) - (a.chapterNumber ?? -1) || b.updatedAt.localeCompare(a.updatedAt));
   }, [records, query, filter]);
 
-  async function addMemory(event: React.FormEvent) {
+  async function addMemory(event: FormEvent) {
     event.preventDefault();
     if (!projectId) { setNotice('Choose a project first.'); return; }
     if (!title.trim() || !summary.trim()) { setNotice('Add both a title and a factual summary.'); return; }

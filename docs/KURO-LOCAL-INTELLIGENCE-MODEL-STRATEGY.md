@@ -49,9 +49,29 @@ Why it is the first candidate to evaluate:
 
 Do not silently lock this in as the forever winner. Benchmark it against a smaller Qwen3.8 family member and at least one other permissively licensed model on a reproducible Kuro evaluation set. Model versions and licenses must be pinned to exact revisions before packaging or fine-tuning.
 
+## Harness-first intelligence: the model is one component, not the agent
+
+Kuro's primary design principle is **software-first agency with the smallest model that passes the task benchmarks**. The model proposes interpretations and next actions; Kuro's deterministic runtime owns state, permissions, retrieval, tool schemas, validation, persistence, undo, retries, and evidence. The model is not expected to hold the whole universe in its weights or complete an entire creative task in one generation.
+
+The agent loop should be explicit and bounded:
+
+1. Parse the user's request and identify missing decisions; ask the user when ambiguity affects canon or irreversible work.
+2. Retrieve only relevant, universe-scoped records and source evidence.
+3. Turn the task into small typed steps with preconditions, expected results, dependencies, and a step/time/token budget.
+4. Let the model choose among allowed tools or produce a schema-constrained proposal; validate every argument in ordinary code.
+5. Execute only permitted operations, with user approval for meaningful/irreversible changes.
+6. Read back actual tool and canvas state; verify postconditions instead of trusting the model's self-report.
+7. Retry or repair only within a bounded policy; checkpoint, support cancellation/resume, and explain unresolved failures.
+
+This architecture can make a small model dramatically more useful on structured work, but **a harness cannot guarantee that a 100M-parameter model has the broad reasoning, language, vision, or long-horizon planning ability of a 5B–30B model**. Small models can misunderstand requests, choose wrong tools, produce invalid arguments, and get stuck in loops. Retrieval supplies facts; it does not automatically supply reasoning. Deterministic validators catch defined classes of mistakes; they cannot validate every creative judgement.
+
+Therefore treat **~100M parameters as an experiment for narrow controller tasks**, not a promised all-purpose Kuro brain. Test it for intent routing, tool selection among a small menu, schema filling, and concise status decisions. Evaluate a stronger compact model for nuanced conversation, multi-step creative planning, canon conflict resolution, and visual reasoning. A single model may handle more than one role only if it passes the same gates. Do not assume multiple agents or repeated model calls improve quality; extra calls also add latency and can amplify errors.
+
+A small open tool-use model has demonstrated that the niche is real, but also that size is not magic: the published TOAM-100M model card reports 22.9% on BFCL v4 Live AST and lower accuracy than FunctionGemma-270M on its cited comparison. This is evidence to benchmark tiny tool controllers—not evidence that a 100M model can replace a much larger general model. See [TOAM-100M model card](https://huggingface.co/ksg91/toam-100m-v0.1).
+
 ## Device-tier strategy (product requirement)
 
-Kuro must not require a 27B model—or any multi-tens-of-gigabytes download—to be useful. Model selection must be based on measured device capability, not one universal default.
+Kuro must not require a 27B model—or any multi-tens-of-gigabytes download—to be useful. Model selection must be based on measured device capability, not one universal default. The software harness should carry as much reliability as possible without hiding capability limits or turning every task into a costly chain of model calls.
 
 - **Low-end Android / memory-constrained devices:** keep the app, native drawing tools, Vault metadata, canon records, and saved history usable without a local LLM. Offer an optional compact on-device model only when the device/runtime combination is supported and benchmarked. Aim to evaluate roughly 0.5B–2B-class models first; do not promise agent reliability or vision capability based on parameter count alone.
 - **Capable phones and tablets:** evaluate compact quantized models in roughly the 2B–4B class, with strict limits on RAM, context/KV cache, thermal load, battery use, download size, and latency. Model availability must be checked against actual device capabilities and supported runtime formats.

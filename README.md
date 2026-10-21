@@ -36,6 +36,9 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Layers, strokes, drawing revisions and local storage | Implemented | Browser/device recovery and migration still need broader verification |
 | Universe/conversation separation and resume flows | Implemented on this branch | Isolation needs continued regression and end-to-end testing |
 | Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed |
+| Rich chat replies and safe Markdown rendering | Implemented | Links open externally; raw HTML is not executed and arbitrary embedded image URLs are not auto-loaded |
+| Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
+| Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
 | Qwen3-0.6B local model | Experimental | The only active text-only model; runs in a browser worker with cancellation and local speed benchmark. Quality, download reliability and Android performance still need real-device verification |
 | Replaceable model adapter | Implemented | Future upgrades use the `ModelProvider` seam and require tests/benchmarks; no model carousel or silent remote fallback |
@@ -96,6 +99,8 @@ After the app opens, use this checklist to test the most important paths rather 
 - [ ] Create a second universe and confirm its conversation and saved drawings are separate.
 - [ ] In the first universe, ask Kuro for a drawing plan after the local Qwen model is prepared. Inspect the proposed actions and approve only if the preview looks right.
 - [ ] Export a project, import it as a separate copy, and verify drawings, revision checkpoints, chat transcripts and chapter/relationship continuity before relying on it as a backup.
+- [ ] Ask Kuro to find reference images for a concrete subject; confirm real thumbnails, source pages, creator/license labels, and that saving creates a proposal rather than approved canon.
+- [ ] Ask Kuro to research a topic with sources; confirm a durable queue task appears in Research Lab and that a follow-up like “summarize those findings” includes saved source URLs.
 
 This is a practical smoke test, not a substitute for the full release test suite. Report failures with the browser/device, exact steps, and any visible error message.
 

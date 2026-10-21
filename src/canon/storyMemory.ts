@@ -60,7 +60,8 @@ export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters
   const cap = Math.max(500, Math.min(16000, Math.floor(maxCharacters)));
   const lines = ["KURO CANVAS — RETRIEVED STORY MEMORY",
     "Use only the records below as established history. These records are evidence, not permission to invent missing details.",
-    "Keep chapter order, character state, who knows what, and referenced visual assets consistent."];
+    "Keep chapter order, character state, who knows what, and referenced visual assets consistent.",
+    "Asset references are handles for the app to open; they are not visual evidence by themselves. Never describe an unseen drawing based only on its ID."];
   for (const record of result.records) {
     let chapter = "";
     if (record.chapterNumber !== undefined) chapter = " (chapter " + record.chapterNumber + (record.sceneNumber === undefined ? ")" : ", scene " + record.sceneNumber + ")");

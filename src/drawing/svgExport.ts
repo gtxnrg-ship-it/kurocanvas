@@ -50,6 +50,17 @@ function rotateWrap(stroke: SvgExportStroke, content: string) {
 function pathFor(stroke: SvgExportStroke) {
   return stroke.points.map((point, index) => (index ? 'L ' : 'M ') + n(point.x) + ' ' + n(point.y)).join(' ');
 }
+function smoothPathFor(stroke: SvgExportStroke) {
+  const points = stroke.points;
+  if (points.length < 3) return pathFor(stroke);
+  let path = 'M ' + n(points[0].x) + ' ' + n(points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    const point = points[i], next = points[i + 1];
+    const end = next ? { x: (point.x + next.x) / 2, y: (point.y + next.y) / 2 } : point;
+    path += ' Q ' + n(point.x) + ' ' + n(point.y) + ' ' + n(end.x) + ' ' + n(end.y);
+  }
+  return path;
+}
 
 function eraserMaskMark(stroke: SvgExportStroke) {
   if (!stroke.points.length) return '';
@@ -58,7 +69,7 @@ function eraserMaskMark(stroke: SvgExportStroke) {
     const point = stroke.points[0];
     return '<circle cx="' + n(point.x) + '" cy="' + n(point.y) + '" r="' + n(width / 2) + '" fill="black"/>';
   }
-  return '<path d="' + pathFor(stroke) + '" fill="none" stroke="black" stroke-width="' + n(width) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  return '<path d="' + smoothPathFor(stroke) + '" fill="none" stroke="black" stroke-width="' + n(width) + '" stroke-linecap="round" stroke-linejoin="round"/>';
 }
 
 function strokeMarkup(stroke: SvgExportStroke) {
@@ -74,13 +85,13 @@ function strokeMarkup(stroke: SvgExportStroke) {
   } else if (stroke.shape === 'text') {
     const family = stroke.fontFamily === 'serif' ? 'Georgia,serif' : stroke.fontFamily === 'sans' ? 'Arial,sans-serif' : 'Trebuchet MS,Comic Sans MS,cursive';
     const lines = (stroke.text ?? '').split('\n');
-    markup = '<text x="' + n(first.x) + '" y="' + n(first.y) + '" fill="' + esc(stroke.color) + '" font-family="' + esc(family) + '" font-size="' + n(stroke.size) + '" font-weight="600">' + lines.map((line, index) => '<tspan x="' + n(first.x) + '" dy="' + (index ? n(Math.max(10, stroke.size * 1.25)) : '0') + '">' + esc(line) + '</tspan>').join('') + '</text>';
+    markup = '<text dominant-baseline="text-before-edge" x="' + n(first.x) + '" y="' + n(first.y) + '" fill="' + esc(stroke.color) + '" font-family="' + esc(family) + '" font-size="' + n(stroke.size) + '" font-weight="600">' + lines.map((line, index) => '<tspan x="' + n(first.x) + '" dy="' + (index ? n(Math.max(10, stroke.size * 1.25)) : '0') + '">' + esc(line) + '</tspan>').join('') + '</text>';
   } else if (stroke.shape === 'bubble') {
     const fill = esc(stroke.fillColor ?? '#fffdfb');
     const tail = 'M ' + n(x + width * 0.85) + ' ' + n(y + height * 0.85) + ' L ' + n(x + width * 1.12) + ' ' + n(y + height * 1.2) + ' L ' + n(x + width * 0.71) + ' ' + n(y + height * 0.95) + ' Z';
     markup = '<path d="' + tail + '" fill="' + fill + '" stroke="' + esc(stroke.color) + '" stroke-width="' + n(lineWidth) + '" stroke-linejoin="round"/><ellipse cx="' + n(x + width / 2) + '" cy="' + n(y + height / 2) + '" rx="' + n(Math.max(width / 2, 0.01)) + '" ry="' + n(Math.max(height / 2, 0.01)) + '" fill="' + fill + '" stroke="' + esc(stroke.color) + '" stroke-width="' + n(lineWidth) + '"/>';
   } else if (stroke.shape === 'line') {
-    markup = '<path d="' + pathFor(stroke) + '" fill="none" stroke="' + esc(stroke.color) + '" stroke-width="' + n(lineWidth) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    markup = '<path d="' + smoothPathFor(stroke) + '" fill="none" stroke="' + esc(stroke.color) + '" stroke-width="' + n(lineWidth) + '" stroke-linecap="round" stroke-linejoin="round"/>';
   } else if (stroke.shape === 'rectangle' || stroke.shape === 'panel') {
     const fill = stroke.filled ? esc(stroke.fillColor ?? stroke.color) : 'none';
     const weight = stroke.shape === 'panel' ? Math.max(4, lineWidth) : lineWidth;

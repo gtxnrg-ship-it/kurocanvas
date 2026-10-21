@@ -15,13 +15,13 @@ export interface StoryMemoryRecord {
   id: string; projectId: string;
   kind: "chapter" | "event" | "character-change" | "visual-reference" | "panel-template";
   title: string; summary: string;
-  chapterNumber?: number; sceneNumber?: number; storyOrder?: number; occurredAt?: string;
+  chapterNumber?: number; sceneNumber?: number; storyOrder?: number; timelineId?: string; occurredAt?: string;
   entityIds: string[]; tags: string[]; source: MemorySource; status: MemoryStatus;
   assetRefs: string[]; supersedes: string[]; createdAt: string; updatedAt: string;
 }
 export interface StoryMemoryQuery {
   projectId: string; text?: string; chapterNumber?: number; entityIds?: string[];
-  kinds?: StoryMemoryRecord["kind"][]; includeProposed?: boolean; limit?: number;
+  kinds?: StoryMemoryRecord["kind"][]; includeProposed?: boolean; limit?: number; timelineId?: string; maxStoryOrder?: number;
 }
 export interface StoryMemoryResult { records: StoryMemoryRecord[]; assetRefs: string[]; warnings: string[] }
 
@@ -29,6 +29,7 @@ export interface StoryMemoryTemporalTarget {
   productionRequest: boolean;
   chapterNumber?: number;
   storyOrder?: number;
+  timelineId?: string;
 }
 
 /**
@@ -52,9 +53,15 @@ export function filterStoryMemoryAtPoint(
   if (order !== undefined && (!Number.isFinite(order) || order < 0)) {
     throw new Error("Target story order must be non-negative and finite.");
   }
+  if (target.timelineId !== undefined && !target.timelineId.trim()) throw new Error("Target timeline ID cannot be empty.");
   return owned.filter(record => {
-    if (chapter !== undefined && (record.chapterNumber === undefined || record.chapterNumber > chapter)) return false;
-    if (order !== undefined && (record.storyOrder === undefined || record.storyOrder > order)) return false;
+    const temporal = record.chapterNumber !== undefined || record.storyOrder !== undefined || record.timelineId !== undefined;
+    // If the target timeline is ambiguous, only genuinely timeless global notes survive.
+    if (temporal && (!target.timelineId || record.timelineId !== target.timelineId)) return false;
+    if (chapter !== undefined && record.chapterNumber !== undefined && record.chapterNumber > chapter) return false;
+    if (chapter !== undefined && temporal && record.chapterNumber === undefined && order === undefined) return false;
+    if (order !== undefined && record.storyOrder !== undefined && record.storyOrder > order) return false;
+    if (order !== undefined && temporal && record.storyOrder === undefined) return false;
     return true;
   });
 }
@@ -68,6 +75,8 @@ export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: 
   if (!record.summary.trim()) errors.push("Memory record needs a summary of what is known.");
   if (record.chapterNumber !== undefined && (!Number.isInteger(record.chapterNumber) || record.chapterNumber < 0)) errors.push("Chapter number must be a non-negative integer.");
   if (record.sceneNumber !== undefined && (!Number.isInteger(record.sceneNumber) || record.sceneNumber < 0)) errors.push("Scene number must be a non-negative integer.");
+  if (record.storyOrder !== undefined && (!Number.isFinite(record.storyOrder) || record.storyOrder < 0)) errors.push("Story order must be a non-negative finite number.");
+  if (record.timelineId !== undefined && (typeof record.timelineId !== "string" || !record.timelineId.trim())) errors.push("Timeline ID must be a non-empty string when supplied.");
   if (!Array.isArray(record.entityIds) || !Array.isArray(record.tags) || !Array.isArray(record.assetRefs) || !Array.isArray(record.supersedes)) errors.push("Memory links and tags must be arrays.");
   return errors;
 }
@@ -78,6 +87,8 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
   const eligible = records.filter(record => record.projectId === query.projectId &&
     (query.includeProposed ? record.status !== "superseded" : record.status === "approved" || query.chapterNumber !== undefined && record.status === "superseded") &&
     (query.chapterNumber === undefined || record.chapterNumber === query.chapterNumber) &&
+    (!query.timelineId || record.timelineId === query.timelineId) &&
+    (query.maxStoryOrder === undefined || record.storyOrder === undefined || record.storyOrder <= query.maxStoryOrder) &&
     (!query.kinds || query.kinds.includes(record.kind)) &&
     (!query.entityIds?.length || query.entityIds.some(id => record.entityIds.includes(id))));
   const ranked = eligible.map(record => {

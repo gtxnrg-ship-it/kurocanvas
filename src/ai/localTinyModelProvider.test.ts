@@ -56,7 +56,7 @@ describe("LocalTinyModelProvider", () => {
       maxOutputTokens: 64,
     }, model);
     expect(sent.some(request => request.type === "generate")).toBe(true);
-    expect(result).toMatchObject({ text: "Kuro worker response", finishReason: "stop", providerId: provider.id });
+    expect(result).toMatchObject({ text: "Kuro worker response", finishReason: "stop", providerId: provider.id, usage: { outputTokens: 5 } });
   });
 
   it("actually terminates the worker when inference is cancelled", async () => {
@@ -87,7 +87,7 @@ function fakeWorker(autoRespond: boolean): { worker: ModelWorker; sent: WorkerRe
       if (!autoRespond) return;
       const response: WorkerResponse = request.type === "prepare"
         ? { id: request.id, type: "ready" }
-        : { id: request.id, type: "result", text: "Kuro worker response", finishReason: "stop" };
+        : { id: request.id, type: "result", text: "Kuro worker response", outputTokens: 5, finishReason: "stop" };
       queueMicrotask(() => worker.onmessage?.({ data: response } as MessageEvent<WorkerResponse>));
     },
     terminate() { state.terminated = true; },

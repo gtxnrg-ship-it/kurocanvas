@@ -71,9 +71,9 @@ export function buildStyleBibleContext(
   maxCharacters = 6000, targetStoryOrder?: number,
 ): string {
   if (!bible) return "";
+  if (bible.projectId !== projectId) throw new Error("Cannot use a style bible from another project.");
   const errors = validateStyleBible(bible, projectId);
   if (errors.length) throw new Error("Style bible validation failed: " + errors.join(" "));
-  if (bible.projectId !== projectId) throw new Error("Cannot use a style bible from another project.");
   const conflicts = findStyleConflicts(bible);
   if (conflicts.some(conflict => conflict.severity === "error")) {
     throw new Error("Style bible has unresolved approved visual conflicts. Resolve them before generating art.");

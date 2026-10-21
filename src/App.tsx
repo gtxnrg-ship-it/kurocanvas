@@ -126,7 +126,7 @@ export default function App(){
   finally{setHistoryLoading(false);}
  }
  async function resumeUniverse(item:RecentUniverse,conversationId?:string){
-  ++chatRequestGenerationRef.current;setWorking(false);
+  chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
   try{
    setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setCanvasRequest(null);setPlanNotice('');setRequestedDrawingId('');
    const conversation=await conversationStorage.load(conversationId||item.homeConversationId,item.id);
@@ -166,7 +166,7 @@ export default function App(){
  }
  async function createAttachedConversation(){
  if(!activeUniverseId)return;
- ++chatRequestGenerationRef.current;setWorking(false);
+ chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
  try{
   const conversation=await universeStorage.createConversation(activeUniverseId,'New conversation '+(universeConversations.length+1));
   const conversations=await conversationStorage.list(activeUniverseId);

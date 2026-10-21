@@ -7,6 +7,7 @@ import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
+import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
@@ -833,12 +834,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (!name?.trim()) return;
     const presetChoice = globalThis.prompt('Canvas preset: landscape, portrait, square, webtoon, manga, A4, or custom', 'landscape');
     if (!presetChoice?.trim()) return;
-    const presets: Record<string, [number, number]> = {
-      landscape: [1600, 1200], portrait: [1200, 1800], square: [1600, 1600],
-      webtoon: [900, 3000], manga: [1800, 2700], a4: [2480, 3508],
-    };
     const preset = presetChoice.trim().toLowerCase();
-    let dimensions = presets[preset];
+    let dimensions = CANVAS_PRESETS[preset];
     if (preset === 'custom') {
       const widthInput = globalThis.prompt('Canvas width in pixels (256–6000)', '1600');
       if (widthInput === null) return;
@@ -848,7 +845,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (!dimensions) { setNotice('Unknown canvas preset. Choose landscape, portrait, square, webtoon, manga, A4, or custom.'); return; }
     const [width, height] = dimensions;
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 256 || height < 256 || width > 6000 || height > 6000 || width * height > 16_000_000) {
+    if (!isValidCanvasDimensions(width, height)) {
       setNotice('Canvas dimensions must be 256–6000 px per side and no more than 16 megapixels. Nothing was created.'); return;
     }
     const id = crypto.randomUUID();

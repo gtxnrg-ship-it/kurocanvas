@@ -392,7 +392,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
     render(strokes, background);
-    if (!loaded || loadError) return;
+    if (!loaded || loadError || planAction?.status === 'running') return;
     setSaveState('saving');
     const timer = globalThis.setTimeout(() => {
       drawingStorage.save({
@@ -407,7 +407,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       });
     }, 450);
     return () => globalThis.clearTimeout(timer);
-  }, [strokes, background, layers, loaded, loadError, render, drawingId, drawingName, refreshDocuments]);
+  }, [strokes, background, layers, loaded, loadError, render, drawingId, drawingName, refreshDocuments, planAction]);
 
   useEffect(() => {
     const runKey = pendingPlan ? pendingPlan.id + ':' + planRunNonce : '';

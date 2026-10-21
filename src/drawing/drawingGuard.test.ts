@@ -27,10 +27,15 @@ describe("drawing guard signature", () => {
     expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], text: "Changed lettering" }] })).not.toBe(original);
     expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], opacity: 0.2 }] })).not.toBe(original);
   });
-  it("returns a fixed-size signature for large editable data", () => {
-    const largeText = "x".repeat(400_000);
-    const result = drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], shape: "text", text: largeText }] });
+  it("returns a fixed-size signature for large image data and notices changes inside it", () => {
+    const image = "data:image/png;base64," + "x".repeat(400_000);
+    const result = drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], shape: "image", imageDataUrl: image }] });
     expect(result.length).toBe(16);
-    expect(result).not.toContain(largeText);
+    expect(result).not.toContain(image);
+    expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], shape: "image", imageDataUrl: image }] }))
+      .toBe(result);
+    const changedImage = image.slice(0, 100_000) + "y" + image.slice(100_001);
+    expect(drawingGuardSignature({ ...base, strokes: [{ ...base.strokes[0], shape: "image", imageDataUrl: changedImage }] }))
+      .not.toBe(result);
   });
 });

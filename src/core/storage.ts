@@ -1,5 +1,4 @@
 import { buildProjectDeletionManifest } from "./projectDeletion";
-import { isValidCanvasDimensions } from "../drawing/canvasDimensions";
 import { validateLocalDrawingDocument } from "./drawingDocument";
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
@@ -280,8 +279,11 @@ export const drawingRevisionStorage = {
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
 export const drawingStorage = {
   async save(document: LocalDrawingDocument): Promise<void> {
+    if (!document.projectId?.trim()) {
+      throw new Error("A drawing must have an owning project before it can be saved.");
+    }
     const validationErrors = validateLocalDrawingDocument(document, document.projectId);
-    if (!document.projectId?.trim() || validationErrors.length) {
+    if (validationErrors.length) {
       throw new Error("Drawing validation failed: " + validationErrors.join(" "));
     }
     const existing = await this.load(document.id);

@@ -19,7 +19,7 @@ export default function WorkspacePreview({ projectId, drawingId, onOpenCanvas }:
 
   useEffect(() => {
     const refreshForProject = (projectId?: string) => {
-      if (!projectId || projectId === projectIdRef.current) setRefreshVersion(version => version + 1);
+      if (!projectId || projectId === projectId) setRefreshVersion(version => version + 1);
     };
     const onStorageChanged = (event: Event) => {
       const detail = (event as CustomEvent<{ projectId?: string }>).detail;
@@ -37,7 +37,7 @@ export default function WorkspacePreview({ projectId, drawingId, onOpenCanvas }:
       window.removeEventListener("kuro:drawing-storage-changed", onStorageChanged);
       channel?.close();
     };
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;

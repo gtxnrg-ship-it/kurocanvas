@@ -127,9 +127,9 @@
 
 /* Manual lettering controls */
 .text-draft-control{display:flex;align-items:center;gap:7px;color:#c9bddf;font-size:10px;min-width:220px;flex:1}
-.text-draft-control input{min-width:0;flex:1;padding:8px 9px;border:1px solid #514063;border-radius:8px;background:#100e17;color:#f0e8ff;font:inherit;font-size:11px}
-.text-draft-control input:focus{outline:1px solid #a78bfa;border-color:#a78bfa}
-@media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input{width:100%}}
+.text-draft-control input,.text-draft-control textarea{min-width:0;flex:1;padding:8px 9px;border:1px solid #514063;border-radius:8px;background:#100e17;color:#f0e8ff;font:inherit;font-size:11px;line-height:1.3;resize:vertical;min-height:34px;max-height:76px}
+.text-draft-control input:focus,.text-draft-control textarea:focus{outline:1px solid #a78bfa;border-color:#a78bfa}
+@media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input,.text-draft-control textarea{width:100%}}
 
 .story-editor-title>button{border:1px solid #443951;border-radius:7px;background:#1b1725;color:#cfc4df;padding:6px 8px;font-size:9px;cursor:pointer}
 

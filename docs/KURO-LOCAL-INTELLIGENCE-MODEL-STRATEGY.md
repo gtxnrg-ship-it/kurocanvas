@@ -2,16 +2,16 @@
 
 Status: selected browser-local model and download flow under implementation; quality on Kuro tasks remains unverified, 2026-10-21.
 
-## Selected model: SmolLM2-135M-Instruct (quantized ONNX)
+## Selected model: Qwen3-0.6B (quantized ONNX)
 
-**One model for the first integrated build:** `onnx-community/SmolLM2-135M-Instruct-ONNX-MHA`, from the Hugging Face ONNX Community.
+**Selected model for the next integrated build:** `onnx-community/Qwen3-0.6B-DQ-ONNX`, the browser-compatible ONNX Community export of Qwen3-0.6B.
 
-- **Model:** SmolLM2-135M-Instruct, 135 million parameters.
-- **Download target:** about **137 MB** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
+- **Model:** Qwen3-0.6B, approximately 0.6 billion parameters, with a model-card context length of 32,768 tokens.
+- **Download target:** approximately **450 MB (estimate)** for the quantized ONNX weight file; tokenizer/config files add a small amount. Actual browser memory use is higher and varies by device.
 - **Runtime:** Transformers.js with ONNX Runtime Web, running in the browser. The model is fetched on the user's explicit request and stored in the browser-managed cache.
-- **License:** Apache-2.0 for SmolLM2. Verify the exact model repository's license and revision before any repackaging/distribution.
+- **License:** Apache-2.0 for Qwen3-0.6B, according to its official model card. Verify the exact model repository's license and revision before any repackaging/distribution.
 - **Capabilities:** text-only instruction following. No image input, and no claim that the base model is already specialized for Kuro's tool schemas.
-- **Why this choice:** the existing KuroCanvas product is a React/Vite browser app, and this is a published browser-ready ONNX export around the user's desired 100 MB scale. FunctionGemma 270M is more directly trained for function calling, but the published ONNX export currently totals about 2.94 GB; its smaller GGUF builds require a different inference runtime that is not integrated into this web app. For this first end-to-end build, the browser-ready 137 MB model is the more practical choice. See [SmolLM2 browser ONNX model](https://huggingface.co/onnx-community/SmolLM2-135M-Instruct-ONNX-MHA), [SmolLM2 model card](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
+- **Why this choice:** the existing KuroCanvas product is a React/Vite browser app, and this is a published browser-ready ONNX export around the user's desired 100 MB scale. FunctionGemma 270M is more directly trained for function calling, but the published ONNX export currently totals about 2.94 GB; its smaller GGUF builds require a different inference runtime that is not integrated into this web app. For this first end-to-end build, the browser-ready 137 MB model is the more practical choice. See [SmolLM2 browser ONNX model](https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX), [SmolLM2 model card](https://huggingface.co/Qwen/Qwen3-0.6B), and [FunctionGemma ONNX files](https://huggingface.co/onnx-community/functiongemma-270m-it-ONNX/tree/main/onnx).
 
 This is a **practical integration choice, not a claim that 135M parameters can equal a 5B–30B general model**. The initial goal is to make Kuro's browser-local inference path real, then measure tool-plan validity and task success before trusting it with more autonomy. Its language quality and instruction-following may be weak; the harness must validate outputs and fail safely.
 

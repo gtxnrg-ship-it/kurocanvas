@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import { OpenAICompatibleProvider } from './ai/openAICompatibleProvider';
+import { KURO_PERSONA_CORE } from './ai/kuroPersona';
 import type { ModelDescriptor } from './ai/modelRegistry';
 import DrawingCanvas from './drawing/DrawingCanvas';
 import LegacyDrawingMigration from './drawing/LegacyDrawingMigration';

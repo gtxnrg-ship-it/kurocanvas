@@ -349,6 +349,8 @@ export interface LocalDrawingDocument {
     filled?: boolean;
     rotation?: number;
     brushPreset?: "ink" | "pencil" | "marker" | "airbrush" | "watercolor" | "dry-brush" | "calligraphy";
+    /** Editable per-stroke alpha. Missing means fully opaque for legacy documents. */
+    opacity?: number;
     color: string;
     size: number;
     points: Array<{ x: number; y: number; pressure: number }>;

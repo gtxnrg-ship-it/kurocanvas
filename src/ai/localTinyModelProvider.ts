@@ -33,7 +33,7 @@ const MODEL: ModelDescriptor = {
   name: "Kuro Local · Qwen3-0.6B",
   providerId: "kuro-local-browser",
   location: "local",
-  roles: ["fast-helper"],
+  roles: ["reasoning", "planning", "tool-calling", "coding", "story-writing", "continuity", "research", "fast-helper"],
   capabilities: ["chat"],
   downloadBytes: KURO_TINY_MODEL_DOWNLOAD_BYTES,
   memoryBytes: 900 * 1024 * 1024,

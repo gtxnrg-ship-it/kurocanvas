@@ -184,3 +184,8 @@
 .symmetry-guides i{position:absolute;display:block;opacity:.75}
 .symmetry-axis-vertical{top:0;bottom:0;left:50%;border-left:1px dashed #9b80e6;filter:drop-shadow(0 0 2px rgba(155,128,230,.45))}
 .symmetry-axis-horizontal{left:0;right:0;top:50%;border-top:1px dashed #9b80e6;filter:drop-shadow(0 0 2px rgba(155,128,230,.45))}
+
+.stroke-opacity-control{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid rgba(167,139,250,.2);border-radius:8px;background:rgba(24,20,37,.7);font-size:10px;color:#bfb3ce;white-space:nowrap}
+.stroke-opacity-control input{width:72px;accent-color:#a78bfa}
+.stroke-opacity-control b{min-width:34px;text-align:right;color:#eee5fa;font-variant-numeric:tabular-nums}
+.size-control input{width:100px}

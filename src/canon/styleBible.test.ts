@@ -59,4 +59,24 @@ describe("project style bible", () => {
     bible.characterStates[1].status = "proposed";
     expect(buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 12")).not.toContain("thin scar across left eyebrow");
   });
+
+  it("carries forward scars and other unchanged traits until an explicit change is recorded", () => {
+    const bible = seeded();
+    bible.characterStates.push({
+      id: "state-3", characterName: "Ren", storyOrder: 13, chapterLabel: "Chapter 13",
+      hair: "longer grown-out undercut", status: "approved",
+    });
+    const chapter13 = buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 13", 5200, 13);
+    expect(chapter13).toContain("longer grown-out undercut");
+    expect(chapter13).toContain("thin scar across left eyebrow");
+    expect(chapter13).toContain("age: 18");
+
+    bible.characterStates.push({
+      id: "state-4", characterName: "Ren", storyOrder: 14, chapterLabel: "Chapter 14",
+      scars: "none", status: "approved",
+    });
+    const chapter14 = buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 14", 5200, 14);
+    expect(chapter14).toContain("scars: none");
+    expect(chapter14).not.toContain("thin scar across left eyebrow");
+  });
 });

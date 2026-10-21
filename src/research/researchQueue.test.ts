@@ -1,8 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, createResearchTask, normalizeImportedResearchTasks, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
+
+describe("portable research task history", () => {
+  it("preserves completed source findings but pauses unfinished jobs on import", () => {
+    const completed: ResearchTaskRecord = {
+      ...createResearchTask({ projectId: "series-old", query: "Ming dynasty", depth: "deep" }, () => "task-done"),
+      status: "completed", progress: 100, stage: "Research sources collected",
+      sources: [{ title: "Ming dynasty", url: "https://en.wikipedia.org/wiki/Ming_dynasty", extract: "Founded in 1368." }],
+      completedAt: "2026-10-20T12:00:00.000Z",
+    };
+    const queued = createResearchTask({ projectId: "series-old", query: "Ming dynasty armour", depth: "exhaustive" }, () => "task-queued");
+    const running = { ...queued, id: "task-running", status: "running" as const, progress: 32, leaseUntil: Date.now() + 120000 };
+    let ids = 0;
+    const imported = normalizeImportedResearchTasks([completed, queued, running], "series-old", "series-new", () => "fresh-" + (++ids), "2026-10-21T00:00:00.000Z");
+    expect(imported.map(task => task.id)).toEqual(["fresh-1", "fresh-2", "fresh-3"]);
+    expect(imported.every(task => task.projectId === "series-new")).toBe(true);
+    expect(imported[0]).toMatchObject({ status: "completed", progress: 100, sources: completed.sources, completedAt: completed.completedAt });
+    expect(imported[1]).toMatchObject({ status: "cancelled", progress: 0, stage: expect.stringContaining("retry") });
+    expect(imported[2]).toMatchObject({ status: "cancelled", progress: 32, leaseUntil: undefined, stage: expect.stringContaining("retry") });
+  });
+
+  it("rejects cross-project task records, duplicate IDs, and malformed source URLs", () => {
+    const task = createResearchTask({ projectId: "series-a", query: "Ming dynasty", depth: "balanced" }, () => "task-1");
+    expect(() => normalizeImportedResearchTasks([task], "series-b", "series-new")).toThrow(/different project/i);
+    expect(() => normalizeImportedResearchTasks([task, task], "series-a", "series-new")).toThrow(/duplicate IDs/i);
+    expect(() => normalizeImportedResearchTasks([{ ...task, sources: [{ title: "bad", url: "https://evil.example/", extract: "payload" }] }], "series-a", "series-new")).toThrow(/Wikipedia source/i);
+  });
+});
 
 describe("Kuro research queue records", () => {
   it("creates a project-scoped queued task with a requested depth", () => {

@@ -80,7 +80,7 @@ export function createStoryThreadProposal(
   if (!evidence || !userText.includes(evidence) || !title || !clueDescription || !plannedPayoff) return undefined;
   if (!types.includes(candidate.type as StoryThreadType) || !treatments.includes(candidate.audienceTreatment as StoryThreadAudienceTreatment)) return undefined;
 
-  const chapters = [...evidence.matchAll(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/gi)].map(match => Number(match[1]));
+  const chapters = extractStoryChapterNumbers(evidence);
   const orders = [...evidence.matchAll(/\b(?:story\s+order|storyOrder)\s*[:#]?\s*(\d+)\b/gi)].map(match => Number(match[1]));
   const timelines = [...evidence.matchAll(/\b(?:plant|payoff)?\s*timeline(?:\s+id)?\s*[:#]?\s*([A-Za-z0-9_-]+)\b/gi)].map(match => match[1]);
   const verifiedChapter = (value: unknown) => Number.isInteger(value) && chapters.includes(Number(value)) ? Number(value) : undefined;
@@ -177,6 +177,7 @@ export function filterStoryMemoryAtPoint(
     return true;
   });
 }
+import { extractStoryChapterNumbers } from "./storyCoordinates";
 const normalize = (s: string) => s.normalize("NFKC").toLocaleLowerCase().trim();
 const tokenize = (s: string) => normalize(s).split(/[^\p{L}\p{N}]+/u).filter(token => token.length > 1);
 export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: string): string[] {

@@ -1,9 +1,10 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
+import { validateArtDirection, type ArtDirectionBible } from "../canon/artDirection";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -11,6 +12,7 @@ const DRAWINGS = "drawings";
 const DRAWING_REVISIONS = "drawingRevisions";
 const CANON = "canon";
 const STORY_MEMORY = "storyMemory";
+const ART_DIRECTION = "artDirection";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -26,6 +28,7 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(DRAWING_REVISIONS)) db.createObjectStore(DRAWING_REVISIONS, { keyPath: "id" });
       if (!db.objectStoreNames.contains(CANON)) db.createObjectStore(CANON, { keyPath: "projectId" });
       if (!db.objectStoreNames.contains(STORY_MEMORY)) db.createObjectStore(STORY_MEMORY, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(ART_DIRECTION)) db.createObjectStore(ART_DIRECTION, { keyPath: "projectId" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local project database."));
@@ -76,10 +79,11 @@ export const projectStorage = {
     const db = await openDatabase();
     try {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY], "readwrite");
+        const tx = db.transaction([PROJECTS, AUTOSAVE, CANON, STORY_MEMORY, ART_DIRECTION], "readwrite");
         tx.objectStore(PROJECTS).delete(id);
         tx.objectStore(AUTOSAVE).delete(id);
         tx.objectStore(CANON).delete(id);
+        tx.objectStore(ART_DIRECTION).delete(id);
         const memoryStore = tx.objectStore(STORY_MEMORY);
         for (const record of memoryRecords) if (record.projectId === id) memoryStore.delete(record.id);
         tx.oncomplete = () => resolve();
@@ -258,6 +262,27 @@ export const canonStorage = {
 
 
 /** Durable chapter/event/character-change memory, scoped to a project. */
+/** One strict art-direction contract per project; never shared across series. */
+export const artDirectionStorage = {
+  async save(bible: ArtDirectionBible): Promise<void> {
+    const errors = validateArtDirection(bible, bible.projectId);
+    if (errors.length) throw new Error("Art direction validation failed: " + errors.join(" "));
+    await requestValue<IDBValidKey>(ART_DIRECTION, "readwrite", store => store.put({ ...bible, updatedAt: new Date().toISOString() }));
+  },
+  async load(projectId: string): Promise<ArtDirectionBible | undefined> {
+    if (!projectId.trim()) throw new Error("Choose a project before loading art direction.");
+    const result = await requestValue<ArtDirectionBible | undefined>(ART_DIRECTION, "readonly", store => store.get(projectId));
+    if (!result) return undefined;
+    const errors = validateArtDirection(result, projectId);
+    if (errors.length) throw new Error("Saved art direction is invalid: " + errors.join(" "));
+    return result;
+  },
+  async remove(projectId: string): Promise<void> {
+    await requestValue<undefined>(ART_DIRECTION, "readwrite", store => store.delete(projectId));
+  },
+};
+
+
 export const storyMemoryStorage = {
   async save(record: StoryMemoryRecord): Promise<void> {
     const errors = validateStoryMemoryRecord(record, record.projectId);

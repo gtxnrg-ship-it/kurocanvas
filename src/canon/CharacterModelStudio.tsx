@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Plus, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
+import { Box, Plus, RefreshCw, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
 import { type CharacterModelRecord, type ScarOverlay } from "./characterModels";
@@ -222,6 +222,18 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     }
   }, [selectedModel, selectedState, resolved?.latest.id, scarsAbsent, activeScars.length, modelRevision]);
 
+  async function refreshVisualCanon() {
+    if (!projectId) return;
+    setBusy(true);
+    try {
+      const [loadedModels, bible] = await Promise.all([characterModelStorage.list(projectId), styleBibleStorage.load(projectId)]);
+      setModels(loadedModels); setStyleBible(bible ?? null);
+      setModelId(current => loadedModels.some(model => model.id === current) ? current : loadedModels[0]?.id ?? "");
+      setMessage("Refreshed character models and approved visual timeline.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not refresh visual canon."); }
+    finally { setBusy(false); }
+  }
+
   async function persistModel(next: CharacterModelRecord, success: string, shareScars = false) {
     setBusy(true);
     try {
@@ -315,7 +327,7 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   const hasTextScar = !!resolved?.traits.scars && !scarsAbsent;
   const activeProject = projects.find(project => project.id === projectId);
   return <section className="character-model-studio">
-    <header className="character-model-head"><div><small>3D CHARACTER WORKSPACE · CHAPTER-AWARE</small><h2><Box size={20}/> Character model studio</h2><p>Attach a GLB model, choose an approved chapter state, and place scar overlays that appear only from their introduction onward.</p><small className="character-model-project-name">{activeProject?.name ?? "No active project"}</small></div></header>
+    <header className="character-model-head"><div><small>3D CHARACTER WORKSPACE · CHAPTER-AWARE</small><h2><Box size={20}/> Character model studio</h2><p>Attach a GLB model, choose an approved chapter state, and place scar overlays that appear only from their introduction onward.</p><small className="character-model-project-name">{activeProject?.name ?? "No active project"}</small></div><button className="character-model-refresh" disabled={!projectId || busy} onClick={() => void refreshVisualCanon()}><RefreshCw size={14}/> Refresh timeline</button></header>
     {!projectId ? <p className="character-model-message">Choose a project to create a character model.</p> : <>
       <div className="character-model-create">
         <label><span>Character name (must match Style Bible)</span><input value={characterName} onChange={event=>setCharacterName(event.target.value)} placeholder="e.g. Ren"/></label>

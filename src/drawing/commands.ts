@@ -102,6 +102,8 @@ export interface DrawingDocumentBounds {
   height: number;
   layerIds: readonly string[];
   lockedLayerIds?: readonly string[];
+  /** When supplied, remove commands must target an existing stroke and cannot modify locked layers. */
+  strokeLayerById?: Readonly<Record<string, string>>;
 }
 
 export interface CommandValidationResult {
@@ -162,6 +164,8 @@ export function validateDrawingCommand(
     }
     case "stroke.remove":
       if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot remove a stroke that is not in the active document.");
+      else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot remove a stroke from a locked layer.");
       break;
     case "stroke.restore": {
       if (!record(value.stroke)) {

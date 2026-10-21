@@ -80,7 +80,7 @@ if(activeProjectId && captureStory){
         const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
         const characterName=typeof item.characterName==='string'?item.characterName.trim():'';
         const chapterNumber=Number(item.chapterNumber);
-        const chapterInEvidence=evidence.match(/\\b(?:chapter|ch\\.?)\\s*#?\\s*(\\d+)\\b/i);
+        const chapterInEvidence=evidence.match(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/i);
         if(!evidence||!text.includes(evidence)||!characterName||!evidence.includes(characterName)||!chapterInEvidence||Number(chapterInEvidence[1])!==chapterNumber)continue;
         const fields=['age','hair','eyes','scars','outfit','body','accessories','injuries','other'] as const;
         const visual:Record<string,string>={};

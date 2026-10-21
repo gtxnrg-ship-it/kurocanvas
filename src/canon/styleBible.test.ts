@@ -67,7 +67,7 @@ describe("project style bible", () => {
     expect(resolved?.latest.chapterLabel).toBe("Chapter 13");
     expect(resolved?.traits.hair).toBe("longer hair");
     expect(resolved?.traits.scars).toBe("thin scar across left eyebrow");
-    expect(resolveCharacterVisualState(bible.characterStates, "Ren", 1)?.traits.scars).toBeUndefined();
+    expect(resolveCharacterVisualState(bible.characterStates, "Ren", 1)?.traits.scars).toBe("none");
   });
 
   it("carries forward scars and other unchanged traits until an explicit change is recorded", () => {

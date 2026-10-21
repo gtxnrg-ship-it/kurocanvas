@@ -146,7 +146,7 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
       || typeof source.extract !== "string" || source.extract.length > 3200
       || typeof source.url !== "string" || source.url.length > 2000) return true;
     return !isSupportedResearchSourceUrl(source.url, task.sourceProvider ?? "wikipedia");
-  })) errors.push("Research sources must be bounded HTTPS records from en.wikipedia.org or canonical doi.org DOI links.");
+  })) errors.push("Wikipedia source URLs must use en.wikipedia.org HTTPS paths; Crossref source URLs must use canonical doi.org DOI links.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");
   if (task.error !== undefined && typeof task.error !== "string") errors.push("Research error must be text.");
   return [...new Set(errors)];

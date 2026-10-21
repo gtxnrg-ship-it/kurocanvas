@@ -115,10 +115,18 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
   if (!isStatus(task.status)) errors.push("Research task status is invalid.");
   if (!Number.isFinite(task.progress) || Number(task.progress) < 0 || Number(task.progress) > 100) errors.push("Research progress must be between 0 and 100.");
   if (typeof task.stage !== "string" || typeof task.createdAt !== "string" || typeof task.updatedAt !== "string") errors.push("Research task stage and timestamps are required.");
-  if (!Array.isArray(task.sources) || task.sources.some(source =>
-    !source || typeof source.title !== "string" || typeof source.extract !== "string" ||
-    typeof source.url !== "string" || !/^https:\/\/(?:[\w-]+\.)*wikipedia\.org\//i.test(source.url),
-  )) errors.push("Research sources must be valid Wikipedia source records.");
+  if (!Array.isArray(task.sources) || task.sources.length > 12 || task.sources.some(source => {
+    if (!source || typeof source.title !== "string" || !source.title.trim() || source.title.length > 400
+      || typeof source.extract !== "string" || source.extract.length > 3200
+      || typeof source.url !== "string" || source.url.length > 2000) return true;
+    try {
+      const url = new URL(source.url);
+      // This implementation researches Wikipedia, so only accept its exact HTTPS host.
+      // Do not accept lookalike domains or arbitrary Wikipedia subdomains from imported ZIPs.
+      return url.protocol !== "https:" || url.hostname.toLocaleLowerCase() !== "en.wikipedia.org"
+        || !url.pathname.startsWith("/wiki/") && !url.pathname.startsWith("/?");
+    } catch { return true; }
+  })) errors.push("Research sources must be bounded, valid en.wikipedia.org HTTPS source records.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");
   if (task.error !== undefined && typeof task.error !== "string") errors.push("Research error must be text.");
   return [...new Set(errors)];

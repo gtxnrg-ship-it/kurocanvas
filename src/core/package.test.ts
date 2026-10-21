@@ -9,6 +9,7 @@ describe("portable Kuro packages", () => {
       "kuro/story-memory.v1.json": JSON.stringify([{ id: "chapter-12", status: "approved" }]),
       "kuro/art-direction.v1.json": JSON.stringify({ schemaVersion: 1, projectId: project.id, title: "Locked style", influences: [] }),
       "kuro/style-bible.v1.json": JSON.stringify({ schemaVersion: 1, projectId: project.id, title: "Timeline", inspirations: [], rules: [], characterStates: [] }),
+      "kuro/references.v1.json": JSON.stringify([{ id: "reference-1", projectId: project.id, sourceUrl: "https://commons.wikimedia.org/wiki/File:Rain.jpg", status: "approved" }]),
       "kuro/canon.v1.json": JSON.stringify({ schemaVersion: 1, projectId: project.id, entities: [], facts: [] }),
       "kuro/drawings/drawing-1.json": JSON.stringify({ id: "drawing-1", version: 1, strokes: [] }),
     };

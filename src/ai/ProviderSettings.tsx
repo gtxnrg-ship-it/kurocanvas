@@ -101,6 +101,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, voic
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
     <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local inference servers. Model weights and inference software are installed separately.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
+    <ModelAdvisor />
     <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
     <div className="provider-recommended-model">
       <strong>Recommended local model: SmolLM2 135M Instruct</strong>

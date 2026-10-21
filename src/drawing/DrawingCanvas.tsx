@@ -16,16 +16,16 @@ type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
-function mirrorStrokeCopies(stroke: Stroke, width: number, height: number, mode: SymmetryMode): Stroke[] {
+function mirrorStrokeCopies(stroke: Stroke, width: number, height: number, mode: SymmetryMode, preview = false): Stroke[] {
   if (mode === 'none' || (stroke.shape && !['line','rectangle','ellipse'].includes(stroke.shape))) return [];
   const copies: Stroke[] = [];
-  const makeCopy = (mirrorX: boolean, mirrorY: boolean): Stroke => ({
-    ...stroke, id: crypto.randomUUID(),
+  const makeCopy = (mirrorX: boolean, mirrorY: boolean, suffix: string): Stroke => ({
+    ...stroke, id: preview ? stroke.id + '-preview-' + suffix : crypto.randomUUID(),
     points: stroke.points.map(point => ({ ...point, x: mirrorX ? width - point.x : point.x, y: mirrorY ? height - point.y : point.y })),
   });
-  if (mode === 'vertical' || mode === 'both') copies.push(makeCopy(true, false));
-  if (mode === 'horizontal' || mode === 'both') copies.push(makeCopy(false, true));
-  if (mode === 'both') copies.push(makeCopy(true, true));
+  if (mode === 'vertical' || mode === 'both') copies.push(makeCopy(true, false, 'vertical'));
+  if (mode === 'horizontal' || mode === 'both') copies.push(makeCopy(false, true, 'horizontal'));
+  if (mode === 'both') copies.push(makeCopy(true, true, 'both'));
   return copies;
 }
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
@@ -495,7 +495,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       const strength = active.shape === undefined ? (stabilizer / 10) * 0.72 : 0;
       active.points.push({ x: previous.x + (raw.x - previous.x) * (1 - strength), y: previous.y + (raw.y - previous.y) * (1 - strength), pressure: raw.pressure });
     }
-    render([...strokes, active, ...mirrorStrokeCopies(active, docRef.current.width, docRef.current.height, symmetryMode)], background);
+    render([...strokes, active, ...mirrorStrokeCopies(active, docRef.current.width, docRef.current.height, symmetryMode, true)], background);
   };
   const pointerUp = () => {
     if (panRef.current) { panRef.current = null; return; }

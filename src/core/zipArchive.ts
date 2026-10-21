@@ -32,7 +32,7 @@ export function createZipArchive(entries: readonly ArchiveEntry[]): Uint8Array {
   const names = new Set<string>();
   let estimatedSize = 22;
   for (const entry of entries) {
-    if (!entry || !(entry.data instanceof Uint8Array) || !safeName(entry.name) || names.has(entry.name)) throw new Error("Archive contains an unsafe, duplicate, or invalid path.");
+    if (!entry || !(entry.data instanceof Uint8Array) || !safeName(entry.name) || names.has(entry.name)) throw new Error("Archive contains an unsafe or duplicate path, or an invalid entry.");
     names.add(entry.name);
     const name = encoder.encode(entry.name);
     const data = entry.data;
@@ -89,16 +89,24 @@ export function readZipArchive(bytes: Uint8Array): ArchiveEntry[] {
   for (let i = bytes.length - 22; i >= min; i--) {
     if (view.getUint32(i, true) === 0x06054b50) { endOffset = i; break; }
   }
-  if (endOffset < 0) throw new Error("This file is not a valid ZIP archive.");
+  if (endOffset < 0 || endOffset + 22 > bytes.length) throw new Error("This file is not a valid ZIP archive.");
+  const disk = view.getUint16(endOffset + 4, true);
+  const centralDisk = view.getUint16(endOffset + 6, true);
+  const diskCount = view.getUint16(endOffset + 8, true);
   const count = view.getUint16(endOffset + 10, true);
   const centralSize = view.getUint32(endOffset + 12, true);
   const centralOffset = view.getUint32(endOffset + 16, true);
-  if (count > MAX_ENTRIES || centralOffset + centralSize > endOffset) throw new Error("ZIP directory is invalid or exceeds supported limits.");
+  const commentLength = view.getUint16(endOffset + 20, true);
+  if (disk !== 0 || centralDisk !== 0 || diskCount !== count || count === 0 || count > MAX_ENTRIES ||
+      endOffset + 22 + commentLength !== bytes.length || centralOffset + centralSize !== endOffset) {
+    throw new Error("ZIP directory is invalid or exceeds supported limits.");
+  }
   const entries: ArchiveEntry[] = [];
   const seen = new Set<string>();
+  const ranges: Array<{ start: number; end: number }> = [];
   let cursor = centralOffset;
   for (let n = 0; n < count; n++) {
-    if (cursor + 46 > bytes.length || view.getUint32(cursor, true) !== 0x02014b50) throw new Error("ZIP directory entry is damaged.");
+    if (cursor + 46 > endOffset || view.getUint32(cursor, true) !== 0x02014b50) throw new Error("ZIP directory entry is damaged.");
     const flags = view.getUint16(cursor + 8, true);
     const method = view.getUint16(cursor + 10, true);
     const crc = view.getUint32(cursor + 16, true);
@@ -109,21 +117,34 @@ export function readZipArchive(bytes: Uint8Array): ArchiveEntry[] {
     const commentLength = view.getUint16(cursor + 32, true);
     const localOffset = view.getUint32(cursor + 42, true);
     const next = cursor + 46 + nameLength + extraLength + commentLength;
-    if (next > bytes.length) throw new Error("ZIP entry metadata is out of bounds.");
-    if ((flags & 1) !== 0 || method !== 0 || compressed !== uncompressed) throw new Error("Encrypted or compressed ZIP entries are not supported by this importer yet.");
+    if (next > endOffset) throw new Error("ZIP entry metadata is out of bounds.");
+    if ((flags & ~0x0800) !== 0 || method !== 0 || compressed !== uncompressed) throw new Error("Encrypted, flagged, or compressed ZIP entries are not supported by this importer.");
     if (localOffset + 30 > bytes.length || view.getUint32(localOffset, true) !== 0x04034b50) throw new Error("ZIP local entry is damaged.");
+    const localFlags = view.getUint16(localOffset + 6, true);
+    const localMethod = view.getUint16(localOffset + 8, true);
+    const localCrc = view.getUint32(localOffset + 14, true);
+    const localCompressed = view.getUint32(localOffset + 18, true);
+    const localUncompressed = view.getUint32(localOffset + 22, true);
     const localNameLength = view.getUint16(localOffset + 26, true);
     const localExtraLength = view.getUint16(localOffset + 28, true);
     const dataStart = localOffset + 30 + localNameLength + localExtraLength;
     const dataEnd = dataStart + uncompressed;
-    if (dataStart < 0 || dataEnd > centralOffset || dataEnd > bytes.length) throw new Error("ZIP entry data is out of bounds.");
+    if (localFlags !== flags || localMethod !== method || localCrc !== crc || localCompressed !== compressed ||
+        localUncompressed !== uncompressed || localNameLength !== nameLength || dataStart < 0 || dataEnd > centralOffset) {
+      throw new Error("ZIP local and central entry metadata disagree.");
+    }
     const name = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
-    if (!safeName(name) || seen.has(name)) throw new Error("ZIP contains an unsafe or duplicate path.");
+    const localName = decoder.decode(bytes.subarray(localOffset + 30, localOffset + 30 + localNameLength));
+    if (name !== localName || !safeName(name) || seen.has(name)) throw new Error("ZIP contains an unsafe or duplicate path.");
     seen.add(name);
+    ranges.push({ start: localOffset, end: dataEnd });
     const data = bytes.slice(dataStart, dataEnd);
     if (crc32(data) !== crc) throw new Error("ZIP entry checksum failed: " + name);
     entries.push({ name, data });
     cursor = next;
   }
+  if (cursor !== endOffset) throw new Error("ZIP directory has trailing or missing entry metadata.");
+  ranges.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < ranges.length; i++) if (ranges[i].start < ranges[i - 1].end) throw new Error("ZIP entries overlap.");
   return entries;
 }

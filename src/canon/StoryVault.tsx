@@ -21,6 +21,8 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
   const [summary, setSummary] = useState('');
   const [chapter, setChapter] = useState('');
   const [scene, setScene] = useState('');
+  const [storyOrder, setStoryOrder] = useState('');
+  const [timelineId, setTimelineId] = useState('');
   const [entities, setEntities] = useState('');
   const [tags, setTags] = useState('');
   const [assets, setAssets] = useState('');
@@ -55,6 +57,10 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     event.preventDefault();
     if (!projectId) { setNotice('Choose a project first.'); return; }
     if (!title.trim() || !summary.trim()) { setNotice('Add both a title and a factual summary.'); return; }
+    if (chapter.trim() && (!Number.isInteger(Number(chapter)) || Number(chapter) < 0)) { setNotice('Chapter must be a non-negative integer.'); return; }
+    if (scene.trim() && (!Number.isInteger(Number(scene)) || Number(scene) < 0)) { setNotice('Scene must be a non-negative integer.'); return; }
+    if (storyOrder.trim() && (!Number.isFinite(Number(storyOrder)) || Number(storyOrder) < 0)) { setNotice('Story order must be a non-negative number.'); return; }
+    if ((chapter.trim() || storyOrder.trim()) && !timelineId.trim()) { setNotice('Time-bound memories need a timeline ID (for example, main) so alternate histories cannot mix.'); return; }
     setBusy(true);
     try {
       const now = new Date().toISOString();
@@ -62,12 +68,14 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         id: editingId ?? crypto.randomUUID(), projectId, kind, title: title.trim(), summary: summary.trim(),
         ...(chapter.trim() ? { chapterNumber: Number(chapter) } : {}),
         ...(scene.trim() ? { sceneNumber: Number(scene) } : {}),
+        ...(storyOrder.trim() ? { storyOrder: Number(storyOrder) } : {}),
+        ...(timelineId.trim() ? { timelineId: timelineId.trim() } : {}),
         entityIds: splitList(entities), tags: splitList(tags), source: 'user', status: 'proposed',
         assetRefs: splitList(assets), supersedes: supersedesId ? [supersedesId] : [],
         createdAt: records.find(item => item.id === editingId)?.createdAt ?? now, updatedAt: now,
       };
       await storyMemoryStorage.save(record);
-      setTitle(''); setSummary(''); setEntities(''); setTags(''); setAssets(''); setChapter(''); setScene(''); setSupersedesId(''); setEditingId(null);
+      setTitle(''); setSummary(''); setEntities(''); setTags(''); setAssets(''); setChapter(''); setScene(''); setStoryOrder(''); setTimelineId(''); setSupersedesId(''); setEditingId(null);
       await refresh();
       setNotice(editingId ? 'Proposal updated. It remains unapproved until you review it.' : 'Saved as a proposal. Approve it when the details are accurate; proposals do not count as established canon.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save story memory.'); }
@@ -92,6 +100,8 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     setEditingId(record.id); setKind(record.kind); setTitle(record.title); setSummary(record.summary);
     setChapter(record.chapterNumber === undefined ? '' : String(record.chapterNumber));
     setScene(record.sceneNumber === undefined ? '' : String(record.sceneNumber));
+    setStoryOrder(record.storyOrder === undefined ? '' : String(record.storyOrder));
+    setTimelineId(record.timelineId ?? '');
     setEntities(record.entityIds.join(', ')); setTags(record.tags.join(', ')); setAssets(record.assetRefs.join(', '));
     setSupersedesId(record.supersedes[0] ?? '');
     setNotice('Editing a proposal. Saving keeps it unapproved until you approve it.');
@@ -102,6 +112,8 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     setSupersedesId(record.id); setKind(record.kind); setTitle(record.title + ' — revised'); setSummary(record.summary);
     setChapter(record.chapterNumber === undefined ? '' : String(record.chapterNumber));
     setScene(record.sceneNumber === undefined ? '' : String(record.sceneNumber));
+    setStoryOrder(record.storyOrder === undefined ? '' : String(record.storyOrder));
+    setTimelineId(record.timelineId ?? '');
     setEntities(record.entityIds.join(', ')); setTags(record.tags.join(', ')); setAssets(record.assetRefs.join(', '));
     setNotice('Revision draft prepared. Edit the summary and approve the new version to preserve this older record for chapter flashbacks.');
     globalThis.document?.getElementById('story-memory-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -131,7 +143,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
         <label>Memory type<select value={kind} onChange={event => setKind(event.target.value as Kind)}>{KINDS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label>Title<input value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Mira loses her left sleeve" required maxLength={180}/></label>
         <label>What actually happened?<textarea value={summary} onChange={event => setSummary(event.target.value)} placeholder="Record confirmed events, character state, exact visual details, and what must stay consistent…" rows={4} required maxLength={6000}/></label>
-        <div className="story-form-grid"><label>Chapter<input type="number" min="0" step="1" value={chapter} onChange={event => setChapter(event.target.value)} placeholder="Optional"/></label><label>Scene<input type="number" min="0" step="1" value={scene} onChange={event => setScene(event.target.value)} placeholder="Optional"/></label></div>
+        <div className="story-form-grid"><label>Chapter<input type="number" min="0" step="1" value={chapter} onChange={event => setChapter(event.target.value)} placeholder="Optional"/></label><label>Scene<input type="number" min="0" step="1" value={scene} onChange={event => setScene(event.target.value)} placeholder="Optional"/></label><label>Story order<input type="number" min="0" step="any" value={storyOrder} onChange={event => setStoryOrder(event.target.value)} placeholder="Optional"/></label><label>Timeline ID<input value={timelineId} onChange={event => setTimelineId(event.target.value)} placeholder="main, echo, etc."/></label></div>
         <label>Character / entity IDs <small>Comma-separated, stable IDs work best</small><input value={entities} onChange={event => setEntities(event.target.value)} placeholder="mira, silver-oath"/></label>
         <label>Search tags <input value={tags} onChange={event => setTags(event.target.value)} placeholder="flashback, injury, bridge"/></label>
         <label>Reusable asset references <small>Saved panel or template IDs; this links assets, it does not copy files yet</small><input value={assets} onChange={event => setAssets(event.target.value)} placeholder="panel-bridge-03, template-flashback-blue"/></label>
@@ -161,7 +173,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
       {visible.length === 0 ? <div className="story-vault-empty"><History size={22}/><b>No matching history yet</b><span>Add a recap or character change. Kuro should say when the requested chapter has not been recorded instead of inventing it.</span></div> :
         <div className="story-memory-records">{visible.map(record => <article className={'story-memory-record '+record.status} key={record.id}>
           <div className="story-record-top"><span className="story-kind">{KINDS.find(item => item.value === record.kind)?.label ?? record.kind}</span><span className={'story-status '+record.status}>{record.status === 'approved' ? <><Check size={12}/> Approved</> : record.status === 'proposed' ? <><Clock3 size={12}/> Needs review</> : <><History size={12}/> Older version</>}</span></div>
-          <h4>{record.title}</h4><small className="story-record-chapter">{chapterLabel(record)}</small><p>{record.summary}</p>
+          <h4>{record.title}</h4><small className="story-record-chapter">{chapterLabel(record)} · Story order {record.storyOrder ?? 'unspecified'} · Timeline {record.timelineId ?? 'global / timeless'}</small><p>{record.summary}</p>
           {record.entityIds.length > 0 && <div className="story-chips">{record.entityIds.map(id => <span key={id}>{id}</span>)}</div>}
           {record.assetRefs.length > 0 && <><small className="story-assets">Linked assets: {record.assetRefs.join(', ')}</small><div className="story-record-actions">{record.assetRefs.filter(asset => asset.startsWith('drawing:')).map(asset => <button key={asset} disabled={busy} onClick={() => onOpenDrawing(asset.slice('drawing:'.length))}><BookOpen size={13}/> Open saved drawing</button>)}</div></>}
           {record.supersedes.length > 0 && <small className="story-assets">Revises: {records.find(item => item.id === record.supersedes[0])?.title ?? record.supersedes.join(', ')}</small>}

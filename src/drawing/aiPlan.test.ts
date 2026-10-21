@@ -15,6 +15,13 @@ describe("parseAIStrokePlan", () => {
     });
   });
 
+  it("recovers fenced drawing JSON but still validates every native command", () => {
+    const raw = 'I prepared a plan:\n\`\`\`json\n' + JSON.stringify({ summary: "A small sketch", commands: [stroke] }) + '\n\`\`\`';
+    expect(parseAIStrokePlan(raw).commands).toMatchObject([{ type: "stroke.add", id: "stroke-1" }]);
+    const unsafe = 'Plan:\n\`\`\`json\n' + JSON.stringify({ summary: "Run code", commands: [{ ...stroke, type: "script.execute" }] }) + '\n\`\`\`';
+    expect(() => parseAIStrokePlan(unsafe)).toThrow(/approved native/i);
+  });
+
   it("rejects malformed JSON and non-object payloads", () => {
     expect(() => parseAIStrokePlan("{")).toThrow(/valid JSON/i);
     expect(() => parseAIStrokePlan("[]")).toThrow(/JSON object/i);

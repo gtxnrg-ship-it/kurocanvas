@@ -8,9 +8,10 @@ export interface AIStrokePlan {
 
 const AI_ALLOWED_TYPES = new Set(["stroke.add", "stroke.remove", "stroke.update", "stroke.transform", "layer.add", "layer.remove", "layer.rename", "layer.reorder", "layer.setVisibility", "layer.setOpacity", "layer.setLock"]);
 const DEFAULT_BOUNDS: DrawingDocumentBounds = { width: 1600, height: 1200, layerIds: ["layer-default"], lockedLayerIds: [] };
-const AI_MAX_ACTIONS = 48;
-const AI_MAX_POINTS_PER_STROKE = 128;
-const AI_MAX_TOTAL_POINTS = 5000;
+/** Keep each generated batch small enough for the single Qwen3-0.6B output window. */
+export const AI_PLAN_MAX_ACTIONS = 12;
+export const AI_PLAN_MAX_POINTS_PER_STROKE = 32;
+export const AI_PLAN_MAX_TOTAL_POINTS = 96;
 const AI_MAX_PLAN_CHARS = 512 * 1024;
 const MAX_REPAIR_OUTPUT_CHARS = 20_000;
 
@@ -40,8 +41,8 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
   if (!Array.isArray(candidate.commands)) {
     throw new Error("The drawing plan commands must be an array.");
   }
-  if (candidate.commands.length > AI_MAX_ACTIONS) {
-    throw new Error("This drawing workflow is limited to " + AI_MAX_ACTIONS + " native actions per plan.");
+  if (candidate.commands.length > AI_PLAN_MAX_ACTIONS) {
+    throw new Error("This drawing workflow is limited to " + AI_PLAN_MAX_ACTIONS + " native actions per plan.");
   }
   let totalPoints = 0;
   for (const command of candidate.commands) {
@@ -52,12 +53,12 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
     const item = command as { type: string; points?: unknown };
     if ((item.type === "stroke.remove" || item.type === "stroke.update" || item.type === "stroke.transform") && !bounds.strokeLayerById) throw new Error("Stroke edits require active document context.");
     if (item.type === "stroke.add") {
-      if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > AI_MAX_POINTS_PER_STROKE) {
-        throw new Error("Each proposed stroke must contain between 1 and " + AI_MAX_POINTS_PER_STROKE + " points.");
+      if (!Array.isArray(item.points) || item.points.length < 1 || item.points.length > AI_PLAN_MAX_POINTS_PER_STROKE) {
+        throw new Error("Each proposed stroke must contain between 1 and " + AI_PLAN_MAX_POINTS_PER_STROKE + " points.");
       }
       totalPoints += item.points.length;
-      if (totalPoints > AI_MAX_TOTAL_POINTS) {
-        throw new Error("The drawing plan exceeds the total point budget of " + AI_MAX_TOTAL_POINTS + ".");
+      if (totalPoints > AI_PLAN_MAX_TOTAL_POINTS) {
+        throw new Error("The drawing plan exceeds the total point budget of " + AI_PLAN_MAX_TOTAL_POINTS + ".");
       }
     }
   }

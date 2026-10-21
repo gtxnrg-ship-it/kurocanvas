@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAIStrokePlan, requestAIStrokePlan } from "./aiPlan";
+import { AI_PLAN_MAX_ACTIONS, AI_PLAN_MAX_POINTS_PER_STROKE, AI_PLAN_MAX_TOTAL_POINTS, parseAIStrokePlan, requestAIStrokePlan } from "./aiPlan";
 
 const stroke = {
   version: 1, id: "stroke-1", type: "stroke.add", layerId: "layer-default",
@@ -87,13 +87,28 @@ describe("parseAIStrokePlan", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, layerId: "missing" }] }))).toThrow(/rejected/i);
   });
 
-  it("supports substantial bounded plans while enforcing action and point budgets", () => {
-    const expanded = Array.from({ length: 16 }, (_, i) => ({ ...stroke, id: "s" + i, points: Array.from({ length: 32 }, (_, point) => ({ x: point, y: i })) }));
-    expect(parseAIStrokePlan(JSON.stringify({ summary: "An expanded sketch", commands: expanded })).commands).toHaveLength(16);
-    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many", commands: Array.from({ length: 49 }, (_, i) => ({ ...stroke, id: "s" + i })) }))).toThrow(/48 native actions/i);
-    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many points per stroke", commands: [{ ...stroke, points: Array.from({ length: 129 }, (_, i) => ({ x: i, y: i })) }] }))).toThrow(/128 points/i);
-    const pointHeavy = Array.from({ length: 40 }, (_, i) => ({ ...stroke, id: "s" + i, points: Array.from({ length: 128 }, (_, point) => ({ x: point, y: i })) }));
-    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "over point budget", commands: pointHeavy }))).toThrow(/total point budget/i);
+  it("keeps one generated batch within the realistic local output budget", () => {
+    expect(AI_PLAN_MAX_ACTIONS).toBe(12);
+    expect(AI_PLAN_MAX_POINTS_PER_STROKE).toBe(32);
+    expect(AI_PLAN_MAX_TOTAL_POINTS).toBe(96);
+    const expanded = Array.from({ length: 8 }, (_, i) => ({
+      ...stroke, id: "s" + i,
+      points: Array.from({ length: 10 }, (_, point) => ({ x: point, y: i })),
+    }));
+    expect(parseAIStrokePlan(JSON.stringify({ summary: "A compact first sketch batch", commands: expanded })).commands).toHaveLength(8);
+    expect(() => parseAIStrokePlan(JSON.stringify({
+      summary: "too many actions",
+      commands: Array.from({ length: AI_PLAN_MAX_ACTIONS + 1 }, (_, i) => ({ ...stroke, id: "s" + i })),
+    }))).toThrow(/12 native actions/i);
+    expect(() => parseAIStrokePlan(JSON.stringify({
+      summary: "too many points per stroke",
+      commands: [{ ...stroke, points: Array.from({ length: AI_PLAN_MAX_POINTS_PER_STROKE + 1 }, (_, i) => ({ x: i, y: i })) }],
+    }))).toThrow(/32 points/i);
+    const pointHeavy = Array.from({ length: 4 }, (_, i) => ({
+      ...stroke, id: "s" + i,
+      points: Array.from({ length: 25 }, (_, point) => ({ x: point, y: i })),
+    }));
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "over point budget", commands: pointHeavy }))).toThrow(/total point budget of 96/i);
     expect(() => parseAIStrokePlan(" ".repeat(512 * 1024 + 1))).toThrow(/response-size limit/i);
   });
 });

@@ -9,6 +9,7 @@ export type KuroResponseDepth = "quick" | "balanced" | "deep" | "exhaustive";
 
 const LOCAL_OUTPUT_LIMIT_NOTICE = "I reached Qwen3-0.6B's current output limit";
 const QUICK_REQUEST = /\b(?:quick(?:ly)?|brief(?:ly)?|short answer|one sentence|in a sentence|tl;?dr|just the answer|no explanation)\b/i;
+const CONTINUATION_REQUEST = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i;
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
 const HUGE_REQUEST = /\b(?:exhaustive|comprehensive|every single detail|leave nothing out|full specification|production[- ]ready|fully finish|end to end|entire system|all edge cases)\b/i;
 
@@ -18,13 +19,14 @@ export function inferKuroResponseDepth(message: string): KuroResponseDepth {
   // Strong requests for a comprehensive treatment outrank a generic "brief" token.
   if (HUGE_REQUEST.test(text)) return "exhaustive";
   if (QUICK_REQUEST.test(text) && text.length < 500 && !DEEP_REQUEST.test(text)) return "quick";
+  if (CONTINUATION_REQUEST.test(text)) return "deep";
   if (DEEP_REQUEST.test(text) || text.length >= 420 || (text.match(/[?;]/g)?.length ?? 0) >= 3) return "deep";
   return "balanced";
 }
 
 export function getKuroResponseQualityGuidance(message: string): string {
   const depth = inferKuroResponseDepth(message);
-  const continuationRequested = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i.test(message.trim());
+  const continuationRequested = CONTINUATION_REQUEST.test(message.trim());
   const continuationInstruction = continuationRequested
     ? "CONTINUATION REQUEST: The user is asking you to continue the immediately preceding assistant answer. Use the recent conversation as the source of where it stopped. Continue from the last unfinished point; do not restart the topic, repeat the finished sections, or write a new introduction. Preserve the existing structure and constraints, and complete any unfinished list, code block, or explanation."
     : "When a user asks for a revision or follow-up, apply it to the active subject and preserve the already established constraints unless they explicitly change them.";

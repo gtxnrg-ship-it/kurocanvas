@@ -37,7 +37,7 @@ export default function StoryVault({ projectId, projects, onProjectChange, onOpe
     try { setRecords(await storyMemoryStorage.list(projectId)); setNotice('Story memory loaded from this device.'); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not load story memory.'); }
   }
-  useEffect(() => { void refresh(); }, [projectId]);
+  useEffect(() => { setTimelineEntity(''); void refresh(); }, [projectId]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();

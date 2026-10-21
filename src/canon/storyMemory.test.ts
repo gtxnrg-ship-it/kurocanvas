@@ -183,6 +183,20 @@ describe("durable story memory", () => {
     expect(proposal?.storyThread?.payoffTimelineId).toBeUndefined();
   });
 
+  it("preserves Kuro-draft provenance for reviewable future-cameo planning", () => {
+    const draft = "In Chapter 1 on timeline main, a stranger bumps into Mira. In Chapter 20, Mira realizes the stranger was the future captain.";
+    const proposal = createStoryThreadProposal({
+      type: "cameo", title: "The hallway stranger", evidence: draft,
+      clueDescription: "A stranger briefly bumps into Mira.",
+      plannedPayoff: "Mira later recognizes the stranger as the future captain.",
+      audienceTreatment: "background-only", plantChapterNumber: 1, payoffChapterNumber: 20,
+      plantTimelineId: "main", payoffTimelineId: "main", linkedEntities: ["Mira"],
+    }, draft, "series-a", "2026-10-21T00:00:00.000Z", () => "draft-thread", "kuro-draft");
+    expect(proposal?.source).toBe("kuro-draft");
+    expect(proposal?.status).toBe("proposed");
+    expect(validateStoryMemoryRecord(proposal!, "series-a")).toEqual([]);
+  });
+
   it("stores narrative-thread intent separately from reader-facing canon", () => {
     const thread = record({
       id: "hallway-easter-egg", chapterNumber: 1, storyOrder: 10, timelineId: "main",

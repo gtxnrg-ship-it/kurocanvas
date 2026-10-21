@@ -54,11 +54,8 @@ describe("LocalTinyModelProvider", () => {
   });
 
   it("does not start a worker or download weights from a normal chat request", async () => {
-    const { sent, state } = fakeWorker(true);
-    const provider = new LocalTinyModelProvider(() => ({
-      ...fakeWorker(true).worker,
-      postMessage: request => { sent.push(request); },
-    }));
+    const { worker, sent, state } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];
     expect(model.installed).toBe(false);
     await expect(provider.generate({

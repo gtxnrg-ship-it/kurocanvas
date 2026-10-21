@@ -30,7 +30,7 @@ describe("SVG artwork export", () => {
       ],
     });
     expect(svg).toContain('<rect width="100%" height="100%" fill="#fefefe"/>');
-    expect(svg).toContain('<mask id="kuro-layer-ink-mask"');
+    expect(svg).toContain('<mask id="kuro-layer-ink-erase-0-mask"');
     expect(svg).toContain('stroke="black"');
   });
 });

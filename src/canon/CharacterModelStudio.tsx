@@ -373,7 +373,7 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
               <label><span>Scar color</span><input type="color" value={scar.color} onChange={event=>void updateScar(scar.id,{color:event.target.value})}/></label>
             </article>)}</div>
             <button className="character-model-remove" disabled={busy} onClick={()=>void removeModel()}><Trash2 size={13}/> Remove model</button>
-          </> : {selectedProfile && selectedState ? <p className="character-model-empty">No model variant is saved for {selectedState.chapterLabel}. The viewer shows a blockout for this earlier/later state; upload a GLB now to make the character's visual progression concrete.</p> : <p className="character-model-empty">Create a blockout or upload a GLB model to begin.</p>}}
+          </> : selectedProfile && selectedState ? <p className="character-model-empty">No model variant is saved for {selectedState.chapterLabel}. The viewer shows a blockout for this earlier/later state; upload a GLB now to make the character's visual progression concrete.</p> : <p className="character-model-empty">Create a blockout or upload a GLB model to begin.</p>}
         </aside>
       </div>
       <p className="character-model-footnote">The model preview does not generate a finished anime sculpt. GLB files stay local to this browser and are included in project export when supported. Scar markers are editable overlays, not permanent edits to the source mesh.</p>

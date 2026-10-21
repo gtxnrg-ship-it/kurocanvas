@@ -174,7 +174,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 }
 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
-export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: () => void }) {
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
@@ -373,14 +373,14 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         setBackground('#fffdfb');
         setNotice('New canvas · Drawings save automatically on this device');
       }
-      setLoaded(true); setSaveState('saved');
+      setLoaded(true); setSaveState('saved'); onDrawingOpened?.(drawingId);
     }).catch(error => {
       if (cancelled) return;
       setLoaded(true); setLoadError(true); setSaveState('error');
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
-  }, [drawingId]);
+  }, [drawingId, projectId]);
 
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
@@ -942,7 +942,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   useEffect(() => {
     if (!requestedDrawingId) return;
     if (requestedDrawingId !== drawingId) switchDrawing(requestedDrawingId);
-    onDrawingOpened?.();
+    // The load effect reports the selected ID after the document has been restored.
   }, [requestedDrawingId]);
   const resetView = () => { setZoom(1); setPanOffset({ x: 0, y: 0 }); setNotice('Canvas view centered at 100%'); };
   const createDrawing = () => {

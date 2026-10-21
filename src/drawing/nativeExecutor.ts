@@ -208,6 +208,88 @@ export function applyNativeDrawingCommand(
     };
   }
 
+  const updateLayerOrder = () => layers.forEach((layer, index) => { layer.order = index; });
+
+  if (command.type === "layer.add") {
+    if (layers.some(layer => layer.id === command.layerId)) throw new Error("Cannot add layer: that ID already exists.");
+    if (!command.layerId.trim() || !command.name.trim()) throw new Error("Cannot add a layer without an ID and name.");
+    const index = Math.max(0, Math.min(layers.length, command.index));
+    const layer: DrawingLayer = {
+      id: command.layerId, name: command.name.trim(), order: index,
+      visible: true, locked: false, opacity: 1, blendMode: "normal",
+    };
+    layers.splice(index, 0, layer);
+    updateLayerOrder();
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "layer.remove", layerId: layer.id }],
+      changed: true,
+    };
+  }
+
+  if (command.type === "layer.remove") {
+    const index = layers.findIndex(layer => layer.id === command.layerId);
+    if (index < 0) throw new Error("Cannot remove layer: it does not exist.");
+    if (layers.length <= 1) throw new Error("Cannot remove layer: the last remaining layer must be kept.");
+    if (strokes.some(stroke => (stroke.layerId || layers[0]?.id) === command.layerId)) {
+      throw new Error("Cannot remove layer: it still contains strokes.");
+    }
+    const [removed] = layers.splice(index, 1);
+    updateLayerOrder();
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{
+        version: 1, id: command.id + ":undo", type: "layer.restore",
+        layer: { id: removed.id, name: removed.name, visible: removed.visible, locked: removed.locked, opacity: removed.opacity, blendMode: removed.blendMode },
+        index,
+      }],
+      changed: true,
+    };
+  }
+
+  if (command.type === "layer.restore") {
+    if (layers.some(layer => layer.id === command.layer.id)) throw new Error("Cannot restore layer: that ID already exists.");
+    if (!command.layer.name.trim()) throw new Error("Cannot restore a layer without a name.");
+    const index = Math.max(0, Math.min(layers.length, command.index));
+    const restored: DrawingLayer = { ...command.layer, order: index };
+    layers.splice(index, 0, restored);
+    updateLayerOrder();
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "layer.remove", layerId: restored.id }],
+      changed: true,
+    };
+  }
+
+  if (command.type === "layer.rename") {
+    const layer = layers.find(item => item.id === command.layerId);
+    if (!layer) throw new Error("Cannot rename layer: it does not exist.");
+    const previous = layer.name;
+    layer.name = command.name.trim();
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "layer.rename", layerId: layer.id, name: previous }],
+      changed: previous !== layer.name,
+    };
+  }
+
+  if (command.type === "layer.reorder") {
+    const previousIndex = layers.findIndex(layer => layer.id === command.layerId);
+    if (previousIndex < 0) throw new Error("Cannot reorder layer: it does not exist.");
+    const index = Math.max(0, Math.min(layers.length - 1, command.index));
+    if (index === previousIndex) {
+      return { state: { ...state, layers, strokes }, inverse: [{ version: 1, id: command.id + ":undo", type: "layer.reorder", layerId: command.layerId, index: previousIndex }], changed: false };
+    }
+    const [layer] = layers.splice(previousIndex, 1);
+    layers.splice(index, 0, layer);
+    updateLayerOrder();
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [{ version: 1, id: command.id + ":undo", type: "layer.reorder", layerId: layer.id, index: previousIndex }],
+      changed: true,
+    };
+  }
+
   const layer = layers.find(item => item.id === command.layerId);
   if (!layer) throw new Error("Cannot execute layer command: target layer does not exist.");
 

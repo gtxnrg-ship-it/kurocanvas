@@ -2,7 +2,7 @@ import type { LocalDrawingDocument } from "../core/storage";
 
 export interface DrawingReadbackExpectation {
   id: string;
-  projectId: string;
+  projectId?: string;
   version: 1;
   width: number;
   height: number;
@@ -24,6 +24,7 @@ export function verifyDrawingReadback(
   expected: DrawingReadbackExpectation,
   actual: LocalDrawingDocument | undefined,
 ): DrawingReadbackResult {
+  if (!expected.projectId?.trim()) return { ok: false, reason: "The expected drawing has no owning project." };
   if (!actual) return { ok: false, reason: "The saved drawing could not be read back." };
   if (actual.id !== expected.id) return { ok: false, reason: "The saved drawing ID does not match the active drawing." };
   if (actual.projectId !== expected.projectId) return { ok: false, reason: "The saved drawing belongs to a different project." };

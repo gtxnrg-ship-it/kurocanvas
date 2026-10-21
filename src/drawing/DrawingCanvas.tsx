@@ -6,6 +6,7 @@ import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
+import { createDrawingPlanTimeline, settleDrawingPlanTimeline, transitionDrawingPlanStep, type DrawingPlanStep } from './planTimeline';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
 import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPalette';
@@ -235,6 +236,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [planRunNonce, setPlanRunNonce] = useState(0);
   const handledPlanRef = useRef<string | null>(null);
   const [planProgress, setPlanProgress] = useState<{ completed: number; total: number; command: string } | null>(null);
+  const [planSteps, setPlanSteps] = useState<DrawingPlanStep[]>([]);
   const cancelPlanExecutionRef = useRef<(() => void) | null>(null);
 
   const render = useCallback((nextStrokes: Stroke[] = docRef.current.strokes, bg = docRef.current.background) => {
@@ -359,6 +361,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     // History belongs to one document only; never replay another drawing's snapshots here.
     setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
     setLoaded(false); setLoadError(false); setSaveState('loading');
+    setPlanSteps([]); setPlanProgress(null); setPlanAction(null);
     drawingStorage.load(drawingId, projectId).then(async saved => {
       if (saved) await preloadDrawingImages(saved.strokes as Stroke[]);
       if (cancelled) return;
@@ -418,6 +421,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const queued = createDrawingAction({ id: runKey, title: 'Apply approved drawing plan', description: pendingPlan.commands.length + ' native drawing command(s)', commandId: pendingPlan.id, requiresApproval: false });
     const running = transitionDrawingAction(queued, { type: 'execution.start', actionId: runKey });
     setPlanAction(running);
+    setPlanSteps(createDrawingPlanTimeline(pendingPlan.commands));
     setPlanProgress({ completed: 0, total: pendingPlan.commands.length, command: 'Preparing native tools' });
     let cancelled = false;
     let userCancelled = false;
@@ -530,11 +534,19 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         if (cancelled) { await restoreOriginal(); return; }
 
         let anyChanged = false;
+        let activeStepIndex = -1;
         for (let index = 0; index < pendingPlan.commands.length; index++) {
           if (cancelled) break;
           const command = pendingPlan.commands[index];
+          activeStepIndex = index;
+          setPlanSteps(currentSteps => transitionDrawingPlanStep(currentSteps, index, 'start', 'Checking the saved canvas before applying this action.'));
           const previousStep = workingDocument!;
           const latestSaved = await drawingStorage.load(drawingId, projectId);
+          if (cancelled) {
+            setPlanSteps(currentSteps => transitionDrawingPlanStep(currentSteps, index, 'cancel', 'Cancelled before this action changed the document.'));
+            activeStepIndex = -1;
+            break;
+          }
           if (!latestSaved || drawingGuardSignature(latestSaved) !== drawingGuardSignature(previousStep)) {
             preserveNewerDocument = true;
             if (latestSaved) await loadStoredCanvasIntoView(latestSaved);
@@ -581,6 +593,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             setBackground(step.document.background);
             setRedoStack([]);
           }
+          setPlanSteps(currentSteps => transitionDrawingPlanStep(
+            currentSteps,
+            index,
+            'complete',
+            step.changed ? 'Saved and read back successfully.' : 'Validated; this action required no document change.',
+          ));
+          activeStepIndex = -1;
           setPlanProgress({ completed: index + 1, total: pendingPlan.commands.length, command: command.type.replace(/\\./g, ' ') });
           setNotice('Kuro drawing in real time · native action ' + (index + 1) + ' of ' + pendingPlan.commands.length + ' · ' + command.type);
           // Yield to the renderer between native actions so the creator sees live
@@ -592,6 +611,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         if (cancelled) {
           try {
             await restoreOriginal();
+            setPlanSteps(currentSteps => settleDrawingPlanTimeline(currentSteps, 'rolled-back', 'Original canvas restored and verified after cancellation.'));
             setPlanProgress(null);
             setSaveState('saved');
             setNotice('Drawing stopped; the original canvas was restored and verified.');
@@ -601,6 +621,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             }
           } catch (restoreError) {
             const reason = restoreError instanceof Error ? restoreError.message : 'Unknown recovery error';
+            setPlanSteps(currentSteps => settleDrawingPlanTimeline(currentSteps, 'stopped', 'Rollback could not be verified: ' + reason));
             setSaveState('error');
             setNotice('Drawing stopped, but restoring the original canvas could not be verified: ' + reason + '. The pre-plan version checkpoint remains available.');
             if (userCancelled) onPlanResult(pendingPlan.id, 'error', 'Cancellation recovery failed: ' + reason);
@@ -629,6 +650,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown drawing error';
         let recoveryMessage = '';
+        if (typeof activeStepIndex === 'number' && activeStepIndex >= 0) {
+          const failedIndex = activeStepIndex;
+          setPlanSteps(currentSteps => currentSteps[failedIndex]?.status === 'running'
+            ? transitionDrawingPlanStep(currentSteps, failedIndex, 'fail', message)
+            : currentSteps);
+          activeStepIndex = -1;
+        }
         try {
           if (preserveNewerDocument) {
             recoveryMessage = ' Newer saved work was preserved; automatic rollback was skipped.';
@@ -641,6 +669,13 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             ? ' Newer saved work was preserved; rollback was skipped.'
             : ' Automatic rollback could not be verified: ' + (restoreError instanceof Error ? restoreError.message : 'unknown recovery error') + '. Use the pre-plan version checkpoint.';
         }
+        setPlanSteps(currentSteps => settleDrawingPlanTimeline(
+          currentSteps,
+          !preserveNewerDocument && recoveryMessage.includes('original canvas was restored and verified') ? 'rolled-back' : 'stopped',
+          recoveryMessage.includes('original canvas was restored and verified')
+            ? 'Original canvas restored and verified after plan failure.'
+            : 'Plan stopped; automatic rollback was skipped or could not be verified. ' + recoveryMessage,
+        ));
         if (!cancelled) {
           setPlanProgress(null);
           setNotice('AI drawing failed: ' + message + recoveryMessage);
@@ -1265,7 +1300,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }}>
       <div className="drawing-paper" ref={paperRef} style={{ aspectRatio: docRef.current.width + ' / ' + docRef.current.height, transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / docRef.current.width * 100) + '%', top: (bounds.y / docRef.current.height * 100) + '%', width: (bounds.width / docRef.current.width * 100) + '%', height: (bounds.height / docRef.current.height * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
     </div>
-    {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>Native tool agent · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}{planProgress && <div className="draw-status ai-action-status running" role="status" aria-live="polite"><span><b>Live drawing progress</b> — {planProgress.completed} / {planProgress.total} native actions · {planProgress.command}</span><progress value={planProgress.completed} max={Math.max(1, planProgress.total)} aria-label="Native drawing action progress" /> <button type="button" onClick={() => cancelPlanExecutionRef.current?.()}>Cancel drawing</button></div>}
+    {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>Native tool agent · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}{planProgress && <div className="draw-status ai-action-status running" role="status" aria-live="polite"><span><b>Live drawing progress</b> — {planProgress.completed} / {planProgress.total} native actions · {planProgress.command}</span><progress value={planProgress.completed} max={Math.max(1, planProgress.total)} aria-label="Native drawing action progress" /> <button type="button" onClick={() => cancelPlanExecutionRef.current?.()}>Cancel drawing</button></div>}{planSteps.length > 0 && <ol className="drawing-step-timeline" aria-label="Native drawing action timeline">
+      {planSteps.map(step => <li key={step.index + ':' + step.id} className={'drawing-step status-' + step.status}>
+        <span className="drawing-step-icon" aria-hidden="true">{step.status === 'completed' ? '✓' : step.status === 'running' ? '◌' : step.status === 'failed' ? '!' : step.status === 'cancelled' ? '–' : step.status === 'rolled-back' ? '↶' : '○'}</span>
+        <span className="drawing-step-copy"><b>Action {step.index + 1}: {step.label}</b><small>{step.detail || (step.status === 'pending' ? 'Waiting' : step.status.replace('-', ' '))}</small></span>
+      </li>)}
+    </ol>}
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · {docRef.current.width} × {docRef.current.height}</span></div>
   </section>;
 }

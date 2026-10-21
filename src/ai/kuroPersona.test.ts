@@ -10,7 +10,7 @@ describe("Kuro personality contract", () => {
   });
 
   it("keeps personality subordinate to factual grounding and execution safety", () => {
-    expect(KURO_PERSONA_CORE).toContain("never invent");
+    expect(KURO_PERSONA_CORE).toMatch(/never invent/i);
     expect(KURO_PERSONA_CORE).toContain("Never claim");
     expect(KURO_PERSONA_CORE).toContain("user consent");
     expect(KURO_PERSONA_CORE).toContain("approved canon");

@@ -115,6 +115,7 @@ export class LocalTinyModelProvider implements ModelProvider {
         const tokenizer = await AutoTokenizer.from_pretrained(KURO_TINY_MODEL_ID, { progress_callback } as never);
         const model = await AutoModelForCausalLM.from_pretrained(KURO_TINY_MODEL_ID, {
           device: "wasm",
+          dtype: "q8",
           progress_callback,
         } as never);
         this.emit({ status: "Model ready", progress: 100 });

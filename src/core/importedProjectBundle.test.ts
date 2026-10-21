@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createProject } from "./project";
 import { createChatUniverse } from "./universe";
-import { validateImportedProjectBundle, type ImportedProjectBundle } from "./storage";
+import { validateImportedProjectBundle, type DrawingRevision, type ImportedProjectBundle } from "./storage";
 import type { StoryMemoryRecord } from "../canon/storyMemory";
 import type { LocalDrawingDocument } from "./storage";
 
 function bundle(): ImportedProjectBundle {
   return {
     project: createProject("Atomic import test"),
-    references: [], characterModels: [], drawings: [], memories: [], universes: [], conversations: [], messages: [], relationships: [], characterStates: [],
+    references: [], characterModels: [], drawings: [], drawingRevisions: [], memories: [], universes: [], conversations: [], messages: [], relationships: [], characterStates: [],
   };
 }
 
@@ -71,5 +71,19 @@ describe("atomic project import preflight", () => {
     const value = bundle();
     value.memories.push(memory(value.project.id), memory(value.project.id, { title: "Duplicate" }));
     expect(validateImportedProjectBundle(value).some(error => /duplicate ID memory-1/i.test(error))).toBe(true);
+  });
+
+  it("accepts revision checkpoints only when their owner drawing and embedded document match", () => {
+    const value = bundle();
+    const savedDrawing = drawing(value.project.id);
+    value.drawings.push(savedDrawing);
+    const revision: DrawingRevision = {
+      id: "revision-1", drawingId: savedDrawing.id, title: "Before Kuro edit",
+      createdAt: "2026-01-01T00:00:00.000Z", document: { ...savedDrawing, strokes: [] },
+    };
+    value.drawingRevisions.push(revision);
+    expect(validateImportedProjectBundle(value)).toEqual([]);
+    value.drawingRevisions[0] = { ...revision, drawingId: "missing-drawing" };
+    expect(validateImportedProjectBundle(value)).toContain("Imported drawing revision is invalid or references a missing drawing.");
   });
 });

@@ -341,3 +341,14 @@
 .reader-page-art{display:flex;justify-content:center;padding:clamp(12px,3vw,28px);background:#17131e}
 .reader-page-art img{display:block;width:min(100%,820px);height:auto;max-height:78vh;object-fit:contain;border:1px solid #342b3e;border-radius:4px;background:#fff}
 @media(max-width:620px){.reader-workspace{padding:20px 13px 32px}.reader-workspace-head{flex-direction:column}.reader-workspace-head>button{width:100%}.reader-page-meta{padding:12px;column-gap:8px}.reader-page-art{padding:8px}}
+
+
+/* Last-resort UI recovery for unexpected render failures. */
+.app-crash-recovery{display:flex;min-height:100dvh;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:28px 20px;background:#09080f;color:#eee5f5;text-align:center}
+.app-crash-mark{display:grid;place-items:center;width:52px;height:52px;border:1px solid #5c4774;border-radius:16px;background:#20182b;color:#d4b7ff;font-size:25px;font-weight:800}
+.app-crash-eyebrow{margin:8px 0 0;color:#b79bd5;font-size:10px;font-weight:800;letter-spacing:.16em}
+.app-crash-recovery h1{margin:0;color:#f6edf9;font-size:clamp(25px,5vw,38px);letter-spacing:-.04em}
+.app-crash-recovery>p:not(.app-crash-eyebrow){max-width:520px;margin:0;color:#b0a3bc;font-size:12px;line-height:1.8}
+.app-crash-recovery button{margin-top:5px;padding:11px 16px;border:1px solid #8465a6;border-radius:9px;background:#30213f;color:#f1e3ff;font-size:12px;font-weight:700;cursor:pointer}
+.app-crash-recovery button:hover{background:#3c2a50}
+.app-crash-recovery small{max-width:500px;margin-top:8px;color:#81748e;font-size:10px;line-height:1.7}

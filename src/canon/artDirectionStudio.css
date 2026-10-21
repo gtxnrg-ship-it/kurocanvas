@@ -1,0 +1,38 @@
+.art-direction-studio{margin-top:24px;padding:clamp(16px,2.4vw,26px);border:1px solid rgba(151,125,216,.22);border-radius:18px;background:linear-gradient(145deg,rgba(32,27,45,.96),rgba(18,18,27,.98));color:#eeeaf6}
+.art-direction-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.art-direction-head small{color:#b9a3ee;font-size:10px;font-weight:800;letter-spacing:.14em}
+.art-direction-head h2{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:20px}
+.art-direction-head h2 svg{color:#c2a5ff}
+.art-direction-head p,.art-direction-subhead p{max-width:720px;margin:0;color:#aaa5b8;font-size:13px;line-height:1.6}
+.art-direction-save,.art-direction-subhead button{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;border:1px solid rgba(183,154,255,.36);border-radius:10px;background:#33264b;color:#f7f1ff;padding:10px 13px;font-size:12px;font-weight:700;cursor:pointer}
+.art-direction-save:disabled{opacity:.55;cursor:wait}
+.art-direction-project{display:flex;align-items:center;gap:10px;margin:16px 0;padding:12px;border:1px solid rgba(141,211,174,.2);border-radius:11px;background:rgba(43,90,66,.13)}
+.art-direction-project>svg{color:#9de2b9}
+.art-direction-project span{display:grid;gap:3px}
+.art-direction-project b{font-size:12px}
+.art-direction-project small{font-size:11px;color:#a8b8ae}
+.art-direction-message{font-size:12px;color:#c0b3dc;line-height:1.5}
+.art-direction-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.art-direction-fields label,.art-direction-influence label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.art-direction-fields label>span,.art-direction-influence label>span{font-size:12px;font-weight:750;color:#e8e0f6}
+.art-direction-fields label>small{font-size:11px;color:#9992a9;line-height:1.45}
+.art-direction-wide{grid-column:1/-1}
+.art-direction-fields input,.art-direction-fields textarea,.art-direction-influence input,.art-direction-influence textarea{width:100%;box-sizing:border-box;border:1px solid #393345;border-radius:9px;background:#15131d;color:#f5f1fa;padding:10px 11px;font:inherit;font-size:12px;line-height:1.55;resize:vertical}
+.art-direction-fields input:focus,.art-direction-fields textarea:focus,.art-direction-influence input:focus,.art-direction-influence textarea:focus{outline:2px solid rgba(179,147,255,.5);outline-offset:1px}
+.art-direction-influences{margin-top:24px;padding-top:20px;border-top:1px solid rgba(169,145,209,.16)}
+.art-direction-subhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}
+.art-direction-subhead h3{margin:0 0 6px;font-size:15px}
+.art-direction-subhead button{padding:8px 10px;font-size:11px}
+.art-direction-empty{font-size:12px;color:#9690a6;line-height:1.6}
+.art-direction-influence{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;padding:14px;border:1px solid #383044;border-radius:12px;background:rgba(12,11,18,.35)}
+.art-direction-influence-title{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
+.art-direction-influence-title b{font-size:11px;color:#c5b1f4}
+.art-direction-influence-title button{display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:#b8a9c9;padding:7px;cursor:pointer}
+.art-direction-influence label:last-child{grid-column:1/-1}
+.art-direction-footnote{margin:18px 0 0;padding:12px 14px;border-left:2px solid #9c7ad9;background:rgba(114,82,162,.1);color:#bcb2ce;font-size:11px;line-height:1.65}
+@media(max-width:720px){.art-direction-head,.art-direction-subhead{flex-direction:column}.art-direction-fields,.art-direction-influence{grid-template-columns:minmax(0,1fr)}.art-direction-wide,.art-direction-influence-title,.art-direction-influence label:last-child{grid-column:1}.art-direction-save,.art-direction-subhead button{width:100%}}
+
+.art-direction-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.art-direction-header-actions>button{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(167,139,250,.28);border-radius:9px;padding:9px 12px;background:rgba(167,139,250,.08);color:#d8caff;font-size:12px;cursor:pointer}
+.art-direction-header-actions>button:hover{background:rgba(167,139,250,.15);border-color:#a78bfa}
+.art-direction-header-actions>button:disabled{opacity:.45;cursor:not-allowed}

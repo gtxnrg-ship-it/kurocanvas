@@ -1,0 +1,105 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kurocanvas-android-apk
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build and package Android test APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java for Android Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install application dependencies
+        run: npm install
+
+      - name: Run regression tests
+        run: npm test
+
+      - name: Type-check and build web application
+        run: npm run build
+
+      - name: Generate the native Android project
+        run: npx cap add android
+
+      - name: Sync the built application into Android
+        run: npx cap sync android
+
+      - name: Assemble installable debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Prepare APK artifact
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/kuro-canvas-debug.apk
+          sha256sum artifacts/kuro-canvas-debug.apk | tee artifacts/kuro-canvas-debug.apk.sha256
+          printf 'Source commit: %s\nBuilt at: %s\n' "$GITHUB_SHA" "$(date -u +%FT%TZ)" > artifacts/build-info.txt
+
+      - name: Upload downloadable APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuro-canvas-debug-apk
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      # Keep one stable URL at the top of the README. Move the development tag
+      # only after all tests and the Android build have succeeded.
+      - name: Point rolling development tag to this successful build
+        run: |
+          git tag -f android-dev-latest "$GITHUB_SHA"
+          git push origin refs/tags/android-dev-latest --force
+
+      - name: Publish or update the downloadable development APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-dev-latest
+          name: Kuro Canvas — Latest Android Test APK
+          body: |
+            Automatically built Android test package for Kuro Canvas.
+
+            Source commit: ${{ github.sha }}
+
+            This is a **debug-signed testing APK**, not a production or Play Store release. Review the README before installing it. Each CI build may use a different debug signing key, so an earlier test APK may need to be uninstalled before installing a later build.
+          prerelease: true
+          draft: false
+          make_latest: false
+          files: artifacts/kuro-canvas-debug.apk
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

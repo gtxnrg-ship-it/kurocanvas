@@ -776,6 +776,15 @@ export const characterEvolutionStorage = {
     return records.filter(record => (!characterId || record.characterId === characterId) && (!timelineId || record.timelineId === timelineId))
       .sort((a, b) => a.timelineId.localeCompare(b.timelineId) || a.characterId.localeCompare(b.characterId) || a.storyOrder - b.storyOrder);
   },
+  /** Delete only a proposal after verifying universe ownership; approved history is preserved. */
+  async removeProposal(id: string, universeId: string): Promise<void> {
+    if (!id.trim() || !universeId.trim()) throw new Error("Choose a proposal and its owning universe before deleting.");
+    const record = await requestValue<CharacterEvolutionState | undefined>(CHARACTER_EVOLUTION, "readonly", store => store.get(id));
+    if (!record) return;
+    if (record.universeId !== universeId) throw new Error("Universe isolation violation: cannot delete a character state from another universe.");
+    if (record.status !== "proposed") throw new Error("Only unapproved character-state proposals may be deleted. Approved and superseded history is preserved.");
+    await requestValue<undefined>(CHARACTER_EVOLUTION, "readwrite", store => store.delete(id));
+  },
 };
 
 /** Durable relationship canon, indexed and validated within one universe. */

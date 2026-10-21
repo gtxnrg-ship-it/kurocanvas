@@ -48,12 +48,15 @@ function memoryTokensForStorage(record: StoryMemoryRecord): string[] {
     record.storyThread.type, record.storyThread.clueDescription, record.storyThread.plannedPayoff,
     ...record.storyThread.linkedEntityIds,
   ] : [];
-  const prioritized = [record.title, ...record.entityIds, ...record.tags, ...thread, record.summary];
+  // Index actual narrative evidence before decorative tags and entity-link metadata.
+  // Otherwise an entity-heavy record could consume the old token cap without indexing
+  // its summary, making a century-old scar/relationship impossible to recall by meaning.
+  const prioritized = [record.title, record.summary, record.kind, ...record.entityIds, ...record.tags, ...thread];
   const tokens = new Set<string>();
   for (const part of prioritized) {
     for (const token of part.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)) {
       if (token.length > 1) tokens.add(token);
-      if (tokens.size >= 64) return [...tokens];
+      if (tokens.size >= 96) return [...tokens];
     }
   }
   return [...tokens];

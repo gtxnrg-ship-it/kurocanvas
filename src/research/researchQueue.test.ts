@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, createResearchTask, extractResearchTaskIntent, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
 
@@ -32,6 +32,26 @@ describe("portable research task history", () => {
 });
 
 describe("Kuro research queue records", () => {
+  it("routes explicit research commands into scoped tasks and preserves source/depth choices", () => {
+    expect(extractResearchTaskIntent("Please research the history of manga censorship and cite sources")).toEqual({
+      query: "the history of manga censorship",
+      depth: "deep",
+      sourceProvider: "wikipedia",
+    });
+    expect(extractResearchTaskIntent("Search Crossref for scholarly papers about manga panel pacing")).toEqual({
+      query: "scholarly papers about manga panel pacing",
+      depth: "deep",
+      sourceProvider: "crossref",
+    });
+    expect(extractResearchTaskIntent("Quickly look up Ming dynasty armor")).toMatchObject({
+      query: "Ming dynasty armor",
+      depth: "quick",
+    });
+    expect(extractResearchTaskIntent("Write a scene where the historian researches a temple")).toBeUndefined();
+    expect(extractResearchTaskIntent("Research")).toBeUndefined();
+  });
+
+
   it("creates a project-scoped queued task with a requested depth", () => {
     const task = createResearchTask(
       { projectId: "brotherhood", query: "Ming dynasty military organization", depth: "deep" },

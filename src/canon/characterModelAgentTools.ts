@@ -1,3 +1,5 @@
+import { parseModelJson } from "../ai/structuredOutput";
+
 export type CharacterCameraPreset =
   | "front"
   | "three-quarter-left"
@@ -52,8 +54,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function parseCharacterModelAgentPlan(raw: string): CharacterModelAgentPlan {
   if (raw.length > MAX_RESPONSE_CHARS) throw new Error("The 3D tool plan exceeds the response-size limit.");
   let parsed: unknown;
-  try { parsed = JSON.parse(raw); }
-  catch { throw new Error("Kuro did not return valid JSON for the 3D tool plan."); }
+  try { parsed = parseModelJson(raw, MAX_RESPONSE_CHARS); }
+  catch { throw new Error("Kuro did not return valid structured JSON for the 3D tool plan."); }
   if (!isObject(parsed)) throw new Error("The 3D tool plan must be a JSON object.");
   if (typeof parsed.summary !== "string" || !parsed.summary.trim() || parsed.summary.length > 500) {
     throw new Error("The 3D tool plan needs a short, meaningful summary.");

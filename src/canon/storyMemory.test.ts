@@ -43,12 +43,12 @@ describe("durable story memory", () => {
     expect(result.some(item => item.summary.includes("Secret Emperor"))).toBe(false);
   });
   it("requires explicit chronology for production prompts and filters by story order", () => {
-    const first = record({ id: "s10", chapterNumber: 1, storyOrder: 10 });
-    const second = record({ id: "s20", chapterNumber: 2, storyOrder: 20 });
-    const future = record({ id: "s30", chapterNumber: 3, storyOrder: 30 });
-    const unknown = record({ id: "unknown-order", chapterNumber: undefined, storyOrder: undefined });
+    const first = record({ id: "s10", chapterNumber: 1, storyOrder: 10, timelineId: "main" });
+    const second = record({ id: "s20", chapterNumber: 2, storyOrder: 20, timelineId: "main" });
+    const future = record({ id: "s30", chapterNumber: 3, storyOrder: 30, timelineId: "main" });
+    const unknown = record({ id: "unknown-order", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: undefined });
     expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true }).map(item=>item.id)).toEqual([]);
-    expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true, storyOrder: 20 }).map(item=>item.id)).toEqual(["s10", "s20"]);
+    expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true, storyOrder: 20, timelineId: "main" }).map(item=>item.id)).toEqual(["s10", "s20"]);
   });
   it("isolates chapter memories by timeline and withholds untagged temporal history", () => {
     const main = record({ id: "main-2", chapterNumber: 2, storyOrder: 20, timelineId: "main" });
@@ -56,7 +56,7 @@ describe("durable story memory", () => {
     const sameChapterUnknownOrder = record({ id: "main-3-unknown", chapterNumber: 3, storyOrder: undefined, timelineId: "main" });
     const echo = record({ id: "echo-2", chapterNumber: 2, storyOrder: 20, timelineId: "echo" });
     const untagged = record({ id: "legacy-unscoped", chapterNumber: 1, storyOrder: 10, timelineId: undefined });
-    const timeless = record({ id: "world-note", chapterNumber: undefined, storyOrder: undefined, timelineId: undefined });
+    const timeless = record({ id: "world-note", chapterNumber: undefined, sceneNumber: undefined, storyOrder: undefined, timelineId: undefined });
     const selected = filterStoryMemoryAtPoint([main, mainPastNoOrder, sameChapterUnknownOrder, echo, untagged, timeless], "series-a", {
       productionRequest: true, chapterNumber: 3, storyOrder: 30, timelineId: "main",
     });

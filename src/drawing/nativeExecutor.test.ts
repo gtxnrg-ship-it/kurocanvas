@@ -37,6 +37,25 @@ describe("native drawing executor", () => {
     const restored = applyNativeDrawingCommand(updated.state, updated.inverse[0]);
     expect(restored.state.strokes[0]).toMatchObject({ color: "#112233", size: 4 });
   });
+  it("edits opacity and brush preset reversibly and retains them when restoring a removed stroke", () => {
+    const appearanceCommand: NativeDrawingCommand = {
+      ...add, opacity: 0.8, brushPreset: "pencil",
+    };
+    const drawn = applyNativeDrawingCommand(initial, appearanceCommand).state;
+    expect(drawn.strokes[0]).toMatchObject({ opacity: 0.8, brushPreset: "pencil" });
+    const edit: NativeDrawingCommand = {
+      version: 1, id: "appearance-edit", type: "stroke.update", strokeId: "stroke-1",
+      patch: { opacity: 0.25, brushPreset: "marker" },
+    };
+    const changed = applyNativeDrawingCommand(drawn, edit);
+    expect(changed.state.strokes[0]).toMatchObject({ opacity: 0.25, brushPreset: "marker" });
+    const restored = applyNativeDrawingCommand(changed.state, changed.inverse[0]);
+    expect(restored.state.strokes[0]).toMatchObject({ opacity: 0.8, brushPreset: "pencil" });
+    const removed = applyNativeDrawingCommand(restored.state, { version: 1, id: "remove-appearance", type: "stroke.remove", strokeId: "stroke-1" });
+    const readded = applyNativeDrawingCommand(removed.state, removed.inverse[0]);
+    expect(readded.state.strokes[0]).toMatchObject({ opacity: 0.8, brushPreset: "pencil" });
+  });
+
   it("transforms editable stroke geometry and keeps the original state immutable", () => {
     const drawn = applyNativeDrawingCommand(initial, add).state;
     const transformed = applyNativeDrawingCommand(drawn, {

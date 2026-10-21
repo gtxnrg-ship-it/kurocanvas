@@ -471,6 +471,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         entityIds: [], tags: ['drawing-asset','panel-template'], source: 'user', status: 'proposed',
         assetRefs: ['drawing:' + drawingId], supersedes: [], createdAt: now, updatedAt: now,
       });
+      setSaveState('saved');
       setNotice('Drawing linked to Story Vault as a proposal. Review and approve it in Creative Vault.');
     } catch (error) {
       setSaveState('error'); setNotice('Could not link this drawing to Story Vault: ' + (error instanceof Error ? error.message : 'unknown error'));

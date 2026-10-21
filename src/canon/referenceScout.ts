@@ -106,6 +106,7 @@ export function validateReferenceSource(value: unknown, projectId?: string): str
   if (record.licenseUrl && !safeHttps(record.licenseUrl)) errors.push("Reference license URL must use HTTPS.");
   if (!Array.isArray(record.tags) || record.tags.some(tag => typeof tag !== "string")) errors.push("Reference tags must be a list of text values.");
   if (!["proposed", "approved", "rejected"].includes(record.status ?? "")) errors.push("Reference status is invalid.");
+  if (record.sendImageToModel !== undefined && typeof record.sendImageToModel !== "boolean") errors.push("Reference image-sharing consent must be boolean.");
   if (typeof record.createdAt !== "string" || typeof record.updatedAt !== "string") errors.push("Reference timestamps are required.");
   return [...new Set(errors)];
 }

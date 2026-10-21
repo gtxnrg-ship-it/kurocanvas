@@ -61,6 +61,10 @@ function resolveRevealPoint(options: CanonRevealGateOptions): { timelineId?: str
   return { timelineId, storyOrder, ambiguous: false };
 }
 
+export function resolveApprovedRevealPoint(options: CanonRevealGateOptions): { timelineId?: string; storyOrder?: number; ambiguous: boolean } {
+  return resolveRevealPoint(options);
+}
+
 function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions): {
   bundle: CanonBundle;
   hiddenCount: number;

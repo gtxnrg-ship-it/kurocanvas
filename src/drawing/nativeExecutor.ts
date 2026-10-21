@@ -91,6 +91,7 @@ export function applyNativeDrawingCommand(
           tool: removed.tool,
           color: removed.color,
           size: removed.size,
+          ...(removed.opacity !== undefined ? { opacity: removed.opacity } : {}),
           points: removed.points,
           ...(removed.shape ? { shape: removed.shape } : {}),
           ...(removed.imageDataUrl ? { imageDataUrl: removed.imageDataUrl } : {}),
@@ -170,6 +171,7 @@ export function applyNativeDrawingCommand(
     const original: RestoreStrokeCommand["stroke"] = {
       id: current.id, layerId: current.layerId || layers[0]?.id || "",
       tool: current.tool, color: current.color, size: current.size,
+      ...(current.opacity !== undefined ? { opacity: current.opacity } : {}),
       points: current.points.map(point => ({ ...point })),
       ...(current.shape ? { shape: current.shape } : {}),
       ...(current.imageDataUrl ? { imageDataUrl: current.imageDataUrl } : {}),

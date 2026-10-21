@@ -18,8 +18,8 @@ export default function WorkspacePreview({ projectId, drawingId, onOpenCanvas }:
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
-    const refreshForProject = (projectId?: string) => {
-      if (!projectId || projectId === projectId) setRefreshVersion(version => version + 1);
+    const refreshForProject = (changedProjectId?: string) => {
+      if (!changedProjectId || changedProjectId === projectId) setRefreshVersion(version => version + 1);
     };
     const onStorageChanged = (event: Event) => {
       const detail = (event as CustomEvent<{ projectId?: string }>).detail;

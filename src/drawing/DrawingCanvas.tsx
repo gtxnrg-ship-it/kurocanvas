@@ -12,7 +12,6 @@ import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPa
 import { flipStrokeGeometry, type FlipAxis } from './flipArtwork';
 import { moveArtworkToLayerEdge, type LayerEdge } from './layerOrdering';
 import { applyStrokeAppearance } from './strokeAppearance';
-import { saveDrawingWithReadback } from './drawingReadback';
 import { drawingGuardSignature } from './drawingGuard';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 
@@ -175,7 +174,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
   return surface;
 }
 
-type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[]; expectedDocumentSignature: string } | null;
+type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[]; expectedDocumentSignature: string; expectedDocumentWasSaved: boolean } | null;
 export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error' | 'cancelled', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -454,9 +453,21 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         if (latestSaved) await loadStoredCanvasIntoView(latestSaved);
         throw new Error('The canvas changed or was removed elsewhere. Automatic rollback was skipped to preserve newer saved work.');
       }
-      await saveDrawingWithReadback(drawingStorage, workingDocument, originalDocument);
-      workingDocument = originalDocument;
-      await loadStoredCanvasIntoView(originalDocument);
+      try {
+        await drawingStorage.compareAndSave(workingDocument, originalDocument);
+      } catch (error) {
+        preserveNewerDocument = true;
+        throw new Error('The canvas changed while rollback was starting. The newer saved state was preserved. ' + (error instanceof Error ? error.message : 'Unknown rollback error.'));
+      }
+      const restored = await drawingStorage.load(originalDocument.id, originalDocument.projectId);
+      if (!restored || drawingGuardSignature(restored) !== drawingGuardSignature(originalDocument)) {
+        preserveNewerDocument = true;
+        if (restored) await loadStoredCanvasIntoView(restored);
+        throw new Error('The original artwork could not be verified after atomic rollback.');
+      }
+      workingDocument = restored;
+      originalDocument = restored;
+      await loadStoredCanvasIntoView(restored);
     };
 
     (async () => {
@@ -484,6 +495,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           preserveNewerDocument = true;
           throw new Error('Could not verify the latest saved canvas. Kuro stopped before drawing to protect existing work. ' + (error instanceof Error ? error.message : 'Unknown storage error.'));
         }
+        if (pendingPlan.expectedDocumentWasSaved && !latestAtStart) {
+          preserveNewerDocument = true;
+          throw new Error('The saved canvas was deleted after Kuro prepared this plan. Kuro will not recreate it automatically.');
+        }
+        if (!pendingPlan.expectedDocumentWasSaved && latestAtStart) {
+          preserveNewerDocument = true;
+          await loadStoredCanvasIntoView(latestAtStart);
+          throw new Error('A canvas with this ID appeared after Kuro prepared the plan. The existing document was left untouched.');
+        }
         if (latestAtStart && drawingGuardSignature(latestAtStart) !== drawingGuardSignature(current)) {
           preserveNewerDocument = true;
           await loadStoredCanvasIntoView(latestAtStart);
@@ -493,12 +513,18 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           preserveNewerDocument = true;
           throw new Error('The previously saved artwork is missing from storage. Kuro did not recreate or overwrite the missing document.');
         }
-        // A brand-new empty canvas may not have hit its normal autosave timer yet.
-        // Persist/read it back before the first native action so fresh canvases work too.
-        if (!latestAtStart) await saveDrawingWithReadback(drawingStorage, current, current);
-        originalDocument = current;
-        workingDocument = current;
-        await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), current);
+        // Initialize a genuinely new blank canvas only if this ID is still absent.
+        if (!latestAtStart) {
+          await drawingStorage.compareAndSave(undefined, current);
+          latestAtStart = await drawingStorage.load(drawingId, projectId);
+          if (!latestAtStart || drawingGuardSignature(latestAtStart) !== pendingPlan.expectedDocumentSignature) {
+            preserveNewerDocument = true;
+            throw new Error('The new canvas could not be initialized and verified safely.');
+          }
+        }
+        originalDocument = latestAtStart ?? current;
+        workingDocument = originalDocument;
+        await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), originalDocument);
         if (cancelled) { await restoreOriginal(); return; }
 
         let anyChanged = false;
@@ -517,8 +543,24 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             // Persist and read back each native action before moving to the next one.
             // The canvas therefore visibly progresses, and a failed step can roll the
             // entire plan back to the checkpoint rather than leave half-finished art.
-            await saveDrawingWithReadback(drawingStorage, previousStep, step.document);
-            workingDocument = step.document;
+            try {
+              await drawingStorage.compareAndSave(previousStep, step.document);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : '';
+              if (reason.includes('changed in storage since this step')) {
+                preserveNewerDocument = true;
+                const latestAfterConflict = await drawingStorage.load(drawingId, projectId).catch(() => undefined);
+                if (latestAfterConflict) await loadStoredCanvasIntoView(latestAfterConflict);
+              }
+              throw error;
+            }
+            const persistedStep = await drawingStorage.load(drawingId, projectId);
+            if (!persistedStep || drawingGuardSignature(persistedStep) !== drawingGuardSignature(step.document)) {
+              preserveNewerDocument = true;
+              if (persistedStep) await loadStoredCanvasIntoView(persistedStep);
+              throw new Error('The saved result changed during read-back. The newer saved state was preserved.');
+            }
+            workingDocument = persistedStep;
             anyChanged = true;
             const nextStrokes = step.document.strokes as Stroke[];
             const nextLayers = (step.document.layers?.length ? step.document.layers : [DEFAULT_LAYER]).map(layer => ({
@@ -560,10 +602,10 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         const finalReadback = await drawingStorage.load(drawingId, projectId);
         const expected = workingDocument!;
         if (!finalReadback || finalReadback.id !== expected.id || finalReadback.projectId !== expected.projectId
-          || finalReadback.width !== expected.width || finalReadback.height !== expected.height
-          || JSON.stringify(finalReadback.strokes) !== JSON.stringify(expected.strokes)
-          || JSON.stringify(finalReadback.layers) !== JSON.stringify(expected.layers)) {
-          throw new Error('The completed native drawing did not match its final saved readback.');
+          || drawingGuardSignature(finalReadback) !== drawingGuardSignature(expected)) {
+          preserveNewerDocument = true;
+          if (finalReadback) await loadStoredCanvasIntoView(finalReadback);
+          throw new Error('The completed native drawing did not match its final saved readback. The current saved state was preserved.');
         }
         setPlanProgress(null);
         setPlanUndoStack(old => [...old, beforePlan]);

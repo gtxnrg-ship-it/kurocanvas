@@ -53,8 +53,16 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
     deep: 3800,
     exhaustive: 6000,
   };
-  // The bundled local baseline is intentionally small. Asking it for several
-  // thousand tokens tends to increase latency and repetition rather than quality.
-  if (providerId === "kuro-local-browser") return Math.min(hostedBudget[depth], depth === "quick" ? 700 : 1200);
+  // Keep lightweight replies quick, while allowing full scene plans and
+  // continuity extraction up to the local runtime's declared hard cap.
+  if (providerId === "kuro-local-browser") {
+    const localBudget: Record<KuroResponseDepth, number> = {
+      quick: 256,
+      balanced: 512,
+      deep: 1024,
+      exhaustive: 1024,
+    };
+    return Math.min(hostedBudget[depth], localBudget[depth]);
+  }
   return hostedBudget[depth];
 }

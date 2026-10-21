@@ -90,6 +90,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [background, setBackground] = useState('#fffdfb');
+  const [showGrid, setShowGrid] = useState(false);
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -355,6 +356,24 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     const layer: Layer = { id: crypto.randomUUID(), name: name.trim(), visible: true, locked: false, opacity: 1, blendMode: 'normal' };
     setLayers(old => [...old, layer]); setActiveLayerId(layer.id); setNotice('Added layer ' + layer.name);
   };
+  const duplicateActiveLayer = () => {
+    const source = layers.find(layer => layer.id === activeLayerId);
+    if (!source) return;
+    const id = crypto.randomUUID();
+    const copy: Layer = { ...source, id, name: source.name + ' copy', locked: false };
+    const duplicated = strokes.filter(stroke => (stroke.layerId || layers[0]?.id) === source.id).map(stroke => ({ ...stroke, id: crypto.randomUUID(), layerId: id, points: stroke.points.map(point => ({ ...point })) }));
+    setLayers(old => [...old, copy]); setStrokes(old => [...old, ...duplicated]); setActiveLayerId(id); setRedoStack([]);
+    setNotice('Duplicated layer and its artwork');
+  };
+  const deleteActiveLayer = () => {
+    if (layers.length <= 1) { setNotice('Keep at least one layer in the drawing'); return; }
+    const current = layers.find(layer => layer.id === activeLayerId);
+    if (!current || !globalThis.confirm('Delete layer "' + current.name + '" and its artwork?')) return;
+    const nextLayers = layers.filter(layer => layer.id !== current.id);
+    setLayers(nextLayers); setStrokes(old => old.filter(stroke => (stroke.layerId || layers[0]?.id) !== current.id));
+    setActiveLayerId(nextLayers.find(layer => !layer.locked)?.id || nextLayers[0].id); setRedoStack([]);
+    setNotice('Layer and its artwork deleted');
+  };
   const renameLayer = (id: string) => {
     const current = layers.find(layer => layer.id === id);
     if (!current) return;
@@ -408,13 +427,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
         <button className={tool==='rectangle'?'chosen':''} onClick={() => setTool('rectangle')} title="Rectangle"><Square size={16}/><span>Rectangle</span></button>
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
       </div>
-      <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}</div>
+      <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}<label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
+      <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
+      <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{size}px</b></label>
       <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
-    <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><button onClick={addLayer}>＋ Add layer</button></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
+    <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>
-      <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} /></div>
+      <div className="drawing-paper" style={{ transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}</div>
     </div>
     {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>AI action · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}
     <div className="draw-status"><span>{saveState==='error'?<AlertTriangle size={13}/>:<i/>} {notice}</span><span className={'save-indicator '+saveState}>{saveState==='loading'?'Loading local drawing…':saveState==='saving'?'Saving…':saveState==='error'?'Not saved':<><Cloud size={12}/> Saved on this device</>} · {strokes.length} stroke{strokes.length===1?'':'s'} · 1600 × 1200</span></div>

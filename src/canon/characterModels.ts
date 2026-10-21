@@ -15,6 +15,9 @@ export interface CharacterModelRecord {
   id: string;
   projectId: string;
   characterName: string;
+  /** Optional chapter-specific mesh variant; absent means the base model. */
+  characterStateId?: string;
+  storyOrder?: number;
   sourceType: "procedural" | "uploaded-glb";
   fileName: string;
   modelBlob?: Blob;
@@ -30,6 +33,8 @@ export function validateCharacterModel(value: unknown, projectId?: string): stri
   if (typeof model.projectId !== "string" || !model.projectId.trim()) errors.push("Character model needs a project ID.");
   if (projectId && model.projectId !== projectId) errors.push("Character model belongs to a different project.");
   if (typeof model.characterName !== "string" || !model.characterName.trim()) errors.push("Character model needs a character name.");
+  if (model.storyOrder !== undefined && !Number.isFinite(model.storyOrder)) errors.push("Character model story order must be finite.");
+  if (model.characterStateId !== undefined && (typeof model.characterStateId !== "string" || !model.characterStateId.trim() || !Number.isFinite(model.storyOrder))) errors.push("A chapter-specific model variant needs a state ID and story order.");
   if (model.sourceType !== "procedural" && model.sourceType !== "uploaded-glb") errors.push("Character model source type is invalid.");
   if (model.sourceType === "uploaded-glb" && (!(typeof Blob !== "undefined" && model.modelBlob instanceof Blob) || model.modelBlob.size < 4 || model.modelBlob.size > 15 * 1024 * 1024)) errors.push("Uploaded character models must be GLB blobs between 4 bytes and 15 MB.");
   if (model.sourceType === "procedural" && model.modelBlob) errors.push("Procedural models must not contain an uploaded blob.");

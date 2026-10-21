@@ -176,6 +176,19 @@ export function validateDrawingCommand(
       else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot remove a stroke that is not in the active document.");
       else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot remove a stroke from a locked layer.");
       break;
+    case "stroke.update": {
+      if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot update a stroke that is not in the active document.");
+      else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot update a stroke on a locked layer.");
+      if (!record(value.patch)) { errors.push("Stroke update patch must be an object."); break; }
+      const keys = Object.keys(value.patch);
+      if (!keys.length) errors.push("Stroke update patch cannot be empty.");
+      if (keys.some(key => !["tool", "color", "size"].includes(key))) errors.push("Stroke update supports only tool, color, and size changes.");
+      if (value.patch.tool !== undefined && value.patch.tool !== "brush" && value.patch.tool !== "eraser") errors.push("Unsupported updated stroke tool.");
+      if (value.patch.color !== undefined && (typeof value.patch.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.patch.color))) errors.push("Updated stroke color must be a six-digit hex color.");
+      if (value.patch.size !== undefined && (!finite(value.patch.size) || value.patch.size <= 0 || value.patch.size > MAX_STROKE_SIZE)) errors.push("Updated stroke size is outside the supported range.");
+      break;
+    }
     case "stroke.restore": {
       if (!record(value.stroke)) {
         errors.push("Restored stroke must be an object.");

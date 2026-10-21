@@ -65,6 +65,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   bundle: CanonBundle;
   hiddenCount: number;
   unresolvedTarget: boolean;
+  hiddenTokens: string[];
 } {
   const point = resolveRevealPoint(gate);
   const states = eligibleRevealStates(gate);

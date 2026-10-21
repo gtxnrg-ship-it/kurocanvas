@@ -172,20 +172,76 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 }
 
-/** Keep the system message and most recent content inside the small model's context budget. */
+/**
+ * Keep the active request present even when a long system prompt contains persona,
+ * canon, research, and canvas context. The old implementation reserved the entire
+ * budget for the first system message and could silently drop the actual user request.
+ */
 export function boundMessages(messages: TextMessage[], maxChars: number): TextMessage[] {
   const limit = Number.isFinite(maxChars) ? Math.max(1, Math.floor(maxChars)) : 12_000;
   if (!messages.length) return [{ role: "user", content: "Hello." }];
-  const first = messages[0]?.role === "system" ? messages[0] : undefined;
-  const rest = messages.slice(first ? 1 : 0);
-  let remaining = Math.max(0, limit - (first?.content.length ?? 0));
-  const selected: TextMessage[] = [];
-  for (let i = rest.length - 1; i >= 0 && remaining > 0; i--) {
-    const message = rest[i];
-    const content = message.content.length > remaining ? message.content.slice(-remaining) : message.content;
-    selected.unshift({ role: message.role, content });
+  const systemIndex = messages[0]?.role === "system" ? 0 : -1;
+  const latestUserIndex = messages.map(message => message.role).lastIndexOf("user");
+  const system = systemIndex >= 0 ? messages[systemIndex] : undefined;
+  const latestUser = latestUserIndex >= 0 && latestUserIndex !== systemIndex ? messages[latestUserIndex] : undefined;
+
+  const clip = (content: string, budget: number): string => {
+    if (content.length <= budget) return content;
+    if (budget <= 1) return content.slice(0, budget);
+    const marker = "\n[…context clipped…]\n";
+    const usable = Math.max(0, budget - marker.length);
+    const head = Math.ceil(usable * 0.64);
+    const tail = usable - head;
+    return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
+  };
+
+  // The first system block contains the persona and execution rules. Preserve both
+  // its beginning and its tail, where project context is commonly appended.
+  const systemBudget = system && latestUser
+    ? Math.floor(limit * 0.48)
+    : system ? limit : 0;
+  const boundedSystem = system ? { role: "system", content: clip(system.content, systemBudget) } : undefined;
+  let used = boundedSystem?.content.length ?? 0;
+
+  // Protect the newest user ask; leave room for recent history rather than letting
+  // either the system or transcript consume every available character.
+  const latestUserBudget = latestUser
+    ? Math.min(Math.max(1, Math.floor(limit * 0.36)), Math.max(1, limit - used))
+    : 0;
+  const boundedLatestUser = latestUser
+    ? { ...latestUser, content: clip(latestUser.content, latestUserBudget) }
+    : undefined;
+  used += boundedLatestUser?.content.length ?? 0;
+
+  const selected = new Map<number, TextMessage>();
+  if (boundedSystem) selected.set(systemIndex, boundedSystem);
+  if (boundedLatestUser && latestUserIndex >= 0) selected.set(latestUserIndex, boundedLatestUser);
+  let remaining = Math.max(0, limit - used);
+  for (let index = messages.length - 1; index >= 0 && remaining > 0; index--) {
+    if (index === systemIndex || index === latestUserIndex) continue;
+    const message = messages[index];
+    if (!message?.content) continue;
+    const content = message.content.length > remaining
+      ? clip(message.content, remaining)
+      : message.content;
+    if (!content) continue;
+    selected.set(index, { ...message, content });
     remaining -= content.length;
   }
-  const system = first ? [{ role: first.role, content: first.content.slice(0, Math.max(0, limit - selected.reduce((n, message) => n + message.content.length, 0))) }] : [];
-  return [...system, ...selected];
+
+  // Keep role chronology, including the active user request at the end.
+  const bounded = [...selected.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, message]) => message);
+  const total = bounded.reduce((sum, message) => sum + message.content.length, 0);
+  if (total <= limit) return bounded;
+
+  // Defensive final cap for clipping markers and very small custom budgets.
+  let budget = limit;
+  return bounded.map(message => {
+    if (budget <= 0) return { ...message, content: "" };
+    const content = message.content.slice(0, budget);
+    budget -= content.length;
+    return { ...message, content };
+  }).filter(message => message.content.length > 0);
 }

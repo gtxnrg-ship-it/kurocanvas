@@ -570,7 +570,7 @@ export async function buildResearchContext(
   if (!completed.length) return "";
   const tokens = [...new Set(userMessage.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
     .filter(token => token.length >= 3 && !["the","and","for","with","that","this","about","using","research","source","sources","please","from","into","what","when","where","would","could","should","kuro","help"].includes(token)))];
-  const researchFollowUp = /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results)|based on (?:the )?research)\b/i.test(userMessage);
+  const researchFollowUp = isResearchFollowUpRequest(userMessage);
   const ranked = completed.map(task => {
     const haystack = (task.query + " " + task.sources.map(source => source.title + " " + source.extract).join(" "))
       .normalize("NFKC").toLocaleLowerCase();

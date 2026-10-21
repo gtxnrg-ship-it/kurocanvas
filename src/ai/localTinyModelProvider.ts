@@ -1,17 +1,28 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
+import { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-export const KURO_TINY_MODEL_ID = "onnx-community/SmolLM2-135M-Instruct-ONNX-MHA";
-export const KURO_TINY_MODEL_URI = "kuro-local-smollm2-135m";
-export const KURO_TINY_MODEL_DOWNLOAD_BYTES = 137_000_000;
-
-type ProgressEvent = { status?: string; progress?: number; file?: string; loaded?: number; total?: number };
+export { KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
-type Runtime = {
-  tokenizer: {
-    apply_chat_template: (messages: Array<{ role: string; content: string }>, options: Record<string, unknown>) => unknown;
-    decode: (tokens: number[], options?: Record<string, unknown>) => string;
-  };
-  model: { generate: (input: Record<string, unknown>) => Promise<{ data: ArrayLike<number> }> };
+type TextMessage = { role: string; content: string };
+type WorkerRequest =
+  | { id: number; type: "prepare" }
+  | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+type WorkerResponse =
+  | { id: number; type: "progress"; percent: number; file?: string; status: string }
+  | { id: number; type: "ready" }
+  | { id: number; type: "result"; text: string; finishReason: "stop" | "length" }
+  | { id: number; type: "error"; message: string };
+type ModelWorker = {
+  postMessage: (message: WorkerRequest) => void;
+  terminate: () => void;
+  onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
+};
+type PendingRequest = {
+  resolve: (response: WorkerResponse) => void;
+  reject: (error: Error) => void;
+  signal?: AbortSignal;
+  abortHandler?: () => void;
 };
 
 const MODEL: ModelDescriptor = {
@@ -27,19 +38,25 @@ const MODEL: ModelDescriptor = {
   modelUri: KURO_TINY_MODEL_URI,
   installed: true,
   enabled: true,
-  metadata: { runtime: "Transformers.js / ONNX Runtime Web", modelId: KURO_TINY_MODEL_ID, vision: false },
+  metadata: { runtime: "Transformers.js / ONNX Runtime Web (worker)", modelId: KURO_TINY_MODEL_ID, vision: false },
 };
 
 /**
- * Browser-local model provider. The weights are fetched only when the user explicitly
- * prepares the model or makes a first request, then cached by Transformers.js in the
- * browser cache. This model is text-only; image parts are rejected rather than ignored.
+ * Browser-local model provider. Inference runs in a dedicated worker so WASM generation
+ * does not block canvas input, animation, or chat navigation. Cancelling terminates the
+ * active worker, stopping the computation rather than merely discarding its result.
  */
 export class LocalTinyModelProvider implements ModelProvider {
   readonly id = "kuro-local-browser";
   readonly displayName = "Kuro Tiny · On-device browser model";
-  private static runtimePromise: Promise<Runtime> | undefined;
   private progressListener?: ProgressListener;
+  private worker?: ModelWorker;
+  private nextRequestId = 1;
+  private readonly pending = new Map<number, PendingRequest>();
+
+  constructor(private readonly workerFactory: () => ModelWorker = () => new Worker(
+    new URL("./localTinyModel.worker.ts", import.meta.url), { type: "module" },
+  ) as unknown as ModelWorker) {}
 
   setProgressListener(listener?: ProgressListener): void {
     this.progressListener = listener;
@@ -50,104 +67,119 @@ export class LocalTinyModelProvider implements ModelProvider {
   }
 
   async isAvailable(): Promise<boolean> {
-    return typeof window !== "undefined" && typeof WebAssembly !== "undefined";
+    return typeof window !== "undefined" && typeof WebAssembly !== "undefined" && typeof Worker !== "undefined";
   }
 
   async prepare(): Promise<void> {
-    await this.getRuntime();
+    const response = await this.send({ type: "prepare" });
+    if (response.type !== "ready") throw new Error("The local model worker did not finish preparing.");
   }
 
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
     if (model.providerId !== this.id) throw new Error("This model belongs to a different provider.");
-    if (request.signal?.aborted) {
-      return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };
-    }
-    const messages = request.messages.map((message) => {
+    if (request.signal?.aborted) return this.cancelledResponse(model);
+    const messages = request.messages.map(message => {
       if (typeof message.content !== "string") {
         throw new Error("Kuro Tiny is text-only. Canvas-image inspection needs a vision-capable model and is not supported by this local model.");
       }
       return { role: message.role, content: message.content };
     });
     const bounded = boundMessages(messages, 12_000);
-    const runtime = await this.getRuntime();
-    if (request.signal?.aborted) {
-      return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };
+    const maxOutputTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, 512));
+    try {
+      const response = await this.send({ type: "generate", messages: bounded, maxOutputTokens }, request.signal);
+      if (request.signal?.aborted) return this.cancelledResponse(model);
+      if (response.type !== "result") throw new Error("The local model worker returned an unexpected response.");
+      return { text: response.text, modelId: model.id, providerId: this.id, finishReason: response.finishReason };
+    } catch (error) {
+      if (request.signal?.aborted) return this.cancelledResponse(model);
+      throw error;
     }
-    const inputs = runtime.tokenizer.apply_chat_template(bounded, {
-      tokenize: true,
-      add_generation_prompt: true,
-      return_dict: true,
-    }) as { input_ids?: { dims?: number[] }; [key: string]: unknown };
-    const promptLength = Number(inputs.input_ids?.dims?.[1] ?? 0);
-    const maxNewTokens = Math.max(16, Math.min(request.maxOutputTokens ?? 256, 512));
-    const output = await runtime.model.generate({
-      ...inputs,
-      max_new_tokens: maxNewTokens,
-      do_sample: false,
+  }
+
+  private cancelledResponse(model: ModelDescriptor): ModelResponse {
+    return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };
+  }
+
+  private send(request: Omit<WorkerRequest, "id">, signal?: AbortSignal): Promise<WorkerResponse> {
+    if (signal?.aborted) return Promise.reject(new Error("Local model request cancelled."));
+    return new Promise<WorkerResponse>((resolve, reject) => {
+      const id = this.nextRequestId++;
+      let worker: ModelWorker;
+      try { worker = this.getWorker(); }
+      catch (error) { reject(error instanceof Error ? error : new Error("Could not start the local model worker.")); return; }
+      const abortHandler = signal ? () => {
+        this.stopWorker(new Error("The local model worker was stopped to cancel inference."), id);
+      } : undefined;
+      this.pending.set(id, { resolve, reject, signal, abortHandler });
+      if (signal && abortHandler) signal.addEventListener("abort", abortHandler, { once: true });
+      try {
+        worker.postMessage({ ...request, id } as WorkerRequest);
+      } catch (error) {
+        this.finishRequest(id);
+        reject(error instanceof Error ? error : new Error("Could not send the request to the local model worker."));
+      }
     });
-    if (request.signal?.aborted) {
-      return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };
-    }
-    const tokenIds = Array.from(output.data).slice(promptLength).map(Number);
-    const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
-    return {
-      text,
-      modelId: model.id,
-      providerId: this.id,
-      finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop",
+  }
+
+  private getWorker(): ModelWorker {
+    if (this.worker) return this.worker;
+    if (typeof Worker === "undefined") throw new Error("This browser does not support Web Workers. Kuro Tiny will not fall back to blocking the canvas thread.");
+    const worker = this.workerFactory();
+    worker.onmessage = event => {
+      const response = event.data;
+      if (response.type === "progress") {
+        this.progressListener?.({ percent: response.percent, file: response.file, status: response.status });
+        return;
+      }
+      const pending = this.pending.get(response.id);
+      if (!pending) return;
+      this.finishRequest(response.id);
+      if (response.type === "error") pending.reject(new Error(response.message));
+      else pending.resolve(response);
     };
+    worker.onerror = event => this.stopWorker(new Error(event.message || "The local model worker crashed."));
+    this.worker = worker;
+    return worker;
   }
 
-  private async getRuntime(): Promise<Runtime> {
-    if (!LocalTinyModelProvider.runtimePromise) {
-      LocalTinyModelProvider.runtimePromise = (async () => {
-        this.emit({ status: "Preparing local runtime", progress: 0 });
-        const { AutoTokenizer, AutoModelForCausalLM, env } = await import("@huggingface/transformers");
-        // Keep downloaded weights in the browser-managed cache; never persist user prompts or API keys.
-        env.allowLocalModels = false;
-        env.useBrowserCache = true;
-        const progress_callback = (event: ProgressEvent) => {
-          const percent = typeof event.progress === "number"
-            ? Math.max(0, Math.min(100, Math.round(event.progress)))
-            : event.total && event.loaded ? Math.max(0, Math.min(100, Math.round(event.loaded / event.total * 100))) : 0;
-          this.emit({ percent, file: event.file, status: event.status ?? "Downloading model" });
-        };
-        const tokenizer = await AutoTokenizer.from_pretrained(KURO_TINY_MODEL_ID, { progress_callback } as never);
-        const model = await AutoModelForCausalLM.from_pretrained(KURO_TINY_MODEL_ID, {
-          device: "wasm",
-          dtype: "q8",
-          progress_callback,
-        } as never);
-        this.emit({ status: "Model ready", progress: 100 });
-        return { tokenizer, model } as unknown as Runtime;
-      })().catch((error) => {
-        LocalTinyModelProvider.runtimePromise = undefined;
-        throw error;
-      });
+  private finishRequest(id: number): void {
+    const pending = this.pending.get(id);
+    if (pending?.signal && pending.abortHandler) pending.signal.removeEventListener("abort", pending.abortHandler);
+    this.pending.delete(id);
+  }
+
+  private stopWorker(reason: Error, cancelledRequestId?: number): void {
+    const worker = this.worker;
+    this.worker = undefined;
+    if (worker) {
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.terminate();
     }
-    return LocalTinyModelProvider.runtimePromise;
-  }
-
-  private emit(progress: { status: string; progress?: number; percent?: number; file?: string }): void {
-    this.progressListener?.({
-      percent: progress.percent ?? progress.progress ?? 0,
-      file: progress.file,
-      status: progress.status,
-    });
+    for (const [id, pending] of this.pending) {
+      if (pending.signal && pending.abortHandler) pending.signal.removeEventListener("abort", pending.abortHandler);
+      this.pending.delete(id);
+      if (id === cancelledRequestId || pending.signal?.aborted) pending.reject(new Error("Local model request cancelled."));
+      else pending.reject(reason);
+    }
   }
 }
 
-function boundMessages(messages: Array<{ role: string; content: string }>, maxChars: number): Array<{ role: string; content: string }> {
+/** Keep the system message and most recent content inside the small model's context budget. */
+export function boundMessages(messages: TextMessage[], maxChars: number): TextMessage[] {
+  const limit = Number.isFinite(maxChars) ? Math.max(1, Math.floor(maxChars)) : 12_000;
   if (!messages.length) return [{ role: "user", content: "Hello." }];
   const first = messages[0]?.role === "system" ? messages[0] : undefined;
   const rest = messages.slice(first ? 1 : 0);
-  let remaining = maxChars - (first?.content.length ?? 0);
-  const selected: Array<{ role: string; content: string }> = [];
+  let remaining = Math.max(0, limit - (first?.content.length ?? 0));
+  const selected: TextMessage[] = [];
   for (let i = rest.length - 1; i >= 0 && remaining > 0; i--) {
     const message = rest[i];
     const content = message.content.length > remaining ? message.content.slice(-remaining) : message.content;
     selected.unshift({ role: message.role, content });
     remaining -= content.length;
   }
-  return [...(first ? [{ role: first.role, content: first.content.slice(0, Math.max(0, maxChars - selected.reduce((n, m) => n + m.content.length, 0))) }] : []), ...selected];
+  const system = first ? [{ role: first.role, content: first.content.slice(0, Math.max(0, limit - selected.reduce((n, message) => n + message.content.length, 0))) }] : [];
+  return [...system, ...selected];
 }

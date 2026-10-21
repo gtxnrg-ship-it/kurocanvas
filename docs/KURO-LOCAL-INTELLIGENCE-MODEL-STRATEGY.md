@@ -42,11 +42,11 @@ The conversation and all derived assets remain within their universe unless the 
 ## Image workflow and approvals
 
 1. Clarify the user's vision in ordinary language and summarize it back.
-2. Retrieve approved universe references and explain any conflicts or missing details.
-3. Generate one or more previews using the local image model where supported.
-4. Show the generated preview directly in chat and save a versioned copy in the Vault.
-5. Record model/revision, prompt, reference IDs, and derivation history.
-6. Offer clear keep, revise, compare, or discard actions.
+2. Retrieve approved universe references and explain conflicts, missing details, and evidence.
+3. Show existing or externally sourced reference images in chat with source attribution, rights/usage notes where known, and links to the associated canon records.
+4. If a new visual is requested, create it through supported native canvas tools; an optional image-generation integration must remain separate and must never substitute for the native drawing workflow.
+5. Record source URLs, reference IDs, document/model revisions where applicable, and derivation history.
+6. Offer clear keep, revise, compare, or discard actions for proposed references and artwork.
 7. For canvas changes, produce editable native objects/layers and an actual rollback checkpoint; never represent a flattened generated image as an editable drawing.
 
 ## First evaluation suite
@@ -64,3 +64,20 @@ Create a permissioned benchmark covering:
 - low-memory performance, cancellation, and restart/resume.
 
 **Decision gate:** choose the default model only after local hardware tests and human review against the evaluation suite. A large context number or benchmark rank alone is not sufficient.
+
+
+## Shipping status: model weights and runtime are not bundled
+
+The current application has a compatible-provider connection layer and model capability/selection contracts. This is not a bundled inference engine, does not include model weights, and does not provide a turnkey offline model on first launch. A configured local endpoint means the user or operator has separately installed and started a compatible inference server.
+
+Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The open-weight Qwen3.8-27B model is one candidate to benchmark, not a completed integration or a guarantee of parity. Its full-precision model files are too large to assume a practical default download on low-memory mobile devices. The product must distinguish:
+- **Connected provider:** a configured endpoint answers requests.
+- **Installed local model:** weights and compatible runtime are present and pass a smoke test.
+- **Bundled model/runtime:** the shipped package contains or installs the explicitly licensed runtime and a documented model acquisition flow.
+- **Offline verified:** chat, scoped retrieval, and supported native tools have been tested without network access.
+
+A release must show the current state honestly. Model installation must be opt-in, license-aware, resumable, integrity-checked, disk-space checked, and cancellable. Never download tens of gigabytes silently or block first launch while downloading weights.
+
+## Chat intelligence acceptance gate
+
+Before calling Kuro ready for general use, evaluate multi-turn conversations that span long transcripts and conflicting revisions; test exact recall against source messages; require evidence for canon claims; test image/reference understanding; test graceful uncertainty; compare response quality against a strong baseline using blind human review; and verify that retrieval never leaks across universes. Measure latency and memory on supported desktop and Android devices. Publish the tested model/runtime combinations and known limitations. No single context-window figure or benchmark score substitutes for these gates.

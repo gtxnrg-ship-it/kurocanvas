@@ -121,3 +121,21 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
   if (result.length > limit) result = result.slice(0, limit - 40).trimEnd() + "\n[Art direction context truncated.]";
   return result;
 }
+
+/** Parse a model draft into editable art-direction fields without accepting metadata or influence mutations. */
+export function parseArtDirectionSynthesis(rawText: string): Partial<ArtDirectionBible> {
+  let value: unknown;
+  try { value = JSON.parse(rawText); }
+  catch { throw new Error("Kuro returned invalid JSON for the art-direction draft."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Kuro did not return a structured art-direction draft.");
+  const source = value as Record<string, unknown>;
+  const result: Partial<ArtDirectionBible> = {};
+  for (const field of ART_DIRECTION_FIELDS) {
+    const candidate = source[field.key];
+    if (typeof candidate === "string") (result as Record<string, unknown>)[field.key] = candidate.trim();
+  }
+  if (!result.visualStyle?.trim() || !result.visualInvariants?.trim() || !result.linework?.trim()) {
+    throw new Error("The draft is missing core visual rules. Retry or complete those fields manually.");
+  }
+  return result;
+}

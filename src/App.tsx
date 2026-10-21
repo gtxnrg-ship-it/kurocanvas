@@ -230,9 +230,9 @@ if(activeProjectId && captureStory){
       const plannedPayoff=typeof item.plannedPayoff==='string'?item.plannedPayoff.trim().slice(0,1600):'';
       if(!evidence||!text.includes(evidence)||!title||!clueDescription||!plannedPayoff)continue;
       if(!threadTypes.includes(item.type as StoryThreadType)||!audienceTreatments.includes(item.audienceTreatment as StoryThreadAudienceTreatment))continue;
-      const explicitChapters=[...evidence.matchAll(/\\b(?:chapter|ch\\.?)\\s*#?\\s*(\\d+)\\b/gi)].map(match=>Number(match[1]));
-      const explicitOrders=[...evidence.matchAll(/\\b(?:story\\s+order|storyOrder)\\s*[:#]?\\s*(\\d+)\\b/gi)].map(match=>Number(match[1]));
-      const explicitTimelines=[...evidence.matchAll(/\\b(?:plant|payoff|on|in)?\\s*timeline(?:\\s+id)?\\s*[:#]?\\s*([A-Za-z0-9_-]+)\\b/gi)].map(match=>match[1]);
+      const explicitChapters=[...evidence.matchAll(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/gi)].map(match=>Number(match[1]));
+      const explicitOrders=[...evidence.matchAll(/\b(?:story\s+order|storyOrder)\s*[:#]?\s*(\d+)\b/gi)].map(match=>Number(match[1]));
+      const explicitTimelines=[...evidence.matchAll(/\b(?:plant|payoff|on|in)?\s*timeline(?:\s+id)?\s*[:#]?\s*([A-Za-z0-9_-]+)\b/gi)].map(match=>match[1]);
       const plantChapter=Number.isInteger(item.plantChapterNumber)&&explicitChapters.includes(Number(item.plantChapterNumber))?Number(item.plantChapterNumber):undefined;
       const payoffChapter=Number.isInteger(item.payoffChapterNumber)&&explicitChapters.includes(Number(item.payoffChapterNumber))?Number(item.payoffChapterNumber):undefined;
       const plantOrder=Number.isFinite(item.plantStoryOrder)&&explicitOrders.includes(Number(item.plantStoryOrder))?Number(item.plantStoryOrder):undefined;
@@ -242,7 +242,7 @@ if(activeProjectId && captureStory){
       const payoffTimeline=timelineMention(item.payoffTimelineId);
       const linkedEntityIds=(Array.isArray(item.linkedEntities)?item.linkedEntities:[])
         .filter((name):name is string=>typeof name==='string'&&name.trim().length>0&&evidence.toLocaleLowerCase().includes(name.toLocaleLowerCase()))
-        .slice(0,12).map(name=>name.trim().toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,'-').replace(/^-|-$/g,''));
+        .slice(0,12).map(name=>name.trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,''));
       const now=new Date().toISOString();
       await storyMemoryStorage.save({
         id:crypto.randomUUID(),projectId:activeProjectId,kind:'event',title,summary:evidence,

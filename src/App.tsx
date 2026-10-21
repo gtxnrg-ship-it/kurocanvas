@@ -49,7 +49,7 @@ export default function App(){
  const recent:RecentUniverse[]=universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
  const chosen=recent.find(item=>item.id===universe!.id)!;
  let conversationId='';try{conversationId=localStorage.getItem('kuro-active-conversation')||'';}catch{}
- const savedConversation=conversationId?await conversationStorage.load(conversationId,universe.id):undefined;
+ let savedConversation; if(conversationId){try{savedConversation=await conversationStorage.load(conversationId,universe.id);}catch{savedConversation=undefined;}}
  const selectedConversation=savedConversation?.id??universe.homeConversationId;
  const records=await chatMessageStorage.list(universe.id,selectedConversation);
  if(!alive)return;

@@ -98,7 +98,7 @@ describe("Kuro research queue records", () => {
     expect(validateResearchTask({ ...oldTask, sourceProvider: undefined, sources: [] }, "series-a")).toEqual([]);
     expect(validateResearchTask({ ...scholarly, sources: [doiSource] }, "series-a")).toEqual([]);
     expect(validateResearchTask({ ...scholarly, sources: [{ ...doiSource, url: "https://evil.example/10.1234/example" }] }, "series-a"))
-      .toContain("Research sources must be bounded HTTPS records from en.wikipedia.org or canonical doi.org DOI links.");
+      .toContain("Wikipedia source URLs must use en.wikipedia.org HTTPS paths; Crossref source URLs must use canonical doi.org DOI links.");
     expect(validateResearchTask({ ...scholarly, sourceProvider: "arbitrary" }, "series-a"))
       .toContain("Research source provider is invalid.");
   });

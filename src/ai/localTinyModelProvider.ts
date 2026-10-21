@@ -74,8 +74,8 @@ export class LocalTinyModelProvider implements ModelProvider {
     return typeof window !== "undefined" && typeof WebAssembly !== "undefined" && typeof Worker !== "undefined";
   }
 
-  async prepare(): Promise<void> {
-    const response = await this.send({ type: "prepare" });
+  async prepare(signal?: AbortSignal): Promise<void> {
+    const response = await this.send({ type: "prepare" }, signal);
     if (response.type !== "ready") throw new Error("The local model worker did not finish preparing.");
   }
 

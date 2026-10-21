@@ -5,6 +5,7 @@ import { createConfiguredProvider, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } f
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { getKuroResponseQualityGuidance, getKuroResponseTokenBudget } from './ai/responseQuality';
+import { parseModelJson } from './ai/structuredOutput';
 import type { ModelDescriptor, ModelMessage, ModelMessageContent, ModelMessagePart } from './ai/modelRegistry';
 import DrawingCanvas from './drawing/DrawingCanvas';
 import WorkspacePreview from './drawing/WorkspacePreview';
@@ -240,12 +241,12 @@ if(activeProjectId && captureStory){
       {role:'user',content:JSON.stringify({creatorRequest:text,kuroDraft:draftForMemoryCapture.slice(0,30000)})}
     ],temperature:0,maxOutputTokens:1800,responseFormat:'json',signal:requestController.signal},model);
     if(!requestIsCurrent())return;
-    const parsed=JSON.parse(extraction.text) as {
+    const parsed=parseModelJson<{
       memories?:Array<{source?:string;kind?:string;title?:string;evidence?:string;entities?:string[]}>;
       storyThreads?:Array<{source?:string;type?:string;title?:string;evidence?:string;clueDescription?:string;plannedPayoff?:string;audienceTreatment?:string;plantChapterNumber?:number;plantStoryOrder?:number;plantTimelineId?:string;payoffChapterNumber?:number;payoffStoryOrder?:number;payoffTimelineId?:string;linkedEntities?:string[]}>;
       newCharacters?:Array<{source?:string;name?:string;evidence?:string;aliases?:string[]}>;
       visualStates?:Array<{source?:string;characterName?:string;evidence?:string;chapterNumber?:number;storyOrder?:number;age?:string;hair?:string;eyes?:string;scars?:string;outfit?:string;body?:string;accessories?:string;injuries?:string;other?:string}>;
-    };
+    }>(extraction.text, 64_000);
     const sourceText=(source?:string)=>source==='kuro-draft'?draftForMemoryCapture:text;
     const memorySource=(source?:string)=>source==='kuro-draft'?'kuro-draft' as const:'user' as const;
     let saved=0, draftSaved=0;

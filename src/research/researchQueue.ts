@@ -475,7 +475,8 @@ async function pumpQueue(): Promise<void> {
       // Catch a task enqueued in the small window between the final claim and pump shutdown.
       void transact<ResearchTaskRecord[]>("readonly", store => store.getAll()).then(all => {
         const now = Date.now();
-        if (all.some(task => task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now)) void pumpQueue();
+        const settings = all.find(task => task.id === SETTINGS_ID) as (ResearchTaskRecord & { queuePaused?: boolean }) | undefined;
+        if (!settings?.queuePaused && all.some(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now))) void pumpQueue();
       }).catch(() => undefined);
     }
   }

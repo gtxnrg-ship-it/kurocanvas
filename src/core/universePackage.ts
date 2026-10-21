@@ -94,27 +94,26 @@ export function rehomeUniversePackage(
 
   const universeById = new Map(old.universes.map(record => [record.id, record]));
   const conversationById = new Map(old.conversations.map(record => [record.id, record]));
-  const messageById = new Map(old.messages.map(record => [record.id, record]));
   for (const universe of old.universes) {
-    if (!validateUniverseRecord(universe)) throw new Error("The bundled universe " + universe.id + " is invalid.");
+    if (!validateUniverseRecord(universe)) throw new Error("The bundled universe record is invalid.");
     if (!conversationById.has(universe.homeConversationId)) throw new Error("The bundled universe " + universe.id + " is missing its home conversation.");
     if (conversationById.get(universe.homeConversationId)?.universeId !== universe.id) throw new Error("The bundled universe's home conversation belongs to another universe.");
   }
   for (const conversation of old.conversations) {
     if (!universeById.has(conversation.universeId) || !validateConversationRecord(conversation, conversation.universeId)) {
-      throw new Error("The bundled conversation " + conversation.id + " is invalid or has no bundled universe.");
+      throw new Error("A bundled conversation is invalid or has no bundled universe.");
     }
   }
   for (const message of old.messages) {
     const conversation = conversationById.get(message.conversationId);
     if (!conversation || conversation.universeId !== message.universeId
       || !validateChatMessageRecord(message, message.conversationId, message.universeId)) {
-      throw new Error("The bundled chat message " + message.id + " is invalid or belongs to a different conversation.");
+      throw new Error("A bundled chat message is invalid or belongs to a different conversation.");
     }
   }
   for (const record of old.relationships) {
     if (!universeById.has(record.universeId) || !validateRelationshipRecord(record, record.universeId)) {
-      throw new Error("The bundled relationship record " + record.id + " is invalid or has no bundled universe.");
+      throw new Error("A bundled relationship record is invalid or has no bundled universe.");
     }
   }
   for (const state of old.characterStates) {

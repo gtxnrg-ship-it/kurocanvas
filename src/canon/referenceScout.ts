@@ -49,6 +49,19 @@ const safeHttps = (value: unknown): string => {
   catch { return ""; }
 };
 
+function safeWikimediaUrl(value: unknown, expectedHost: "commons.wikimedia.org" | "upload.wikimedia.org"): string {
+  const safe = safeHttps(value);
+  if (!safe) return "";
+  try {
+    const url = new URL(safe);
+    return url.hostname.toLowerCase() === expectedHost && !url.username && !url.password && !url.port
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+
 export function parseWikimediaSearchResponse(payload: unknown, query: string): ReferenceSearchResult[] {
   if (!payload || typeof payload !== "object") return [];
   const root = payload as { query?: { pages?: Record<string, unknown> } };
@@ -60,9 +73,9 @@ export function parseWikimediaSearchResponse(payload: unknown, query: string): R
     const page = raw as { title?: unknown; imageinfo?: Array<{ url?: unknown; thumburl?: unknown; descriptionurl?: unknown; extmetadata?: Record<string, { value?: unknown }> }> };
     const info = page.imageinfo?.[0];
     if (!info) continue;
-    const imageUrl = safeHttps(info.url);
-    const sourceUrl = safeHttps(info.descriptionurl);
-    const thumbnailUrl = safeHttps(info.thumburl) || imageUrl;
+    const imageUrl = safeWikimediaUrl(info.url, "upload.wikimedia.org");
+    const sourceUrl = safeWikimediaUrl(info.descriptionurl, "commons.wikimedia.org");
+    const thumbnailUrl = safeWikimediaUrl(info.thumburl, "upload.wikimedia.org") || imageUrl;
     if (!imageUrl || !sourceUrl || !thumbnailUrl) continue;
     const meta = info.extmetadata ?? {};
     results.push({

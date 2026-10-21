@@ -99,13 +99,23 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     return () => { alive = false; };
   }, [projectId]);
 
-  const selectedModel = useMemo(() => models.find(model => model.id === modelId), [models, modelId]);
+  const selectedProfile = useMemo(() => models.find(model => model.id === modelId), [models, modelId]);
   const statesForCharacter = useMemo(() => styleBible?.characterStates.filter(state =>
-    selectedModel && normalizeName(state.characterName) === normalizeName(selectedModel.characterName) && state.status === "approved"
-  ).sort((a,b)=>a.storyOrder-b.storyOrder) ?? [], [styleBible, selectedModel]);
+    selectedProfile && normalizeName(state.characterName) === normalizeName(selectedProfile.characterName) && state.status === "approved"
+  ).sort((a,b)=>a.storyOrder-b.storyOrder) ?? [], [styleBible, selectedProfile]);
   const selectedState = useMemo(() => statesForCharacter.find(state => state.id === stateId) ?? statesForCharacter[statesForCharacter.length-1], [statesForCharacter,stateId]);
-  const resolved = selectedModel && selectedState && styleBible
-    ? resolveCharacterVisualState(styleBible.characterStates, selectedModel.characterName, selectedState.storyOrder) : undefined;
+  const selectedModel = useMemo(() => {
+    if (!selectedProfile) return undefined;
+    const variants = models.filter(model => normalizeName(model.characterName) === normalizeName(selectedProfile.characterName));
+    if (selectedState) {
+      const eligible = variants.filter(model => (model.storyOrder ?? 0) <= selectedState.storyOrder)
+        .sort((a,b)=>(a.storyOrder ?? 0)-(b.storyOrder ?? 0));
+      return eligible[eligible.length-1];
+    }
+    return variants.find(model => !model.characterStateId) ?? selectedProfile;
+  }, [models, selectedProfile, selectedState]);
+  const resolved = selectedProfile && selectedState && styleBible
+    ? resolveCharacterVisualState(styleBible.characterStates, selectedProfile.characterName, selectedState.storyOrder) : undefined;
   const scarsAbsent = scarsAreAbsent(resolved?.traits.scars);
   const activeScars = selectedModel && selectedState && !scarsAbsent
     ? selectedModel.scarOverlays.filter(scar => scar.introducedAtOrder <= selectedState.storyOrder && (scar.removedAtOrder === undefined || selectedState.storyOrder < scar.removedAtOrder))
@@ -212,12 +222,22 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     }
   }, [selectedModel, selectedState, resolved?.latest.id, scarsAbsent, activeScars.length, modelRevision]);
 
-  async function persistModel(next: CharacterModelRecord, success: string) {
+  async function persistModel(next: CharacterModelRecord, success: string, shareScars = false) {
     setBusy(true);
     try {
       const updated = { ...next, updatedAt: timestamp() };
-      await characterModelStorage.save(updated);
-      setModels(current => current.some(model => model.id === updated.id) ? current.map(model => model.id === updated.id ? updated : model) : [...current, updated]);
+      const sameCharacter = models.filter(model => normalizeName(model.characterName) === normalizeName(updated.characterName));
+      let writes: CharacterModelRecord[] = [updated];
+      if (shareScars) {
+        writes = sameCharacter.map(model => model.id === updated.id ? updated : { ...model, scarOverlays: updated.scarOverlays, updatedAt: updated.updatedAt });
+        if (!writes.some(model => model.id === updated.id)) writes.push(updated);
+      }
+      for (const record of writes) await characterModelStorage.save(record);
+      setModels(current => {
+        const byId = new Map(current.map(model => [model.id, model]));
+        for (const record of writes) byId.set(record.id, record);
+        return [...byId.values()].sort((a,b)=>a.characterName.localeCompare(b.characterName)||(a.storyOrder??0)-(b.storyOrder??0));
+      });
       setModelId(updated.id); setMessage(success);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the character model."); }
     finally { setBusy(false); }
@@ -226,10 +246,11 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   async function createBlockout() {
     const name = characterName.trim();
     if (!projectId || !name) { setMessage("Enter the exact character name before creating a blockout."); return; }
-    const existing = models.find(model => normalizeName(model.characterName) === normalizeName(name));
-    if (existing) { setModelId(existing.id); setMessage("That character already has a model entry. Select it or upload a GLB to replace its preview."); return; }
+    const existingBase = models.find(model => normalizeName(model.characterName) === normalizeName(name) && !model.characterStateId);
+    if (existingBase) { setModelId(existingBase.id); setMessage("A base model already exists. Choose a chapter state and upload a separate GLB variant to show aging or design changes."); return; }
+    const existingCharacter = models.find(model => normalizeName(model.characterName) === normalizeName(name));
     const now = timestamp();
-    const model: CharacterModelRecord = { id: crypto.randomUUID(), projectId, characterName: name, sourceType: "procedural", fileName: "", frontFace: "positive-z", scarOverlays: [], createdAt: now, updatedAt: now };
+    const model: CharacterModelRecord = { id: crypto.randomUUID(), projectId, characterName: name, storyOrder: 0, sourceType: "procedural", fileName: "", frontFace: existingCharacter?.frontFace ?? "positive-z", scarOverlays: existingCharacter?.scarOverlays ?? [], createdAt: now, updatedAt: now };
     await persistModel(model,"Created a 3D blockout for " + name + ". It is a preview rig, not a finished character sculpt.");
   }
   async function uploadModel(event: ChangeEvent<HTMLInputElement>) {
@@ -240,29 +261,31 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
       if (file.size > 15*1024*1024) throw new Error("GLB files must be 15 MB or smaller for local storage and project export.");
       const name = characterName.trim() || file.name.replace(/\.glb$/i,"");
       if (!name) throw new Error("Enter the character name first.");
-      const existing = models.find(model=>normalizeName(model.characterName)===normalizeName(name));
+      const stateForUpload = selectedState && normalizeName(selectedState.characterName) === normalizeName(name) ? selectedState : undefined;
+      const existing = models.find(model=>normalizeName(model.characterName)===normalizeName(name) && model.characterStateId === stateForUpload?.id);
+      const existingCharacter = models.find(model=>normalizeName(model.characterName)===normalizeName(name));
       const now = timestamp();
       const model: CharacterModelRecord = existing
-        ? { ...existing, characterName:name, sourceType:"uploaded-glb", fileName:file.name, modelBlob:file, frontFace, updatedAt:now }
-        : { id:crypto.randomUUID(),projectId,characterName:name,sourceType:"uploaded-glb",fileName:file.name,modelBlob:file,frontFace,scarOverlays:[],createdAt:now,updatedAt:now };
-      await persistModel(model,"Saved " + file.name + " as " + name + "'s local 3D model.");
+        ? { ...existing, characterName:name, characterStateId:stateForUpload?.id, storyOrder:stateForUpload?.storyOrder ?? 0, sourceType:"uploaded-glb", fileName:file.name, modelBlob:file, frontFace, updatedAt:now }
+        : { id:crypto.randomUUID(),projectId,characterName:name,characterStateId:stateForUpload?.id,storyOrder:stateForUpload?.storyOrder ?? 0,sourceType:"uploaded-glb",fileName:file.name,modelBlob:file,frontFace,scarOverlays:existingCharacter?.scarOverlays ?? [],createdAt:now,updatedAt:now };
+      await persistModel(model,"Saved " + file.name + " as " + name + (stateForUpload ? "'s model variant for " + stateForUpload.chapterLabel : "'s base model") + ".");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not import the GLB model."); }
     finally { input.value = ""; }
   }
   async function updateScar(id: string, patch: Partial<ScarOverlay>) {
     if (!selectedModel) return;
     const next = { ...selectedModel, scarOverlays: selectedModel.scarOverlays.map(scar=>scar.id===id?{...scar,...patch}:scar) };
-    await persistModel(next,"Updated the scar overlay. The change is saved locally.");
+    await persistModel(next,"Updated the scar overlay. The change is saved locally.",true);
   }
   async function addScar() {
     if (!selectedModel || !selectedState || scarsAbsent) { setMessage("Add and approve a character state that records the scar before placing it on the model."); return; }
     const overlay: ScarOverlay = { id:crypto.randomUUID(),characterStateId:selectedState.id,introducedAtOrder:selectedState.storyOrder,label:"Scar · "+selectedState.chapterLabel,x:.03,y:.34,z:.5,length:.075,angle:45,color:"#8b343b" };
-    await persistModel({...selectedModel,scarOverlays:[...selectedModel.scarOverlays,overlay]},"Added a scar overlay from " + selectedState.chapterLabel + ". Adjust its position on the model below.");
+    await persistModel({...selectedModel,scarOverlays:[...selectedModel.scarOverlays,overlay]},"Added a scar overlay from " + selectedState.chapterLabel + ". Adjust its position on the model below.",true);
   }
   async function recordScarRemoval() {
     if (!selectedModel || !selectedState) return;
     const next = { ...selectedModel, scarOverlays:selectedModel.scarOverlays.map(scar=>scar.introducedAtOrder<selectedState.storyOrder && (scar.removedAtOrder===undefined || scar.removedAtOrder>selectedState.storyOrder)?{...scar,removedAtOrder:selectedState.storyOrder}:scar) };
-    await persistModel(next,"Recorded scar removal at " + selectedState.chapterLabel + ". Earlier flashbacks retain the old scar.");
+    await persistModel(next,"Recorded scar removal at " + selectedState.chapterLabel + ". Earlier flashbacks retain the old scar.",true);
   }
   async function removeModel() {
     if (!selectedModel) return;
@@ -292,7 +315,7 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
         <label className="character-model-upload"><Upload size={15}/><span>Upload GLB</span><input type="file" accept=".glb,model/gltf-binary" hidden disabled={busy} onChange={event=>void uploadModel(event)}/></label>
       </div>
       <div className="character-model-controls">
-        <label><span>Character model</span><select value={modelId} onChange={event=>{setModelId(event.target.value);const model=models.find(item=>item.id===event.target.value);if(model){setCharacterName(model.characterName);setFrontFace(model.frontFace);}}}><option value="">Choose a model…</option>{models.map(model=><option key={model.id} value={model.id}>{model.characterName}{model.sourceType==="procedural"?" · blockout":" · GLB"}</option>)}</select></label>
+        <label><span>Character model</span><select value={modelId} onChange={event=>{setModelId(event.target.value);const model=models.find(item=>item.id===event.target.value);if(model){setCharacterName(model.characterName);setFrontFace(model.frontFace);}}}><option value="">Choose a model…</option>{models.map(model=><option key={model.id} value={model.id}>{model.characterName}{model.characterStateId ? " · " + (styleBible?.characterStates.find(state=>state.id===model.characterStateId)?.chapterLabel ?? "chapter variant") : " · base"}{model.sourceType==="procedural"?" · blockout":" · GLB"}</option>)}</select></label>
         <label><span>Approved chapter state</span><select value={selectedState?.id ?? ""} onChange={event=>setStateId(event.target.value)} disabled={!stateOptions.length}><option value="">No approved state</option>{stateOptions.map(state=><option key={state.id} value={state.id}>{state.chapterLabel} · order {state.storyOrder}</option>)}</select></label>
         <label><span>Model front</span><select value={selectedModel?.frontFace ?? frontFace} disabled={!selectedModel} onChange={event=>{const value=event.target.value as "positive-z"|"negative-z";setFrontFace(value);if(selectedModel)void persistModel({...selectedModel,frontFace:value},"Updated model front orientation.");}}><option value="positive-z">+Z facing camera</option><option value="negative-z">−Z facing camera</option></select></label>
         <button disabled={!selectedModel} onClick={()=>void resetView()}><RotateCcw size={14}/> Reset view</button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, MessageCircle, RefreshCw } from 'lucide-react';
+import { BookOpen, MessageCircle, PenTool, RefreshCw } from 'lucide-react';
 import { drawingStorage, type LocalDrawingDocument } from '../core/storage';
 import { buildSvgDocument } from '../drawing/svgExport';
 
@@ -36,9 +36,11 @@ function createPreview(document: LocalDrawingDocument): string {
 export default function ReaderWorkspace({
   projectId,
   onAskKuro,
+  onOpenPage,
 }: {
   projectId: string;
   onAskKuro: () => void;
+  onOpenPage: (drawingId: string) => void;
 }) {
   const [pages, setPages] = useState<ReaderPage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,7 @@ export default function ReaderWorkspace({
                 <h2>{page.title}</h2>
                 <p>{page.width} × {page.height} · {page.strokeCount} editable {page.strokeCount === 1 ? 'object' : 'objects'}</p>
                 <time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString()}</time>
+                <button type="button" onClick={() => onOpenPage(page.id)} aria-label={`Open ${page.title} in the drawing canvas`}><PenTool size={14} /> Edit in canvas</button>
               </div>
               <div className="reader-page-art">
                 <img src={page.previewUrl} alt={`Preview of ${page.title}, rendered from the saved drawing document`} loading="lazy" />

@@ -16,6 +16,8 @@ export interface ReferenceSourceRecord {
   notes: string;
   tags: string[];
   status: ReferenceStatus;
+  /** Explicit opt-in to send this public image URL to a vision-capable model. */
+  sendImageToModel?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +110,27 @@ export function validateReferenceSource(value: unknown, projectId?: string): str
   return [...new Set(errors)];
 }
 
+export interface ApprovedReferenceImage {
+  title: string;
+  imageUrl: string;
+  sourceUrl: string;
+  license: string;
+}
+/** Return only relevant, explicitly opted-in images; callers must also require a vision-capable model. */
+export function getApprovedReferenceImages(
+  records: ReferenceSourceRecord[], projectId: string, userMessage: string, limit = 3,
+): ApprovedReferenceImage[] {
+  const terms = userMessage.toLocaleLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter(term => term.length > 2);
+  const eligible = records.filter(record => {
+    const errors = validateReferenceSource(record, projectId);
+    if (errors.length) throw new Error("Saved reference validation failed: " + errors.join(" "));
+    if (record.status !== "approved" || record.sendImageToModel !== true) return false;
+    const haystack = (record.title + " " + record.description + " " + record.query + " " + record.notes + " " + record.tags.join(" ")).toLocaleLowerCase();
+    return terms.length > 0 && terms.some(term => haystack.includes(term));
+  }).slice(0, Math.max(0, Math.min(5, Math.floor(limit))));
+  return eligible.map(record => ({ title: record.title, imageUrl: record.imageUrl, sourceUrl: record.sourceUrl, license: record.license }));
+}
+
 export function buildReferenceContext(records: ReferenceSourceRecord[], projectId: string, userMessage: string, maxCharacters = 3000): string {
   const relevant = records.filter(record => {
     const errors = validateReferenceSource(record, projectId);
@@ -120,7 +143,7 @@ export function buildReferenceContext(records: ReferenceSourceRecord[], projectI
   if (!relevant.length) return "";
   const lines = [
     "PROJECT REFERENCE LIBRARY — USER-APPROVED SOURCE METADATA",
-    "These are approved reference records. Use their descriptions and notes as source metadata only; the actual image pixels are not attached to this text prompt, so never claim to have visually inspected them.",
+    "These are approved reference records. Use descriptions and notes as source metadata. Metadata alone is not visual inspection; only image parts separately attached to a vision-capable request may be visually analyzed.",
     "Respect each source's license and attribution terms. A saved reference is visual inspiration, not permission to copy protected characters, panels, or signature designs.",
   ];
   for (const record of relevant) lines.push("- " + record.title + " | " + record.notes + " | Source: " + record.sourceUrl + " | License: " + record.license + (record.creator ? " | Creator: " + record.creator : ""));

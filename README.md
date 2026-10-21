@@ -13,9 +13,7 @@ Kuro is intended to be the creator's research and worldbuilding partner as well:
 
 **Important implementation boundary:** the architecture has real native drawing commands, editable-document execution, a 3D viewport, model import/blockout support, research, and story-memory foundations. It is not yet a finished professional drawing agent or a complete 3D modeling/rigging engine. A model can propose actions; only implemented tools can execute them. Unbounded context does not literally exist—the application has to retrieve relevant long-term records under model context limits. This README distinguishes implemented code from end-to-end capabilities that still need verification.
 
-**Create · Draw · Tell · Together.**
-
-Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and Webtoon creation. Kuro's defining job is to help develop a story universe and then operate the application's **real, editable drawing tools**—not silently replace the drawing workflow with a flattened, one-shot generated image.
+Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and Webtoon creation. The intended workflow is conversational worldbuilding plus direct operation of real editable creative tools—not one-shot flattened image output.
 
 > **Project status: active development · early alpha · not a production release**
 >

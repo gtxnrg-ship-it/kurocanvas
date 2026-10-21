@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReferenceContext, parseWikimediaSearchResponse, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
+import { buildReferenceContext, parseWikimediaSearchResponse, selectApprovedReferenceImages, validateReferenceSource, type ReferenceSourceRecord } from "./referenceScout";
 
 const record = (overrides: Partial<ReferenceSourceRecord> = {}): ReferenceSourceRecord => ({
   id: "ref-1", projectId: "project-1", title: "Rainy city street", description: "Night street with reflections",
@@ -40,6 +40,21 @@ describe("reference scout", () => {
     expect(context).not.toContain("Unreviewed portrait");
     expect(context).toContain("image pixels are not attached");
     expect(buildReferenceContext([approved], "project-1", "spaceship interior")).toBe("");
+  });
+
+  it("selects only relevant approved Wikimedia image URLs for vision input", () => {
+    const approved = record({ imageUrl: "https://upload.wikimedia.org/wikipedia/commons/a/ab/Rain.jpg" });
+    const proposed = record({ id: "ref-2", status: "proposed", title: "Rainy city street draft" });
+    const arbitraryHost = record({ id: "ref-3", imageUrl: "https://images.example.test/rain.jpg" });
+    const unrelated = record({ id: "ref-4", title: "Spaceship interior", query: "spaceship interior", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/s/ship.jpg" });
+    const selected = selectApprovedReferenceImages([approved, proposed, arbitraryHost, unrelated], "project-1", "draw rainy city street");
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toMatchObject({ title: "Rainy city street", imageUrl: approved.imageUrl, sourceUrl: approved.sourceUrl });
+  });
+
+  it("does not attach approved images from another project or when no visual term matches", () => {
+    expect(selectApprovedReferenceImages([record({ projectId: "other" })], "project-1", "rainy city street")).toEqual([]);
+    expect(selectApprovedReferenceImages([record()], "project-1", "spaceship cockpit")).toEqual([]);
   });
 
   it("rejects malformed query input before sending a network request", async () => {

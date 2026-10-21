@@ -786,9 +786,19 @@ function requireUniqueImportIds(records: readonly { id: string }[], label: strin
 /** Validate imported data and all ownership links before opening a write transaction. */
 export function validateImportedProjectBundle(bundle: ImportedProjectBundle): string[] {
   const errors: string[] = [];
+  if (!bundle || typeof bundle !== "object") return ["Imported project bundle is missing."];
   const projectId = bundle.project?.id;
   if (!validateProject(bundle.project)) return ["Imported project metadata is invalid."];
   if (!projectId?.trim()) return ["Imported project needs an ID."];
+
+  const collections: Array<[string, unknown]> = [
+    ["reference sources", bundle.references], ["3D character models", bundle.characterModels],
+    ["drawings", bundle.drawings], ["story memories", bundle.memories], ["universes", bundle.universes],
+    ["conversations", bundle.conversations], ["chat messages", bundle.messages],
+    ["relationship history", bundle.relationships], ["character timeline states", bundle.characterStates],
+  ];
+  const malformedCollections = collections.filter(([, value]) => !Array.isArray(value)).map(([label]) => "Imported " + label + " must be a list.");
+  if (malformedCollections.length) return malformedCollections;
 
   if (bundle.canon) {
     if (bundle.canon.projectId !== projectId) errors.push("Imported World Bible belongs to a different project.");
@@ -808,10 +818,6 @@ export function validateImportedProjectBundle(bundle: ImportedProjectBundle): st
     ["relationship history", bundle.relationships],
     ["character timeline states", bundle.characterStates],
   ] as const) {
-    if (!Array.isArray(records)) {
-      errors.push("Imported " + label + " must be a list.");
-      continue;
-    }
     try { requireUniqueImportIds(records, label); }
     catch (error) { errors.push(error instanceof Error ? error.message : "Imported " + label + " has duplicate IDs."); }
   }

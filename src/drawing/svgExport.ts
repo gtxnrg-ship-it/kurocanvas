@@ -13,6 +13,7 @@ export type SvgExportStroke = {
   fillColor?: string;
   rotation?: number;
   brushPreset?: 'ink' | 'pencil' | 'marker' | 'airbrush' | 'watercolor' | 'dry-brush' | 'calligraphy';
+  opacity?: number;
   imageDataUrl?: string;
   imageName?: string;
 };
@@ -104,7 +105,9 @@ function strokeMarkup(stroke: SvgExportStroke) {
   } else {
     markup = '<path d="' + pathFor(stroke) + '" fill="none" stroke="' + esc(stroke.color) + '" stroke-width="' + n(lineWidth) + '" stroke-opacity="' + n(presetOpacity(stroke)) + '" stroke-linecap="round" stroke-linejoin="round"/>';
   }
-  return rotateWrap(stroke, markup);
+  const rotatedMarkup = rotateWrap(stroke, markup);
+  const opacity = Math.max(0, Math.min(1, Number.isFinite(stroke.opacity) ? stroke.opacity ?? 1 : 1));
+  return opacity >= 1 ? rotatedMarkup : '<g opacity="' + n(opacity) + '">' + rotatedMarkup + '</g>';
 }
 
 export function buildSvgDocument(options: SvgExportOptions): string {

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { canonStorage, drawingStorage, projectStorage, storyMemoryStorage, type LocalDrawingDocument } from '../core/storage';
+import { canonStorage, drawingStorage, projectStorage, storyMemoryStorage, styleBibleStorage, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
+import { validateStyleBible, type ProjectStyleBible } from '../canon/styleBible';
 import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
@@ -46,6 +47,8 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       assets['kuro/story-memory.v1.json'] = JSON.stringify(memories);
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
+      const styleBible = await styleBibleStorage.load(id);
+      if (styleBible) assets['kuro/style-bible.v1.json'] = JSON.stringify(styleBible);
       const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
         .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length)))];
       let linkedDrawings = 0;
@@ -62,7 +65,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', and ' + linkedDrawings + ' linked drawings.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (styleBible ? 'its Style Bible' : 'no Style Bible yet') + ', and ' + linkedDrawings + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }
@@ -117,6 +120,24 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (issues.length) throw new Error('The bundled World Bible failed validation: ' + issues.map(issue => issue.message).join(' '));
       }
 
+      let styleBible: ProjectStyleBible | undefined;
+      if (importedAssets['kuro/style-bible.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/style-bible.v1.json']); } catch { throw new Error('The bundled style bible is not valid JSON.'); }
+        if (!raw || typeof raw !== 'object') throw new Error('The bundled style bible is invalid.');
+        const value = raw as Partial<ProjectStyleBible>;
+        if (value.schemaVersion !== 1 || !Array.isArray(value.inspirations) || !Array.isArray(value.rules) || !Array.isArray(value.characterStates)) throw new Error('The bundled style bible has an unsupported format.');
+        styleBible = {
+          ...value, schemaVersion: 1, projectId: project.id,
+          inspirations: value.inspirations.map(item => ({...item,id:crypto.randomUUID()})),
+          rules: value.rules.map(item => ({...item,id:crypto.randomUUID()})),
+          characterStates: value.characterStates.map(item => ({...item,id:crypto.randomUUID(), ...(item.supersedes ? {supersedes:undefined} : {})})),
+          updatedAt: now,
+        } as ProjectStyleBible;
+        const errors = validateStyleBible(styleBible, project.id);
+        if (errors.length) throw new Error('Bundled style bible failed validation: ' + errors.join(' '));
+      }
+
       let oldMemories: StoryMemoryRecord[] = [];
       if (importedAssets['kuro/story-memory.v1.json']) {
         let raw: unknown;
@@ -159,6 +180,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       try {
         await projectStorage.save(project); projectSaved = true;
         if (canon) await canonStorage.save(canon);
+        if (styleBible) await styleBibleStorage.save(styleBible);
         for (const drawing of drawings) { await drawingStorage.save(drawing); savedDrawingIds.push(drawing.id); }
         for (const memory of memories) await storyMemoryStorage.save(memory);
       } catch (error) {
@@ -167,7 +189,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         throw error;
       }
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', and ' + drawings.length + ' linked drawings.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (styleBible ? 'its Style Bible' : 'no Style Bible') + ', and ' + drawings.length + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {

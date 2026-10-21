@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
-import { createConfiguredProvider, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
+import { createConfiguredProvider, isLocalTinyModelPrepared, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
 import type { KuroVoiceIntensity } from "./kuroPersona";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
@@ -58,7 +58,11 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       const qwen = found.filter(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
       if (qwen.length !== 1) throw new Error("Kuro expected exactly one Qwen3-0.6B model descriptor but did not find it.");
       setModels(qwen);
-      setStatus("Qwen3-0.6B adapter is connected. The first generation may still need to download and initialize the model weights.");
+      const prepared = isLocalTinyModelPrepared();
+      setLocalModelPrepared(prepared);
+      setStatus(prepared
+        ? "Qwen3-0.6B is already prepared in this session."
+        : "The adapter is connected, but model weights are not loaded. Use “Download & prepare Qwen3-0.6B” before chatting; this check does not download the model.");
       onSave(canonicalConfig);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not connect to Kuro's local model adapter.");
@@ -86,7 +90,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       setModels(qwen);
       setLocalModelPrepared(true);
       onSave(canonicalConfig);
-      setStatus("Qwen3-0.6B is prepared and connected. Kuro's model requests remain on-device.");
+      setStatus("Qwen3-0.6B is prepared for this session. Kuro's model requests remain on-device; after a page reload, prepare it again from the browser cache.");
     } catch (e) {
       if (controller.signal.aborted) {
         setStatus("Model preparation cancelled. Your projects and canvas remain available; prepare Qwen again when ready.");
@@ -148,7 +152,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   async function previewVoice() {
     const selected = models.find(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
     if (!selected) {
-      setError("Check the local adapter or prepare Qwen3-0.6B before previewing Kuro's voice.");
+      setError("Prepare Qwen3-0.6B before previewing Kuro's voice. Checking the adapter alone does not load model weights.");
       return;
     }
     setVoiceTesting(true);
@@ -191,14 +195,14 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
     <ModelAdvisor benchmark={localBenchmark} />
     <div className="provider-recommended-model">
       <strong>Qwen3-0.6B · the only active model</strong>
-      <p>The quantized ONNX weights are approximately 370 MB. The first download needs internet; Transformers.js then caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the model can see images.</p>
+      <p>The quantized ONNX weights are approximately 370 MB. Download and model initialization happen only when you explicitly choose “Download & prepare Qwen3-0.6B”; a normal chat message will not trigger a download. Transformers.js caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the model can see images.</p>
       <div className="provider-actions">
         <button type="button" onClick={checkModelAdapter} disabled={busy}>{busy ? "Checking…" : "Check local adapter"}</button>
         <button type="button" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Preparing… " + modelProgress + "%" : localModelPrepared ? "Prepare model again" : "Download & prepare Qwen3-0.6B"}</button>
         {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel preparation</button>}
       </div>
       <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark generation speed"}</button>
-      <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance.</p>
+      <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
     </div>
     <fieldset className="kuro-voice-settings">
@@ -209,7 +213,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         <option value="expressive">Expressive · dramatic anime energy</option>
       </select></label>
       <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
-      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting || models.length === 0}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting || !localModelPrepared}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
       {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}

@@ -58,7 +58,13 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.fillStyle = stroke.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (stroke.shape === 'text' && stroke.points.length) {
+  if (stroke.shape === 'image' && stroke.points.length && stroke.imageDataUrl) {
+    const image = imageCache.get(stroke.imageDataUrl);
+    if (image?.complete && image.naturalWidth > 0) {
+      const start = stroke.points[0], end = stroke.points[stroke.points.length - 1];
+      ctx.drawImage(image, Math.min(start.x, end.x), Math.min(start.y, end.y), Math.max(1, Math.abs(end.x - start.x)), Math.max(1, Math.abs(end.y - start.y)));
+    }
+  } else if (stroke.shape === 'text' && stroke.points.length) {
     const start = stroke.points[0];
     ctx.fillStyle = stroke.color;
     const font = stroke.fontFamily === 'serif' ? 'Georgia, serif' : stroke.fontFamily === 'sans' ? 'Arial, sans-serif' : 'Trebuchet MS, Comic Sans MS, cursive';

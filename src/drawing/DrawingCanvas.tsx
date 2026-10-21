@@ -12,6 +12,7 @@ import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPa
 import { flipStrokeGeometry, type FlipAxis } from './flipArtwork';
 import { moveArtworkToLayerEdge, type LayerEdge } from './layerOrdering';
 import { applyStrokeAppearance } from './strokeAppearance';
+import { saveDrawingWithReadback } from './drawingReadback';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
@@ -428,16 +429,25 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         const applied = applyCommandsToLocalDrawing(current, pendingPlan.commands);
         if (!applied.changed) throw new Error('The plan contained no applicable changes.');
         if (cancelled) return;
-        await drawingStorage.save(applied.document);
-        if (cancelled) { await drawingStorage.save(current); return; }
+        await saveDrawingWithReadback(drawingStorage, current, applied.document);
+        if (cancelled) {
+          try {
+            await saveDrawingWithReadback(drawingStorage, current, current);
+          } catch (restoreError) {
+            const message = restoreError instanceof Error ? restoreError.message : 'Unknown recovery error';
+            setSaveState('error');
+            setNotice('The plan was cancelled, but canvas recovery could not be verified: ' + message);
+          }
+          return;
+        }
         const nextStrokes = applied.document.strokes as Stroke[];
         const nextLayers = (applied.document.layers || [DEFAULT_LAYER]).map(layer => ({ ...layer, opacity: layer.opacity ?? 1, blendMode: (layer.blendMode ?? 'normal') as BlendMode }));
         docRef.current = { ...docRef.current, background: applied.document.background, strokes: nextStrokes };
         setStrokes(nextStrokes); setLayers(nextLayers); setRedoStack([]);
         setPlanUndoStack(old => [...old, beforePlan]); setPlanRedoStack([]); setHistoryOrder(old => [...old, 'plan']); setRedoOrder([]); setEditRedoStack([]);
-        setSaveState('saved'); setNotice('Approved AI drawing applied and saved locally');
+        setSaveState('saved'); setNotice('Approved AI drawing applied, read back, and verified in local storage');
         setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
-        onPlanResult(pendingPlan.id, 'success', 'Applied and saved locally');
+        onPlanResult(pendingPlan.id, 'success', 'Applied, read back, and verified in local storage');
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : 'Unknown drawing error';

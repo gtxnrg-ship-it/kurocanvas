@@ -1,4 +1,5 @@
 export type ResearchDepth = "quick" | "balanced" | "deep" | "exhaustive";
+export type ResearchSourceProvider = "wikipedia" | "crossref";
 export type ResearchTaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface ResearchSource {
@@ -12,6 +13,8 @@ export interface ResearchTaskRecord {
   projectId: string;
   query: string;
   depth: ResearchDepth;
+  /** Optional only for backwards compatibility with older saved research jobs. */
+  sourceProvider?: ResearchSourceProvider;
   status: ResearchTaskStatus;
   progress: number;
   stage: string;
@@ -101,6 +104,23 @@ async function transact<T>(
 function isDepth(value: unknown): value is ResearchDepth {
   return value === "quick" || value === "balanced" || value === "deep" || value === "exhaustive";
 }
+function isResearchSourceProvider(value: unknown): value is ResearchSourceProvider {
+  return value === "wikipedia" || value === "crossref";
+}
+function isSupportedResearchSourceUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    const host = url.hostname.toLocaleLowerCase();
+    if (host === "en.wikipedia.org") return url.pathname.startsWith("/wiki/") || (url.pathname === "/" && url.searchParams.has("curid"));
+    if (host === "doi.org" && !url.search && !url.hash) {
+      let path: string;
+      try { path = decodeURIComponent(url.pathname); } catch { return false; }
+      return /^\/10\.\d{4,9}\/\S+$/i.test(path);
+    }
+    return false;
+  } catch { return false; }
+}
 function isStatus(value: unknown): value is ResearchTaskStatus {
   return value === "queued" || value === "running" || value === "completed" || value === "failed" || value === "cancelled";
 }
@@ -113,6 +133,7 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
   if (expectedProjectId !== undefined && task.projectId !== expectedProjectId) errors.push("Research task belongs to another project.");
   if (typeof task.query !== "string" || task.query.trim().length < 2 || task.query.length > 1800) errors.push("Research query must contain 2–1800 characters.");
   if (!isDepth(task.depth)) errors.push("Research depth is invalid.");
+  if (task.sourceProvider !== undefined && !isResearchSourceProvider(task.sourceProvider)) errors.push("Research source provider is invalid.");
   if (!isStatus(task.status)) errors.push("Research task status is invalid.");
   if (!Number.isFinite(task.progress) || Number(task.progress) < 0 || Number(task.progress) > 100) errors.push("Research progress must be between 0 and 100.");
   if (typeof task.stage !== "string" || typeof task.createdAt !== "string" || typeof task.updatedAt !== "string") errors.push("Research task stage and timestamps are required.");
@@ -120,21 +141,15 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
     if (!source || typeof source.title !== "string" || !source.title.trim() || source.title.length > 400
       || typeof source.extract !== "string" || source.extract.length > 3200
       || typeof source.url !== "string" || source.url.length > 2000) return true;
-    try {
-      const url = new URL(source.url);
-      // This implementation researches Wikipedia, so only accept its exact HTTPS host.
-      // Do not accept lookalike domains or arbitrary Wikipedia subdomains from imported ZIPs.
-      const validPath = url.pathname.startsWith("/wiki/") || (url.pathname === "/" && url.searchParams.has("curid"));
-      return url.protocol !== "https:" || url.hostname.toLocaleLowerCase() !== "en.wikipedia.org" || !validPath;
-    } catch { return true; }
-  })) errors.push("Research sources must be bounded, valid en.wikipedia.org HTTPS source records.");
+    return !isSupportedResearchSourceUrl(source.url);
+  })) errors.push("Research sources must be bounded HTTPS records from en.wikipedia.org or canonical doi.org DOI links.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");
   if (task.error !== undefined && typeof task.error !== "string") errors.push("Research error must be text.");
   return [...new Set(errors)];
 }
 
 export function createResearchTask(
-  input: { projectId: string; query: string; depth: ResearchDepth },
+  input: { projectId: string; query: string; depth: ResearchDepth; sourceProvider?: ResearchSourceProvider },
   idFactory: () => string = () => crypto.randomUUID(),
   now = new Date().toISOString(),
 ): ResearchTaskRecord {
@@ -143,6 +158,7 @@ export function createResearchTask(
     projectId: input.projectId.trim(),
     query: input.query.trim().slice(0, 1800),
     depth: input.depth,
+    sourceProvider: input.sourceProvider ?? "wikipedia",
     status: "queued",
     progress: 0,
     stage: "Queued",
@@ -186,6 +202,7 @@ export function normalizeImportedResearchTasks(
       ...task,
       id: idFactory(),
       projectId: destinationProjectId,
+      sourceProvider: task.sourceProvider ?? "wikipedia",
       status: isCompleted ? "completed" : "cancelled",
       progress: isCompleted ? 100 : Math.min(task.progress, 99),
       stage: isCompleted ? task.stage : "Imported unfinished research — retry to run on this device",
@@ -321,6 +338,9 @@ export const researchTaskStorage = {
           const all = request.result as Array<ResearchTaskRecord & { queuePaused?: boolean }>;
           const settings = all.find(item => item.id === SETTINGS_ID);
           if (settings?.queuePaused) return;
+          // Coordinate across tabs with persisted leases; a page-local pumping flag
+          // alone cannot stop multiple tabs querying the same API concurrently.
+          if (all.some(task => task.id !== SETTINGS_ID && task.status === "running" && (task.leaseUntil ?? 0) > now)) return;
           const queue = all.filter(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now))
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
           const next = queue[0];
@@ -363,9 +383,13 @@ function notifyResearchCompletion(task: ResearchTaskRecord): void {
 }
 
 function cleanExtract(value: unknown): string {
-  return typeof value === "string"
-    ? value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim()
-    : "";
+  if (typeof value !== "string") return "";
+  return value.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_match, code: string) => {
+      const point = Number(code);
+      return Number.isInteger(point) && point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : " ";
+    }).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export function parseWikipediaResearchPayload(payload: unknown, maxSources = 8): ResearchSource[] {
@@ -408,6 +432,87 @@ export async function searchWikipediaResearch(
   return parseWikipediaResearchPayload(payload, SEARCH_LIMIT[depth]);
 }
 
+type CrossrefWork = Record<string, unknown>;
+function crossrefYear(work: CrossrefWork): string {
+  for (const key of ["published-print", "published-online", "published", "created"]) {
+    const value = work[key];
+    if (!value || typeof value !== "object") continue;
+    const parts = (value as { "date-parts"?: unknown })["date-parts"];
+    if (!Array.isArray(parts) || !Array.isArray(parts[0])) continue;
+    const year = Number(parts[0][0]);
+    if (Number.isInteger(year) && year >= 1000 && year <= 9999) return String(year);
+  }
+  return "";
+}
+
+/** Parse deposited scholarly metadata without inventing abstracts or conclusions. */
+export function parseCrossrefWorksPayload(payload: unknown, maxSources = 8): ResearchSource[] {
+  if (!payload || typeof payload !== "object") return [];
+  const message = (payload as { message?: { items?: unknown } }).message;
+  if (!message || !Array.isArray(message.items)) return [];
+  return message.items.flatMap((raw: unknown) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const work = raw as CrossrefWork;
+    const doi = typeof work.DOI === "string" ? work.DOI.trim().replace(/^https?:\/\/doi\.org\//i, "") : "";
+    if (!/^10\.\d{4,9}\/\S+$/i.test(doi)) return [];
+    const titles = Array.isArray(work.title) ? work.title : [];
+    const title = typeof titles[0] === "string" ? cleanExtract(titles[0]) : "";
+    if (!title) return [];
+    const rawAuthors = Array.isArray(work.author) ? work.author : [];
+    const authors = rawAuthors.flatMap((entry: unknown) => {
+      if (!entry || typeof entry !== "object") return [];
+      const author = entry as { given?: unknown; family?: unknown; name?: unknown };
+      const name = [author.given, author.family].filter((part): part is string => typeof part === "string" && Boolean(part.trim())).join(" ").trim()
+        || (typeof author.name === "string" ? author.name.trim() : "");
+      return name ? [name] : [];
+    }).slice(0, 5);
+    const year = crossrefYear(work);
+    const publisher = typeof work.publisher === "string" ? cleanExtract(work.publisher) : "";
+    const containers = Array.isArray(work["container-title"]) ? work["container-title"] : [];
+    const venue = typeof containers[0] === "string" ? cleanExtract(containers[0]) : "";
+    const abstract = cleanExtract(work.abstract).slice(0, 2300);
+    const details = [
+      authors.length ? "Authors: " + authors.join(", ") + (rawAuthors.length > authors.length ? ", et al." : "") : "",
+      year ? "Published: " + year : "",
+      venue ? "Journal or venue: " + venue : "",
+      publisher ? "Publisher: " + publisher : "",
+      "DOI: " + doi,
+    ].filter(Boolean).join(". ");
+    const extract = details + ". " + (abstract
+      ? "Abstract excerpt (deposited with Crossref; source may be copyright-protected): " + abstract
+      : "Crossref metadata has no abstract for this record. Consult the linked publication record before relying on details not present here.");
+    const encodedDoi = doi.split("/").map(part => encodeURIComponent(part)).join("/");
+    return [{ title: title.slice(0, 400), url: "https://doi.org/" + encodedDoi, extract: extract.slice(0, 3200) }];
+  }).slice(0, Math.max(1, Math.min(20, Math.floor(maxSources))));
+}
+
+/** Retrieve scholarly work metadata from Crossref's public REST API. */
+export async function searchCrossrefResearch(query: string, depth: ResearchDepth, signal?: AbortSignal): Promise<ResearchSource[]> {
+  const normalized = query.trim().slice(0, 1800);
+  if (normalized.length < 2) throw new Error("Enter at least two characters for scholarly research.");
+  const params = new URLSearchParams({
+    "query.bibliographic": normalized,
+    rows: String(SEARCH_LIMIT[depth]),
+    select: "DOI,title,author,publisher,published-print,published-online,published,abstract,container-title",
+  });
+  const response = await fetch("https://api.crossref.org/v1/works?" + params.toString(), {
+    method: "GET", headers: { Accept: "application/json" }, signal,
+  });
+  if (response.status === 429) throw new Error("Crossref is rate-limiting scholarly searches. Wait briefly, then retry the task.");
+  if (response.status === 403) throw new Error("Crossref declined this request. Try again later or use Wikipedia research while this source is unavailable.");
+  if (!response.ok) throw new Error("Crossref scholarly metadata search failed (HTTP " + response.status + ").");
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error("Crossref returned an unreadable scholarly metadata response."); }
+  return parseCrossrefWorksPayload(payload, SEARCH_LIMIT[depth]);
+}
+
+export async function searchResearchSources(query: string, depth: ResearchDepth, sourceProvider: ResearchSourceProvider = "wikipedia", signal?: AbortSignal): Promise<ResearchSource[]> {
+  return sourceProvider === "crossref"
+    ? searchCrossrefResearch(query, depth, signal)
+    : searchWikipediaResearch(query, depth, signal);
+}
+
 export async function buildResearchContext(
   tasks: readonly ResearchTaskRecord[],
   projectId: string,
@@ -430,10 +535,11 @@ export async function buildResearchContext(
   if (!ranked.length) return "";
   const lines = [
     "SAVED RESEARCH NOTES — SOURCED REFERENCE MATERIAL, NOT AUTOMATIC CANON",
-    "Use this research to answer the current request. Cite the supplied source URLs when making factual claims. Treat these as collected source excerpts, not proof that every claim is correct or uncontested. These notes are reference material, not automatic canon. Separate documented facts, interpretation, and fictional additions; the author decides what becomes story canon.",
+    "Use the supplied source URLs when making factual claims. Wikipedia extracts are secondary starting points; Crossref records are deposited bibliographic metadata with abstracts only when available. Neither a search result nor an abstract proves that every claim is complete, current, uncontested, or applicable. Distinguish evidence, interpretation, uncertainty and fiction. These notes are not automatic canon; the author decides what becomes story canon.",
   ];
   for (const { task } of ranked) {
-    lines.push("\nResearch task: " + task.query + " (depth: " + task.depth + "; collected: " + task.sources.length + " sources)");
+    const provider = task.sourceProvider ?? "wikipedia";
+    lines.push("\nResearch task: " + task.query + " (source: " + (provider === "crossref" ? "Crossref scholarly metadata" : "English Wikipedia") + "; depth: " + task.depth + "; collected: " + task.sources.length + " sources)");
     for (const source of task.sources.slice(0, 8)) {
       lines.push("- " + source.title + " — " + source.url);
       lines.push("  Extract: " + source.extract.slice(0, 2200));
@@ -532,9 +638,9 @@ async function pumpQueue(): Promise<void> {
       activeResearchProjectId = task.projectId;
       try {
         await researchTaskStorage.update(task.id, task.projectId, {
-          stage: "Searching Wikipedia", progress: 8, leaseUntil: Date.now() + 120_000,
+          stage: task.sourceProvider === "crossref" ? "Searching Crossref scholarly metadata" : "Searching Wikipedia", progress: 8, leaseUntil: Date.now() + 120_000,
         });
-        const sources = await searchWikipediaResearch(task.query, task.depth, controller.signal);
+        const sources = await searchResearchSources(task.query, task.depth, task.sourceProvider ?? "wikipedia", controller.signal);
         const current = await researchTaskStorage.get(task.id);
         if (!current || current.status === "cancelled") continue;
         if (paused || controller.signal.aborted) {
@@ -544,7 +650,7 @@ async function pumpQueue(): Promise<void> {
         const completed: ResearchTaskRecord = {
           ...current,
           status: "completed", progress: 100,
-          stage: sources.length ? "Research sources collected" : "Research completed — no matching pages",
+          stage: sources.length ? "Research sources collected" : "Research completed — no matching entries from " + ((task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref" : "Wikipedia"),
           sources, completedAt: new Date().toISOString(), leaseUntil: undefined,
           error: undefined, updatedAt: new Date().toISOString(),
         };

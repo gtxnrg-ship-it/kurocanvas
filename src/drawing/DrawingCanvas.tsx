@@ -9,9 +9,9 @@ import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord 
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
 import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPalette';
+import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
-type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
@@ -71,14 +71,15 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   }
   ctx.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
   const preset = stroke.brushPreset ?? 'ink';
-  const opacity = preset === 'pencil' ? 0.68 : preset === 'marker' ? 0.46 : preset === 'airbrush' ? 0.2 : 1;
-  const widthMultiplier = preset === 'pencil' ? 0.82 : preset === 'marker' ? 1.45 : preset === 'airbrush' ? 1.8 : 1;
-  ctx.globalAlpha *= opacity * (stroke.opacity ?? 1);
-  if (preset === 'airbrush') { ctx.shadowColor = stroke.color; ctx.shadowBlur = Math.max(3, stroke.size * 0.9); }
+  const profile = getBrushProfile(preset);
+  const widthMultiplier = profile.widthMultiplier;
+  ctx.globalAlpha *= profile.opacity * (stroke.opacity ?? 1);
+  if (profile.shadowBlurMultiplier > 0) { ctx.shadowColor = stroke.color; ctx.shadowBlur = Math.max(2, stroke.size * profile.shadowBlurMultiplier); }
   ctx.strokeStyle = stroke.color;
   ctx.fillStyle = stroke.color;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineCap = profile.lineCap;
+  ctx.lineJoin = profile.lineJoin;
+  if (profile.dashRatio > 0) ctx.setLineDash([Math.max(1, stroke.size * profile.dashRatio * 1.5), Math.max(0.75, stroke.size * profile.dashRatio * 0.65)]);
   if (stroke.shape === 'image' && stroke.points.length && stroke.imageDataUrl) {
     const image = imageCache.get(stroke.imageDataUrl);
     if (image?.complete && image.naturalWidth > 0) {
@@ -126,7 +127,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   } else if (stroke.points.length === 1) {
     const p = stroke.points[0];
     ctx.beginPath();
-    ctx.arc(p.x, p.y, stroke.size * (p.pressure || 0.5) * widthMultiplier, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, pressureWidth(p.pressure, stroke.size, preset), 0, Math.PI * 2);
     ctx.fill();
   } else {
     const points = stroke.points;
@@ -137,7 +138,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
       const end = next ? { x: (b.x + next.x) / 2, y: (b.y + next.y) / 2 } : b;
       const pressure = Math.max(0.15, ((a.pressure || 0.5) + (b.pressure || 0.5)) / 2);
       ctx.beginPath();
-      ctx.lineWidth = stroke.size * pressure * widthMultiplier;
+      ctx.lineWidth = pressureWidth(pressure, stroke.size, preset);
       ctx.moveTo(start.x, start.y);
       ctx.quadraticCurveTo(b.x, b.y, end.x, end.y);
       ctx.stroke();
@@ -979,7 +980,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
       <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}{customColors.map(c => <span className="custom-swatch" key={c}><button aria-label={'Choose saved color '+c} title={'Saved '+c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/><button type="button" className="custom-swatch-remove" aria-label={'Remove saved color '+c} title="Remove swatch" onClick={() => removeCustomColor(c)}>×</button></span>)}<button type="button" className="add-color-swatch" onClick={addCurrentColorToPalette} title="Save the current color as a reusable swatch">+ Swatch</button><label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
-      <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option></select></label>
+      <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option><option value="watercolor">Watercolor wash</option><option value="dry-brush">Dry brush</option><option value="calligraphy">Calligraphy nib</option></select></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>

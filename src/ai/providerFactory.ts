@@ -1,5 +1,6 @@
 import { OpenAICompatibleProvider } from "./openAICompatibleProvider";
-import { LocalTinyModelProvider, KURO_TINY_MODEL_URI } from "./localTinyModelProvider";
+import { getKuroModelAdapter } from "./kuroModelAdapter";
+import { KURO_TINY_MODEL_URI } from "./localTinyModelProvider";
 
 export const LOCAL_TINY_BASE_URL = "local://kuro-tiny";
 export const LOCAL_TINY_MODEL_URI = KURO_TINY_MODEL_URI;
@@ -11,8 +12,6 @@ export interface ProviderFactoryConfig {
   allowInsecureLocalhost: boolean;
 }
 
-const localTinyProvider = new LocalTinyModelProvider();
-
 export function isLocalTinyConfig(config: Pick<ProviderFactoryConfig, "baseUrl">): boolean {
   return config.baseUrl === LOCAL_TINY_BASE_URL;
 }
@@ -22,8 +21,11 @@ export function createConfiguredProvider(
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
 ) {
   if (isLocalTinyConfig(config)) {
-    localTinyProvider.setProgressListener(onProgress);
-    return localTinyProvider;
+    const provider = getKuroModelAdapter();
+    if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
+      provider.setProgressListener(onProgress);
+    }
+    return provider;
   }
   return new OpenAICompatibleProvider({
     baseUrl: config.baseUrl,
@@ -36,8 +38,14 @@ export async function prepareLocalTinyModel(
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
   signal?: AbortSignal,
 ) {
-  localTinyProvider.setProgressListener(onProgress);
-  await localTinyProvider.prepare(signal);
+  const provider = getKuroModelAdapter();
+  if (!("prepare" in provider) || typeof provider.prepare !== "function") {
+    throw new Error("The active Kuro model adapter does not support local model preparation.");
+  }
+  if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
+    provider.setProgressListener(onProgress);
+  }
+  await provider.prepare(signal);
   if (signal?.aborted) throw new Error("Local model preparation cancelled.");
-  return localTinyProvider.listModels();
+  return provider.listModels();
 }

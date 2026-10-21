@@ -37,6 +37,7 @@ export interface ProjectStyleBible {
   projectId: string;
   title: string;
   styleSummary: string;
+  styleSummaryStatus: StyleRecordStatus;
   inspirations: StyleInspiration[];
   rules: StyleRule[];
   characterStates: CharacterVisualState[];
@@ -54,7 +55,7 @@ const idSet = (records: Array<{id:string}>) => new Set(records.map(record=>recor
 
 export function createEmptyStyleBible(projectId: string): ProjectStyleBible {
   if (!projectId.trim()) throw new Error("A project ID is required to create a style bible.");
-  return { schemaVersion: 1, projectId, title: "Project Style Bible", styleSummary: "", inspirations: [], rules: [], characterStates: [], approvedVersion: 0, updatedAt: new Date().toISOString() };
+  return { schemaVersion: 1, projectId, title: "Project Style Bible", styleSummary: "", styleSummaryStatus: "proposed", inspirations: [], rules: [], characterStates: [], approvedVersion: 0, updatedAt: new Date().toISOString() };
 }
 
 export function validateStyleBible(bible: ProjectStyleBible, expectedProjectId?: string): string[] {
@@ -120,7 +121,7 @@ export function buildStyleBibleContext(bible: ProjectStyleBible | undefined, pro
     "Never drift between chapters. Keep approved linework, palette, proportions, rendering, and composition rules stable unless an explicit approved style revision says otherwise.",
     "Character appearances are temporal: use the state matching the requested chapter/story order. Preserve established scars, injuries, aging, hair changes, clothing changes, and accessories after they occur. Do not add a future change to an earlier chapter.",
     "If the required style or character state is absent, mark it unknown and ask for clarification rather than inventing it. Proposals are not canon.",
-    bible.title + ": " + (bible.styleSummary.trim() || "No approved style summary yet.")
+    bible.title + ": " + (bible.styleSummaryStatus === "approved" && bible.styleSummary.trim() ? bible.styleSummary : "No approved style summary yet.")
   ];
   if (approvedInspirations.length) {
     lines.push("APPROVED INSPIRATION BY ASPECT (use as high-level direction, not imitation):");

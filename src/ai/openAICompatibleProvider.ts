@@ -86,6 +86,24 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const capabilities = isQwen38Vision
         ? ["chat", "vision", "structured-output"] as const
         : ["chat"] as const;
+      const lowerName = modelName.toLowerCase();
+      let downloadBytes: number | undefined;
+      let memoryBytes: number | undefined;
+      if (isQwen38Vision) {
+        if (lowerName.includes("nvfp4")) {
+          downloadBytes = 26_381_249_312;
+          memoryBytes = 32 * 1024 ** 3;
+        } else if (lowerName.includes("fp8")) {
+          downloadBytes = 30_866_866_928;
+          memoryBytes = 38 * 1024 ** 3;
+        } else if (lowerName.includes("int4")) {
+          downloadBytes = 19_500_000_000;
+          memoryBytes = 24 * 1024 ** 3;
+        } else {
+          downloadBytes = 55_563_006_776;
+          memoryBytes = 67 * 1024 ** 3;
+        }
+      }
       const hostname = new URL(this.baseUrl).hostname;
       return {
         id: this.id + ":" + modelName,
@@ -94,6 +112,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
         location: ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ? "local" as const : "remote" as const,
         roles: [...roles],
         capabilities: [...capabilities],
+        ...(downloadBytes !== undefined ? { downloadBytes } : {}),
+        ...(memoryBytes !== undefined ? { memoryBytes } : {}),
+        ...(isQwen38Vision ? { license: "Apache-2.0" } : {}),
         modelUri: modelName,
         installed: true,
         enabled: true,

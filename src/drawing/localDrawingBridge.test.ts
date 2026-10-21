@@ -60,6 +60,14 @@ describe("local drawing command bridge", () => {
     expect(result.document.strokes[1].text).toBe("A new beginning");
     expect(result.document.strokes[1].fontFamily).toBe("comic");
   });
+  it("preserves stroke opacity and brush presets through plan serialization", () => {
+    const result = applyCommandsToLocalDrawing(document, [
+      { ...stroke, id: "low-opacity", opacity: 0.35, brushPreset: "pencil" },
+    ]);
+    expect(result.document.strokes[0].opacity).toBe(0.35);
+    expect(result.document.strokes[0].brushPreset).toBe("pencil");
+  });
+
   it("persists native shape rotation using the canvas renderer's radian convention", () => {
     const result = applyCommandsToLocalDrawing(document, [{
       ...stroke, id: "rotated-panel", shape: "rectangle", rotation: 90,

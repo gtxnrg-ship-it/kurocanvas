@@ -108,6 +108,8 @@ describe("approved canon AI context", () => {
     const brainstorm = buildApprovedCanonContext(testBundle, { projectId: "series-a", userMessage: "tell me about the emperor" });
     expect(brainstorm).toContain("The Secret Emperor");
     expect(isStoryProductionRequest("Write Chapter 1")).toBe(true);
+    expect(isStoryProductionRequest("Start Chapter 1")).toBe(true);
+    expect(isStoryProductionRequest("Make panel 2")).toBe(true);
     expect(isStoryProductionRequest("Draw panel 3")).toBe(true);
     expect(isStoryProductionRequest("Let's brainstorm the emperor privately")).toBe(false);
   });

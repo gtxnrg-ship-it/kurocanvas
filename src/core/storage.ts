@@ -754,3 +754,165 @@ export const relationshipStorage = {
     return records.sort((a,b) => a.updatedAt.localeCompare(b.updatedAt));
   },
 };
+
+
+export interface ImportedProjectBundle {
+  project: KuroProject;
+  canon?: CanonBundle;
+  artDirection?: ArtDirectionBible;
+  styleBible?: ProjectStyleBible;
+  references: ReferenceSourceRecord[];
+  characterModels: CharacterModelRecord[];
+  drawings: LocalDrawingDocument[];
+  memories: StoryMemoryRecord[];
+  universes: UniverseRecord[];
+  conversations: ConversationRecord[];
+  messages: ChatMessageRecord[];
+  relationships: RelationshipRecord[];
+  characterStates: CharacterEvolutionState[];
+}
+
+function requireUniqueImportIds(records: readonly { id: string }[], label: string): void {
+  const ids = new Set<string>();
+  for (const record of records) {
+    if (!record || typeof record.id !== "string" || !record.id.trim()) {
+      throw new Error("Imported " + label + " contains a record without an ID.");
+    }
+    if (ids.has(record.id)) throw new Error("Imported " + label + " contains duplicate ID " + record.id + ".");
+    ids.add(record.id);
+  }
+}
+
+/** Validate imported data and all ownership links before opening a write transaction. */
+export function validateImportedProjectBundle(bundle: ImportedProjectBundle): string[] {
+  const errors: string[] = [];
+  const projectId = bundle.project?.id;
+  if (!validateProject(bundle.project)) return ["Imported project metadata is invalid."];
+  if (!projectId?.trim()) return ["Imported project needs an ID."];
+
+  if (bundle.canon) {
+    if (bundle.canon.projectId !== projectId) errors.push("Imported World Bible belongs to a different project.");
+    errors.push(...validateCanon(bundle.canon).filter(issue => issue.severity === "error").map(issue => issue.message));
+  }
+  if (bundle.artDirection) errors.push(...validateArtDirection(bundle.artDirection, projectId));
+  if (bundle.styleBible) errors.push(...validateStyleBible(bundle.styleBible, projectId));
+
+  for (const [label, records] of [
+    ["reference sources", bundle.references],
+    ["3D character models", bundle.characterModels],
+    ["drawings", bundle.drawings],
+    ["story memories", bundle.memories],
+    ["universes", bundle.universes],
+    ["conversations", bundle.conversations],
+    ["chat messages", bundle.messages],
+    ["relationship history", bundle.relationships],
+    ["character timeline states", bundle.characterStates],
+  ] as const) {
+    if (!Array.isArray(records)) {
+      errors.push("Imported " + label + " must be a list.");
+      continue;
+    }
+    try { requireUniqueImportIds(records, label); }
+    catch (error) { errors.push(error instanceof Error ? error.message : "Imported " + label + " has duplicate IDs."); }
+  }
+
+  for (const reference of bundle.references) errors.push(...validateReferenceSource(reference, projectId));
+  for (const model of bundle.characterModels) errors.push(...validateCharacterModel(model, projectId));
+  for (const drawing of bundle.drawings) {
+    if (!drawing || typeof drawing.id !== "string" || !drawing.id.trim() || drawing.projectId !== projectId
+      || drawing.version !== 1 || !Number.isFinite(drawing.width) || drawing.width <= 0
+      || !Number.isFinite(drawing.height) || drawing.height <= 0 || !Array.isArray(drawing.strokes)) {
+      errors.push("Imported drawing is invalid or belongs to a different project.");
+    }
+  }
+  for (const memory of bundle.memories) errors.push(...validateStoryMemoryRecord(memory, projectId));
+
+  const universeById = new Map(bundle.universes.map(universe => [universe.id, universe]));
+  const conversationById = new Map(bundle.conversations.map(conversation => [conversation.id, conversation]));
+  for (const universe of bundle.universes) {
+    if (universe.projectId !== projectId || !validateUniverseRecord(universe)) {
+      errors.push("Imported universe is invalid or belongs to a different project.");
+      continue;
+    }
+    const home = conversationById.get(universe.homeConversationId);
+    if (!home || home.universeId !== universe.id) errors.push("Imported universe is missing its own home conversation.");
+  }
+  for (const conversation of bundle.conversations) {
+    if (!universeById.has(conversation.universeId)
+      || !validateConversationRecord(conversation, conversation.universeId)) {
+      errors.push("Imported conversation is invalid or has no owning universe.");
+    }
+  }
+  for (const message of bundle.messages) {
+    const conversation = conversationById.get(message.conversationId);
+    if (!conversation || conversation.universeId !== message.universeId
+      || !validateChatMessageRecord(message, message.conversationId, message.universeId)) {
+      errors.push("Imported chat message is invalid or references a different conversation.");
+    }
+  }
+  for (const relationship of bundle.relationships) {
+    if (!universeById.has(relationship.universeId) || !validateRelationshipRecord(relationship, relationship.universeId)) {
+      errors.push("Imported relationship history is invalid or has no owning universe.");
+    }
+  }
+  for (const state of bundle.characterStates) {
+    if (!universeById.has(state.universeId) || validateCharacterEvolutionState(state, state.universeId).length) {
+      errors.push("Imported character timeline state is invalid or has no owning universe.");
+    }
+  }
+  return [...new Set(errors)];
+}
+
+/**
+ * Atomically write a validated import. Every store participates in the same IndexedDB
+ * transaction: a quota, key collision, or request failure aborts the project and all its
+ * canon together instead of leaving a half-imported universe that looks complete.
+ */
+export async function saveImportedProjectBundle(bundle: ImportedProjectBundle): Promise<void> {
+  const errors = validateImportedProjectBundle(bundle);
+  if (errors.length) throw new Error("Project import validation failed: " + errors.slice(0, 8).join(" ") + (errors.length > 8 ? " (+" + (errors.length - 8) + " more issue(s))" : ""));
+
+  const stores = [
+    PROJECTS, CANON, ART_DIRECTION, STYLE_BIBLE, REFERENCE_SOURCES, CHARACTER_MODELS,
+    DRAWINGS, STORY_MEMORY, UNIVERSES, CONVERSATIONS, CHAT_MESSAGES, RELATIONSHIPS, CHARACTER_EVOLUTION,
+  ];
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+      const tx = db.transaction(stores, "readwrite");
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      tx.onerror = () => fail(tx.error ?? new Error("Imported project write failed."));
+      tx.onabort = () => fail(tx.error ?? new Error("Imported project transaction was aborted; no imported records were kept."));
+      try {
+        tx.objectStore(PROJECTS).add(bundle.project);
+        if (bundle.canon) tx.objectStore(CANON).add(bundle.canon);
+        if (bundle.artDirection) tx.objectStore(ART_DIRECTION).add(bundle.artDirection);
+        if (bundle.styleBible) tx.objectStore(STYLE_BIBLE).add(bundle.styleBible);
+        for (const reference of bundle.references) tx.objectStore(REFERENCE_SOURCES).add(reference);
+        for (const model of bundle.characterModels) tx.objectStore(CHARACTER_MODELS).add(model);
+        for (const drawing of bundle.drawings) tx.objectStore(DRAWINGS).add(drawing);
+        for (const memory of bundle.memories) tx.objectStore(STORY_MEMORY).add(memory);
+        for (const universe of bundle.universes) tx.objectStore(UNIVERSES).add(universe);
+        for (const conversation of bundle.conversations) tx.objectStore(CONVERSATIONS).add(conversation);
+        for (const message of bundle.messages) tx.objectStore(CHAT_MESSAGES).add(message);
+        for (const relationship of bundle.relationships) tx.objectStore(RELATIONSHIPS).add(relationship);
+        for (const state of bundle.characterStates) tx.objectStore(CHARACTER_EVOLUTION).add(state);
+      } catch (error) {
+        try { tx.abort(); } catch { /* The transaction may already be inactive. */ }
+        fail(error instanceof Error ? error : new Error("Could not queue imported project records."));
+      }
+    });
+  } finally {
+    db.close();
+  }
+}

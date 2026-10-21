@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isAuthorDirectedFullScopeRequest, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isAuthorDirectedFullScopeRequest, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint, resolveDefaultProductionPoint } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -22,6 +22,44 @@ describe("author-directed full-scope requests", () => {
 
   it("keeps ordinary sequential chapter creation inside its reveal workflow", () => {
     expect(isAuthorDirectedFullScopeRequest("Write chapter 2 where Mira enters the academy.")).toBe(false);
+  });
+});
+
+describe("default sequential production point", () => {
+  const state = (id: string, storyOrder: number, chapterNumber: number, timelineId = "main"): CharacterEvolutionState => ({
+    id, universeId: "u1", characterId: "hero", timelineId, storyOrder, chapterNumber,
+    status: "approved", appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [],
+    sourceMessageIds: [], changeSummary: "Approved position", createdAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  it("continues from the latest approved state on a single timeline", () => {
+    expect(resolveDefaultProductionPoint({
+      enabled: true, universeId: "u1", states: [state("ch1", 10, 1), state("ch2", 20, 2)],
+    })).toEqual({ timelineId: "main", storyOrder: 20, chapterNumber: 2, ambiguous: false });
+  });
+
+  it("uses a named timeline rather than mixing alternate universes", () => {
+    expect(resolveDefaultProductionPoint({
+      enabled: true, universeId: "u1", timelineId: "alternate",
+      states: [state("main-ch3", 30, 3), state("alt-ch8", 80, 8, "alternate")],
+    })).toEqual({ timelineId: "alternate", storyOrder: 80, chapterNumber: 8, ambiguous: false });
+  });
+
+  it("does not silently select between multiple approved timelines", () => {
+    expect(resolveDefaultProductionPoint({
+      enabled: true, universeId: "u1", states: [state("main", 10, 1), state("alt", 90, 1, "alternate")],
+    }).ambiguous).toBe(true);
+  });
+
+  it("does not block a fresh universe that has no temporal character-state history", () => {
+    const context = buildApprovedCanonContext(bundle, {
+      projectId: "series-a",
+      userMessage: "Write a scene where Mira enters the academy.",
+      revealGate: { enabled: true, universeId: "u1", states: [] },
+    });
+    expect(context).toContain("Mira");
+    expect(context).not.toContain("STORY OUTPUT CONTINUITY GUARD");
+    expect(context).not.toContain("STORY OUTPUT REVEAL GUARD");
   });
 });
 

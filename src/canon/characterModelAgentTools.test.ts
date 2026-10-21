@@ -8,6 +8,32 @@ describe("native character-model viewport tools", () => {
     expect(isCharacterModelToolRequest("Write a scene where the character turns toward the door.")).toBe(false);
   });
 
+  it("validates direct native model creation and animated pose presets", () => {
+    const plan = parseCharacterModelAgentPlan(JSON.stringify({
+      summary: "Build Ren's editable procedural blockout, then preview a relaxed pose.",
+      commands: [
+        { version: 1, id: "create-ren", type: "model.createBlockout", characterName: "Ren", hair: "short black hair", age: "17", outfit: "dark school uniform", bodyType: "athletic" },
+        { version: 1, id: "pose-ren", type: "model.motionPreset", preset: "relaxed" },
+      ],
+    }));
+    expect(plan.commands[0]).toMatchObject({ type: "model.createBlockout", characterName: "Ren", hair: "short black hair" });
+    expect(plan.commands[1]).toMatchObject({ type: "model.motionPreset", preset: "relaxed" });
+    expect(describeCharacterModelAgentCommand(plan.commands[0])).toContain("native procedural 3D blockout");
+    expect(describeCharacterModelAgentCommand(plan.commands[1])).toContain("relaxed");
+  });
+
+  it("rejects unsafe traits, unsupported body types, and unsupported motion names", () => {
+    expect(() => parseCharacterModelAgentPlan(JSON.stringify({ summary: "bad name", commands: [
+      { version: 1, id: "create", type: "model.createBlockout", characterName: " " },
+    ] }))).toThrow(/character name/i);
+    expect(() => parseCharacterModelAgentPlan(JSON.stringify({ summary: "bad type", commands: [
+      { version: 1, id: "create", type: "model.createBlockout", characterName: "Ren", bodyType: "robot" },
+    ] }))).toThrow(/body type/i);
+    expect(() => parseCharacterModelAgentPlan(JSON.stringify({ summary: "bad motion", commands: [
+      { version: 1, id: "pose", type: "model.motionPreset", preset: "super-saiyan" },
+    ] }))).toThrow(/motion preset/i);
+  });
+
   it("parses allowed camera actions and summarizes them as real viewport operations", () => {
     const plan = parseCharacterModelAgentPlan(JSON.stringify({
       summary: "Inspect the same model from its left side, then zoom in.",

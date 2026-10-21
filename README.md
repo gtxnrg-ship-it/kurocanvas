@@ -94,6 +94,7 @@ This is a practical smoke test, not a substitute for the full release test suite
 
 - **[Check official Kuro Canvas releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases/latest)** — if a release later includes an APK, download it only from the official release assets.
 - **[Browse all releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases)**.
+- **Download a temporary web build:** once the latest [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/workflows/kuro-canvas-checks.yml) finish successfully, open that run and download the `kuro-canvas-web-build` artifact. It is a short-lived static web build (retained for 7 days), **not an APK**; you must host/serve its files to run it.
 - **Current way to test on Android:** open the hosted preview above in Chrome if it is available, or run the app locally and access it from the phone on the same network. The local development server must be reachable from the device.
 - **Home-screen shortcut:** you may be able to use Chrome's **Add to Home screen** menu, but this is only a browser shortcut—not a packaged or verified installable app. No offline guarantee is made, and browser storage can be cleared by the user or operating system.
 

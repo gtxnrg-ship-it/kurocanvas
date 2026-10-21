@@ -129,7 +129,7 @@ export function parseArtDirectionSynthesis(rawText: string): Partial<ArtDirectio
   if (rawText.length > 64_000) throw new Error("The art-direction draft exceeds the response-size limit.");
   let value: unknown;
   try { value = parseModelJson(rawText, 64_000); }
-  catch { throw new Error("Kuro returned invalid structured JSON for the art-direction draft."); }
+  catch { throw new Error("Kuro returned invalid JSON for the art-direction draft (after structured-output recovery)."); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Kuro did not return a structured art-direction draft.");
   const source = value as Record<string, unknown>;
   const result: Partial<ArtDirectionBible> = {};

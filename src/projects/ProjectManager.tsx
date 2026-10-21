@@ -259,7 +259,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (errors.length) throw new Error('Bundled reference failed validation: ' + errors.join(' '));
       }
 
-      let researchTasks = [];
+      let researchTasks: ReturnType<typeof normalizeImportedResearchTasks> = [];
       if (importedAssets['kuro/research-tasks.v1.json']) {
         let raw: unknown;
         try { raw = JSON.parse(importedAssets['kuro/research-tasks.v1.json']); }

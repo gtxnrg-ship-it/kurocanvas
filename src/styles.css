@@ -177,3 +177,10 @@
 .version-history-row small{font-size:10px;color:#9b8ca8}
 .version-history-row button:hover,.version-history-head button:hover{border-color:#b69aff;background:#342541}
 @media(max-width:640px){.version-history-panel{padding:10px}.version-history-row{align-items:flex-start}.version-history-row button{flex-shrink:0}}
+
+.symmetry-control{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid rgba(167,139,250,.24);border-radius:9px;background:rgba(24,20,37,.78);font-size:11px;color:#cfc5e3}
+.symmetry-control select{max-width:124px;min-width:92px;background:#171321;color:#f5f2fb;border:1px solid #39314a;border-radius:6px;padding:5px}
+.symmetry-guides{position:absolute;inset:0;pointer-events:none;z-index:4}
+.symmetry-guides i{position:absolute;display:block;opacity:.75}
+.symmetry-axis-vertical{top:0;bottom:0;left:50%;border-left:1px dashed #9b80e6;filter:drop-shadow(0 0 2px rgba(155,128,230,.45))}
+.symmetry-axis-horizontal{left:0;right:0;top:50%;border-top:1px dashed #9b80e6;filter:drop-shadow(0 0 2px rgba(155,128,230,.45))}

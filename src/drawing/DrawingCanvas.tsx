@@ -8,6 +8,7 @@ import type { NativeDrawingCommand } from './commands';
 import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord } from './actionQueue';
 import { createSymmetryCopies, type SymmetryMode } from './symmetry';
 import { CANVAS_PRESETS, isValidCanvasDimensions } from './canvasDimensions';
+import { addPaletteColor, normalizePalette, removePaletteColor } from './colorPalette';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
@@ -187,6 +188,10 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [drawingName, setDrawingName] = useState('My first sketch');
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(COLORS[2]);
+  const [customColors, setCustomColors] = useState<string[]>(() => {
+    try { const saved = localStorage.getItem('kuro-canvas-custom-colors-v1'); return normalizePalette(saved ? JSON.parse(saved) : []); }
+    catch { return []; }
+  });
   const [size, setSize] = useState(6);
   const [strokeOpacity, setStrokeOpacity] = useState(100);
   const [textDraft, setTextDraft] = useState('');
@@ -214,6 +219,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [transparentExport, setTransparentExport] = useState(false);
   const [exportScale, setExportScale] = useState<1 | 1.5 | 2>(1);
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
+  useEffect(() => { try { localStorage.setItem('kuro-canvas-custom-colors-v1', JSON.stringify(customColors)); } catch { /* Palette persistence is optional in restricted browser contexts. */ } }, [customColors]);
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -665,6 +671,18 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [undo, redo]);
+  const addCurrentColorToPalette = () => {
+    const result = addPaletteColor(customColors, color);
+    if (!result.added) {
+      setNotice(result.reason === 'duplicate' ? 'That color is already saved in your palette.' : result.reason === 'full' ? 'Custom palette is full (16 swatches). Remove a swatch before adding another.' : 'Choose a valid hex color first.');
+      return;
+    }
+    setCustomColors(result.colors); setNotice('Saved ' + color.toUpperCase() + ' to your custom palette.');
+  };
+  const removeCustomColor = (swatch: string) => {
+    setCustomColors(old => removePaletteColor(old, swatch));
+    setNotice('Removed ' + swatch.toUpperCase() + ' from your custom palette.');
+  };
   const selectedStroke = selectedStrokeId ? strokes.find(stroke => stroke.id === selectedStrokeId) : undefined;
   const snapshotStrokes = () => strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
   const removeSelected = () => {
@@ -903,7 +921,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>
-      <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}<label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
+      <div className="draw-colors">{COLORS.map(c => <button key={c} aria-label={'Choose '+c} title={c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/>)}{customColors.map(c => <span className="custom-swatch" key={c}><button aria-label={'Choose saved color '+c} title={'Saved '+c} className={color===c?'color-picked':''} style={{background:c}} onClick={() => {setColor(c);setTool('brush')}}/><button type="button" className="custom-swatch-remove" aria-label={'Remove saved color '+c} title="Remove swatch" onClick={() => removeCustomColor(c)}>×</button></span>)}<button type="button" className="add-color-swatch" onClick={addCurrentColorToPalette} title="Save the current color as a reusable swatch">+ Swatch</button><label className="custom-color" title="Choose any brush color"><input aria-label="Custom brush color" type="color" value={color} onChange={e => {setColor(e.target.value);setTool('brush')}}/></label></div>
       <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option></select></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}

@@ -97,6 +97,58 @@ describe("OpenAICompatibleProvider", () => {
     });
   });
 
+  it("preserves multimodal image_url content in the outbound request", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({
+      choices: [{ message: { content: "I can see the sketch." }, finish_reason: "stop" }],
+    })) as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      fetchImpl,
+    });
+    const imageUrl = "data:image/jpeg;base64,dGVzdA==";
+
+    await provider.generate({
+      role: "planning",
+      messages: [
+        { role: "user", content: [
+          { type: "text", text: "Inspect this canvas." },
+          { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+        ] },
+      ],
+    }, { ...model, roles: ["planning"], capabilities: ["chat", "vision"] });
+
+    const recordedFetch = fetchImpl as unknown as { mock: { calls: unknown[][] } };
+    const [, init] = (recordedFetch.mock.calls[0] ?? []) as [RequestInfo | URL, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.messages[0].content).toEqual([
+      { type: "text", text: "Inspect this canvas." },
+      { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+    ]);
+  });
+
+  it("returns cancelled without making a network request for an already-aborted request", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      fetchImpl,
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await provider.generate({
+      role: "reasoning",
+      messages: [{ role: "user", content: "Cancel me." }],
+      signal: controller.signal,
+    }, model);
+
+    expect(result.finishReason).toBe("cancelled");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("does not allow a model from a different provider", async () => {
     const provider = new OpenAICompatibleProvider({
       baseUrl: "https://example.com/v1",

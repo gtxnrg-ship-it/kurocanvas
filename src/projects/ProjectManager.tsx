@@ -122,6 +122,17 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         let raw: unknown;
         try { raw = JSON.parse(importedAssets['kuro/story-memory.v1.json']); } catch { throw new Error('The bundled story memory is not valid JSON.'); }
         if (!Array.isArray(raw)) throw new Error('The bundled story memory must be a list.');
+        const seenMemoryIds = new Set<string>();
+        for (const candidate of raw) {
+          if (!candidate || typeof candidate !== 'object') throw new Error('The bundled story memory contains an invalid record.');
+          const item = candidate as Partial<StoryMemoryRecord>;
+          if (typeof item.id !== 'string' || !item.id.trim()) throw new Error('Every bundled memory needs a stable ID.');
+          if (seenMemoryIds.has(item.id)) throw new Error('The bundled story memory contains duplicate IDs.');
+          seenMemoryIds.add(item.id);
+          if (!Array.isArray(item.assetRefs) || !Array.isArray(item.supersedes) || !Array.isArray(item.entityIds) || !Array.isArray(item.tags)) {
+            throw new Error('A bundled memory is missing its asset, revision, entity, or tag lists.');
+          }
+        }
         oldMemories = raw as StoryMemoryRecord[];
       }
       const memoryIdMap = new Map(oldMemories.map(record => [record.id, crypto.randomUUID()]));

@@ -126,7 +126,17 @@ describe("approved canon AI context", () => {
     const futureFact: CanonFact = {
       id: "future-city-fall", projectId: "series-a", subjectId: "sun-city",
       predicate: "destruction", value: "Sun City is destroyed after the treaty breaks",
-      status: "approved", storyOrder: 40,
+      status: "approved", storyOrder: 40, timelineId: "main",
+    };
+    const alternateTimelineFact: CanonFact = {
+      id: "alternate-city-outcome", projectId: "series-a", subjectId: "sun-city",
+      predicate: "fate", value: "Sun City survives in the Echo timeline",
+      status: "approved", storyOrder: 5, timelineId: "echo",
+    };
+    const ambiguousTimedFact: CanonFact = {
+      id: "untagged-timed-outcome", projectId: "series-a", subjectId: "sun-city",
+      predicate: "fate", value: "Sun City falls after the rebellion",
+      status: "approved", storyOrder: 5,
     };
     const state = (id: string, characterId: string, storyOrder: number, chapterNumber: number, revealAtStoryOrder?: number): CharacterEvolutionState => ({
       id, universeId: "u1", characterId, timelineId: "main", storyOrder, chapterNumber, status: "approved",
@@ -137,7 +147,7 @@ describe("approved canon AI context", () => {
     const testBundle = {
       ...bundle,
       entities: [entity, secret, city],
-      facts: [fact("city-location", "approved", "The market is near the river"), futureFact],
+      facts: [fact("city-location", "approved", "The market is near the river"), futureFact, alternateTimelineFact, ambiguousTimedFact],
     };
     const result = buildApprovedCanonContext(testBundle, {
       projectId: "series-a",
@@ -150,6 +160,8 @@ describe("approved canon AI context", () => {
     });
     expect(result).toContain("Sun City (location)");
     expect(result).not.toContain("Sun City is destroyed after the treaty breaks");
+    expect(result).not.toContain("Sun City survives in the Echo timeline");
+    expect(result).not.toContain("Sun City falls after the rebellion");
   });
 
   it("detects hidden character names in production output without matching partial words", () => {

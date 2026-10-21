@@ -217,7 +217,6 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
       ...(previousBody?.notes ? { notes: previousBody.notes } : {}),
     } : undefined;
     const appearance = { ...(baseState?.appearance ?? {}) } as CharacterEvolutionState["appearance"];
-    const setValue = <K extends keyof typeof appearance>(field: K, value: (typeof appearance)[K]) => { (appearance as Record<string, unknown>)[field as string] = value; };
     const scalarUpdates: Array<[CharacterAppearanceField, string, (value: string) => unknown]> = [
       ["height", height, value => value.trim() || undefined],
       ["build", build, value => value.trim() || undefined],
@@ -231,7 +230,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     ];
     for (const [field, fieldValue, parse] of scalarUpdates) {
       if (unknownFields.includes(field)) { delete appearance[field as keyof typeof appearance]; continue; }
-      if (fieldValue.trim()) setValue(field as keyof typeof appearance, parse(fieldValue) as never);
+      if (fieldValue.trim()) Object.assign(appearance, { [field]: parse(fieldValue) });
     }
     if (unknownFields.includes("ageYears")) delete appearance.ageYears;
     else if (ageYears.trim()) appearance.ageYears = Number(ageYears);

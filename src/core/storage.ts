@@ -254,6 +254,21 @@ export const drawingStorage = {
     return scoped.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
+  async listUnassigned(): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
+    const documents = await requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll());
+    return documents.filter(document => !document.projectId).map(({id,name,updatedAt})=>({id,name,updatedAt}))
+      .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+  },
+  async migrateLegacyToProject(id: string, projectId: string): Promise<void> {
+    if (!id.trim() || !projectId.trim()) throw new Error("Choose a legacy drawing and a destination project.");
+    const document = await this.load(id);
+    if (!document) throw new Error("The legacy drawing no longer exists.");
+    if (document.projectId) {
+      if (document.projectId !== projectId) throw new Error("Universe isolation violation: this drawing already belongs to another project.");
+      return;
+    }
+    await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({...document,projectId,updatedAt:new Date().toISOString()}));
+  },
   async remove(id: string): Promise<void> {
     await requestValue<undefined>(DRAWINGS, "readwrite", store => store.delete(id));
     await drawingRevisionStorage.removeDrawing(id);

@@ -285,3 +285,16 @@ This is a requirements/acceptance-contract update only. It does not mark any pro
 - [ ] Add repeatable evaluation fixtures for canon retrieval, voice distinction, visual consistency, action correctness, lettering/layout, and device recovery.
 
 Requirements-only update: no new runtime capability is claimed as implemented or verified.
+
+
+## 2026-10-21 — Production-ready export and publishing handoff
+
+- [x] Specify one canonical editable project with multiple reproducible output profiles.
+- [x] Specify export preflight for dimensions, ordering, lettering overflow, metadata, fonts/assets, and lossy conversions.
+- [x] Specify capability-based destination adapters for MangaDex, WEBTOON CANVAS, and future platforms; direct upload/publishing is conditional on official supported APIs and permissions.
+- [x] Require explicit confirmation for consequential uploads/publication and distinguish local export, ready-to-upload, uploaded draft, scheduled, and published states.
+- [ ] Implement export profiles and round-trip tests against actual project data.
+- [ ] Build per-platform preflight validators from current official platform requirements and keep limits versioned.
+- [ ] Add authorized account connection, secure token storage, upload retry/idempotency, and status receipts only where official integration support exists.
+
+Requirements-only update: no export profile or platform integration is claimed as implemented by this documentation change.

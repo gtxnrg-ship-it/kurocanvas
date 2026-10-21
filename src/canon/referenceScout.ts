@@ -24,20 +24,20 @@ export type ReferenceSearchResult = Omit<ReferenceSourceRecord, "id" | "projectI
 const plain = (value: unknown): string => typeof value === "string"
   ? value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\s+/g, " ").trim()
   : "";
-const EXPLICIT_REFERENCE_SEARCH = /\\b(?:search|find|fetch|show(?: me)?|look for|pull up|gather|collect)\\b[\\s\\S]{0,140}\\b(?:wikimedia commons|reference(?: images?)?|visual references?|images?|photos?|pictures?)\\b/i;
+const EXPLICIT_REFERENCE_SEARCH = /\b(?:search|find|fetch|show(?: me)?|look for|pull up|gather|collect)\b[\s\S]{0,140}\b(?:wikimedia commons|reference(?: images?)?|visual references?|images?|photos?|pictures?)\b/i;
 
 /** Only explicit lookup requests reach the network; ordinary story discussion stays in chat. */
 export function extractReferenceSearchQuery(message: string): string | undefined {
   const text = message.normalize("NFKC").trim();
   if (!text || !EXPLICIT_REFERENCE_SEARCH.test(text)) return undefined;
   const query = text
-    .replace(/^\\s*(?:please\\s+)?(?:can you\\s+|could you\\s+)?/i, "")
-    .replace(/^\\s*(?:search(?:\\s+(?:for|the web for))?|find(?:\\s+me)?|fetch|show(?:\\s+me)?|look\\s+for|pull\\s+up|gather|collect)\\s+/i, "")
-    .replace(/\\b(?:wikimedia commons|reference\\s+images?|visual\\s+references?|references?|images?|photos?|pictures?|visuals?)\\b/gi, " ")
-    .replace(/^\\s*(?:of|for|about|showing|featuring|on|to find|with)\\s+/i, "")
-    .replace(/\\b(?:please|thanks|thank you|could you|can you|for me)\\b/gi, " ")
+    .replace(/^\s*(?:please\s+)?(?:can you\s+|could you\s+)?/i, "")
+    .replace(/^\s*(?:search(?:\s+(?:for|the web for))?|find(?:\s+me)?|fetch|show(?:\s+me)?|look\s+for|pull\s+up|gather|collect)\s+/i, "")
+    .replace(/\b(?:wikimedia commons|reference\s+images?|visual\s+references?|references?|images?|photos?|pictures?|visuals?)\b/gi, " ")
+    .replace(/^\s*(?:of|for|about|showing|featuring|on|to find|with)\s+/i, "")
+    .replace(/\b(?:please|thanks|thank you|could you|can you|for me)\b/gi, " ")
     .replace(/[.,;:!?]+$/g, "")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);
   return query.length >= 2 ? query : undefined;

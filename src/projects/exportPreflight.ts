@@ -35,7 +35,7 @@ export function findMissingDrawingReferences(
   return [...owners.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([drawingId, titles]) => ({
-      drawingId,
+      drawingId: drawingId || "(empty ID)",
       memoryTitles: [...titles].sort((left, right) => left.localeCompare(right)),
     }));
 }

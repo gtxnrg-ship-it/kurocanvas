@@ -29,5 +29,10 @@ describe("durable story memory", () => {
     expect(result.records.map(item => item.id)).toContain("mira-before");
     expect(retrieveStoryMemory([oldState], { projectId: "series-a", text: "Mira current appearance" }).records).toHaveLength(0);
   });
+  it("does not treat visual asset IDs as evidence of image contents", () => {
+    const context = buildStoryMemoryContext({ records: [record({ assetRefs: ["drawing:canvas-17"] })], assetRefs: ["drawing:canvas-17"], warnings: [] });
+    expect(context).toMatch(/not visual evidence by themselves/i);
+    expect(context).toMatch(/Never describe an unseen drawing/i);
+  });
   it("bounds context length", () => expect(buildStoryMemoryContext({ records: [record({ summary: "x".repeat(6000) })], assetRefs: [], warnings: [] }, 700).length).toBeLessThanOrEqual(700));
 });

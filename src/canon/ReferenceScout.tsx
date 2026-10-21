@@ -37,7 +37,7 @@ export default function ReferenceScout({ projectId, projects }: { projectId: str
     const existing = library.find(record => record.sourceUrl === result.sourceUrl);
     if (existing) { setMessage("This source is already in the project reference library."); return; }
     const timestamp = now();
-    const record: ReferenceSourceRecord = { ...result, id: crypto.randomUUID(), projectId, notes: "", tags: [], status: "proposed", createdAt: timestamp, updatedAt: timestamp };
+    const record: ReferenceSourceRecord = { ...result, id: crypto.randomUUID(), projectId, notes: "", tags: [], status: "proposed", sendImageToModel: false, createdAt: timestamp, updatedAt: timestamp };
     setBusy(true);
     try { await referenceSourceStorage.save(record); setLibrary(current => [record, ...current]); setMessage("Saved as a proposal. Approve it after reviewing the source and license."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this reference."); }
@@ -50,6 +50,14 @@ export default function ReferenceScout({ projectId, projects }: { projectId: str
     try { await referenceSourceStorage.save(next); setLibrary(current => current.map(item => item.id === record.id ? next : item)); setMessage(status === "approved" ? "Reference approved for this project's AI context." : status === "rejected" ? "Reference rejected; it will not be used as approved context." : "Reference returned to proposed status."); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not update reference status."); }
     finally { setBusy(false); }
+  }
+  async function updateImageConsent(record: ReferenceSourceRecord, enabled: boolean) {
+    const next = { ...record, sendImageToModel: enabled, updatedAt: now() };
+    try {
+      await referenceSourceStorage.save(next);
+      setLibrary(current => current.map(item => item.id === record.id ? next : item));
+      setMessage(enabled ? "Image sharing enabled for this approved reference on relevant visual requests." : "Image sharing disabled; source metadata remains available.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update image-sharing consent."); }
   }
   async function updateNotes(record: ReferenceSourceRecord, notes: string) {
     const next = { ...record, notes, updatedAt: now() };
@@ -88,7 +96,7 @@ export default function ReferenceScout({ projectId, projects }: { projectId: str
         <img src={record.thumbnailUrl} alt="" loading="lazy"/>
         <div className="reference-library-details"><div className="reference-library-title"><b>{record.title}</b><span className={"reference-status reference-status-"+record.status}>{record.status}</span></div>
           <small>{record.license} · {record.creator}</small><a href={record.sourceUrl} target="_blank" rel="noreferrer">Review source page <ExternalLink size={11}/></a>
-          <label>How this should inform the project<textarea rows={2} value={record.notes} onChange={event => setLibrary(current => current.map(item => item.id === record.id ? { ...item, notes: event.target.value } : item))} onBlur={event => void updateNotes(record,event.target.value)} placeholder="e.g. use the lighting reference only; do not copy the subject's identity."/></label>
+          <label>How this should inform the project<textarea rows={2} value={record.notes} onChange={event => setLibrary(current => current.map(item => item.id === record.id ? { ...item, notes: event.target.value } : item))} onBlur={event => void updateNotes(record,event.target.value)} placeholder="e.g. use the lighting reference only; do not copy the subject's identity."/></label>\n          <label className="reference-image-consent"><input type="checkbox" checked={record.sendImageToModel===true} disabled={record.status!=="approved"||busy} onChange={event=>void updateImageConsent(record,event.target.checked)}/><span>Allow the connected vision model to receive this image URL on relevant visual requests. This sends the public image URL to your configured provider.</span></label>
           <div className="reference-library-actions"><button disabled={busy} onClick={() => void changeStatus(record,"approved")}><ShieldCheck size={13}/> Approve</button><button disabled={busy} onClick={() => void changeStatus(record,"proposed")}>Propose</button><button disabled={busy} onClick={() => void changeStatus(record,"rejected")}>Reject</button><button disabled={busy} onClick={() => void remove(record)}><Trash2 size={13}/> Remove</button></div>
         </div>
       </article>)}</div>

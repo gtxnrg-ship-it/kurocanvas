@@ -146,6 +146,15 @@ export function createResearchTask(
   return task;
 }
 
+const SETTINGS_ID = "__queue-settings__";
+async function persistQueuePausedState(value: boolean): Promise<void> {
+  await transact<IDBValidKey>("readwrite", store => store.put({ id: SETTINGS_ID, queuePaused: value, updatedAt: new Date().toISOString() }));
+}
+export async function isResearchQueuePaused(): Promise<boolean> {
+  const settings = await transact<{ queuePaused?: boolean } | undefined>("readonly", store => store.get(SETTINGS_ID));
+  return settings?.queuePaused === true;
+}
+
 export const researchTaskStorage = {
   async save(task: ResearchTaskRecord): Promise<void> {
     const errors = validateResearchTask(task);
@@ -210,8 +219,10 @@ export const researchTaskStorage = {
         let claimed: ResearchTaskRecord | undefined;
         const request = store.getAll();
         request.onsuccess = () => {
-          const queue = (request.result as ResearchTaskRecord[])
-            .filter(task => task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now)
+          const all = request.result as Array<ResearchTaskRecord & { queuePaused?: boolean }>;
+          const settings = all.find(item => item.id === SETTINGS_ID);
+          if (settings?.queuePaused) return;
+          const queue = all.filter(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now))
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
           const next = queue[0];
           if (!next) return;
@@ -364,14 +375,18 @@ export function startResearchQueueRunner(): () => void {
 
 export function pauseResearchQueue(): void {
   paused = true;
+  void persistQueuePausedState(true).then(announce).catch(() => announce());
   activeController?.abort();
-  announce();
+  try { if (typeof navigator !== "undefined") navigator.serviceWorker?.controller?.postMessage({ type: "KURO_RESEARCH_PAUSED" }); } catch { /* Optional worker control. */ }
 }
 
 export function resumeResearchQueue(): void {
   paused = false;
-  announce();
-  void pumpQueue();
+  void persistQueuePausedState(false).then(() => {
+    announce();
+    try { if (typeof navigator !== "undefined") navigator.serviceWorker?.controller?.postMessage({ type: "KURO_RESEARCH_RESUMED" }); } catch { /* Optional worker control. */ }
+    void pumpQueue();
+  }).catch(() => { announce(); void pumpQueue(); });
 }
 
 export async function enqueueResearchTask(input: { projectId: string; query: string; depth: ResearchDepth }): Promise<ResearchTaskRecord> {
@@ -392,8 +407,8 @@ export async function enqueueResearchTask(input: { projectId: string; query: str
 export async function cancelResearchTask(id: string, projectId: string): Promise<void> {
   const task = await researchTaskStorage.get(id);
   if (!task || task.projectId !== projectId || task.status === "completed" || task.status === "failed") return;
-  if (activeTaskId === id) activeController?.abort();
   await researchTaskStorage.update(id, projectId, { status: "cancelled", stage: "Cancelled", leaseUntil: undefined, error: undefined });
+  if (activeTaskId === id) activeController?.abort();
   announce();
 }
 

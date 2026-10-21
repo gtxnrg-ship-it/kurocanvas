@@ -31,7 +31,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     ctx.fillStyle = stroke.color;
     ctx.font = '600 ' + Math.max(8, stroke.size) + 'px Inter, Trebuchet MS, sans-serif';
     ctx.textBaseline = 'top';
-    (stroke.text ?? '').split('\\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
+    (stroke.text ?? '').split('\n').forEach((line, index) => ctx.fillText(line, start.x, start.y + index * Math.max(10, stroke.size * 1.25)));
   } else if (stroke.shape && stroke.points.length) {
     const start = stroke.points[0];
     const end = stroke.points[stroke.points.length - 1];
@@ -73,7 +73,7 @@ function getStrokeBounds(stroke: Stroke) {
   const minY = Math.min(...points.map(point => point.y));
   const maxX = Math.max(...points.map(point => point.x));
   const maxY = Math.max(...points.map(point => point.y));
-  const textLines = (stroke.text ?? '').split('\\n');
+  const textLines = (stroke.text ?? '').split('\n');
   const textWidth = stroke.shape === 'text' ? Math.max(12, ...textLines.map(line => line.length * stroke.size * 0.62)) : 0;
   const textHeight = stroke.shape === 'text' ? textLines.length * stroke.size * 1.3 : 0;
   return { x: minX - pad, y: minY - pad, width: Math.max(1, maxX - minX, textWidth) + pad * 2, height: Math.max(1, maxY - minY, textHeight) + pad * 2 };

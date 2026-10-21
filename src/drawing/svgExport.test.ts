@@ -27,10 +27,12 @@ describe("SVG artwork export", () => {
       width: 100, height: 100, background: "#fefefe", layers: [layer], strokes: [
         { id: "mark", layerId: "ink", tool: "brush", color: "#000", size: 4, points: [{ x: 1, y: 1 }, { x: 30, y: 30 }] },
         { id: "erase", layerId: "ink", tool: "eraser", color: "#000", size: 8, points: [{ x: 10, y: 10 }, { x: 20, y: 20 }] },
+        { id: "later", layerId: "ink", tool: "brush", color: "#00f", size: 4, points: [{ x: 25, y: 25 }, { x: 35, y: 35 }] },
       ],
     });
     expect(svg).toContain('<rect width="100%" height="100%" fill="#fefefe"/>');
     expect(svg).toContain('<mask id="kuro-layer-ink-erase-0-mask"');
     expect(svg).toContain('stroke="black"');
+    expect(svg.indexOf('mask="url(#kuro-layer-ink-erase-0-mask)"')).toBeLessThan(svg.indexOf('stroke="#00f"'));
   });
 });

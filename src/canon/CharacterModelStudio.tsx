@@ -438,11 +438,33 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     finally { setBusy(false); }
   }
 
-  async function createBlockout(nameOverride?: string, traitOverrides?: ProceduralCharacterTraits) {
+  async function createBlockout(nameOverride?: string, traitOverrides?: ProceduralCharacterTraits, characterStateIdOverride?: string) {
     const name = (nameOverride ?? characterName).trim();
     if (!projectId || !name) throw new Error("Choose a project and provide the exact character name before creating a native 3D blockout.");
     const traits = traitOverrides ? { ...traitOverrides } : undefined;
-    const existingBase = models.find(model => normalizeName(model.characterName) === normalizeName(name) && !model.characterStateId);
+    const targetState = characterStateIdOverride ? styleBible?.characterStates.find(state => state.id === characterStateIdOverride) : undefined;
+    if (characterStateIdOverride && !targetState) throw new Error("The requested chapter-specific model does not map to a saved Style Bible state. Use an existing approved state ID.");
+    if (targetState && normalizeName(targetState.characterName) !== normalizeName(name)) throw new Error("The requested Style Bible state belongs to a different character.");
+    if (targetState && targetState.status !== "approved") throw new Error("Chapter-specific model variants require an approved Style Bible state; approve or correct the visual state first.");
+    const targetStateId = targetState?.id;
+    const existingVariant = models.find(model => normalizeName(model.characterName) === normalizeName(name) && model.characterStateId === targetStateId);
+    if (existingVariant) {
+      if (traits && existingVariant.sourceType === "procedural") {
+        const updated: CharacterModelRecord = { ...existingVariant, proceduralTraits: traits, updatedAt: timestamp() };
+        await persistModel(updated, "Updated the native procedural model for " + name + (targetState ? " at " + targetState.chapterLabel : "") + ".");
+        const readback = await characterModelStorage.list(projectId);
+        const saved = readback.find(model => model.id === updated.id);
+        if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model variant update could not be verified after saving.");
+        await waitForNativeModel();
+        return;
+      }
+      if (traits && existingVariant.sourceType === "uploaded-glb") throw new Error("This character state already has an uploaded GLB. The source mesh was preserved; create another approved visual state for a separate model variant.");
+      setModelId(existingVariant.id); setStateId(targetStateId ?? ""); setCharacterName(name);
+      await waitForNativeModel();
+      setMessage("Selected the existing native 3D model for " + name + (targetState ? " at " + targetState.chapterLabel : "") + ". No source mesh was overwritten.");
+      return;
+    }
+    const existingBase = !targetState ? models.find(model => normalizeName(model.characterName) === normalizeName(name) && !model.characterStateId) : undefined;
     if (existingBase) {
       if (traits && existingBase.sourceType === "procedural") {
         // Keep the existing model record and its scar/timeline links; change only the
@@ -457,6 +479,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       }
       setModelId(existingBase.id);
       setCharacterName(name);
+      setStateId("");
       setMessage("A base model already exists for " + name + ". I selected it rather than replacing an uploaded mesh or inventing a second base identity.");
       if (traits && existingBase.sourceType === "uploaded-glb") throw new Error("An uploaded GLB mesh already owns this character's base model. Create a chapter-specific visual state first to preserve the original mesh.");
       return;
@@ -464,12 +487,12 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     const existingCharacter = models.find(model => normalizeName(model.characterName) === normalizeName(name));
     const now = timestamp();
     const model: CharacterModelRecord = {
-      id: crypto.randomUUID(), projectId, characterName: name, storyOrder: 0,
+      id: crypto.randomUUID(), projectId, characterName: name, ...(targetStateId ? { characterStateId: targetStateId } : {}), storyOrder: targetState?.storyOrder ?? 0,
       sourceType: "procedural", fileName: "", frontFace: existingCharacter?.frontFace ?? "positive-z",
       scarOverlays: existingCharacter?.scarOverlays ?? [], ...(traits ? { proceduralTraits: traits } : {}),
       createdAt: now, updatedAt: now,
     };
-    await persistModel(model,"Created a native 3D character blockout for " + name + ". It is an editable procedural preview rig, not a finished sculpt.");
+    await persistModel(model,"Created a native 3D character blockout for " + name + (targetState ? " at " + targetState.chapterLabel : "") + ". It is an editable procedural preview rig, not a finished sculpt.");
     const readback = await characterModelStorage.list(projectId);
     if (!readback.some(record => record.id === model.id && record.sourceType === "procedural")) {
       throw new Error("The native character model was not found after saving.");

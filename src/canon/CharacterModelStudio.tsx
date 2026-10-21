@@ -5,7 +5,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Box, Plus, RefreshCw, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
-import { selectCharacterModelVariant, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
+import { resolveActiveScarOverlays, selectCharacterModelVariant, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
 import "./characterModelStudio.css";
 
 type ProjectChoice = { id: string; name: string };
@@ -111,19 +111,8 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   const resolved = selectedProfile && selectedState && styleBible
     ? resolveCharacterVisualState(styleBible.characterStates, selectedProfile.characterName, selectedState.storyOrder) : undefined;
   const scarsAbsent = scarsAreAbsent(resolved?.traits.scars);
-  const activeScars = selectedModel && selectedState && !scarsAbsent
-    ? selectedModel.scarOverlays.filter(scar => {
-        const explicitRemoval = styleBible?.characterStates.some(state =>
-          state.status === "approved"
-          && normalizeName(state.characterName) === normalizeName(selectedModel.characterName)
-          && state.storyOrder >= scar.introducedAtOrder
-          && state.storyOrder <= selectedState.storyOrder
-          && scarsAreAbsent(state.scars)
-        ) ?? false;
-        return scar.introducedAtOrder <= selectedState.storyOrder
-          && !explicitRemoval
-          && (scar.removedAtOrder === undefined || selectedState.storyOrder < scar.removedAtOrder);
-      })
+  const activeScars = selectedModel && selectedState && styleBible
+    ? resolveActiveScarOverlays(selectedModel.scarOverlays, styleBible.characterStates, selectedModel.characterName, selectedState.storyOrder, resolved?.traits.scars)
     : [];
 
   useEffect(() => {

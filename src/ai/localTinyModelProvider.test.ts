@@ -19,6 +19,14 @@ describe("LocalTinyModelProvider", () => {
     expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(370_000_000);
   });
 
+  it("reports whether Qwen is loaded in this session instead of equating selection with readiness", async () => {
+    const { worker } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
+    expect((await provider.listModels())[0].installed).toBe(false);
+    await provider.prepare();
+    expect((await provider.listModels())[0].installed).toBe(true);
+  });
+
   it("uses the Qwen3-0.6B ONNX model", async () => {
     expect(KURO_TINY_MODEL_ID).toBe("onnx-community/Qwen3-0.6B-DQ-ONNX");
     const provider = new LocalTinyModelProvider();

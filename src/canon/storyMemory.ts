@@ -55,7 +55,7 @@ export function filterStoryMemoryAtPoint(
   }
   if (target.timelineId !== undefined && !target.timelineId.trim()) throw new Error("Target timeline ID cannot be empty.");
   return owned.filter(record => {
-    const temporal = record.chapterNumber !== undefined || record.storyOrder !== undefined || record.timelineId !== undefined;
+    const temporal = record.chapterNumber !== undefined || record.sceneNumber !== undefined || record.storyOrder !== undefined || record.timelineId !== undefined;
     // If the target timeline is ambiguous, only genuinely timeless global notes survive.
     if (temporal && (!target.timelineId || record.timelineId !== target.timelineId)) return false;
     if (chapter !== undefined && record.chapterNumber !== undefined && record.chapterNumber > chapter) return false;

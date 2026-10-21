@@ -556,9 +556,16 @@ export function startResearchQueueRunner(): () => void {
   if (runnerStarted || typeof window === "undefined") return () => undefined;
   runnerStarted = true;
   const wake = () => { void pumpQueue(); };
+  let queueChannel: BroadcastChannel | undefined;
   window.addEventListener(RESEARCH_QUEUE_CHANGED, wake);
   window.addEventListener("online", wake);
   window.addEventListener("pageshow", wake);
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      queueChannel = new BroadcastChannel("kuro-research-queue");
+      queueChannel.addEventListener("message", wake);
+    } catch { queueChannel = undefined; }
+  }
   if ("serviceWorker" in navigator && window.isSecureContext) {
     void navigator.serviceWorker.register("./service-worker.js").then(async registration => {
       try {
@@ -573,6 +580,8 @@ export function startResearchQueueRunner(): () => void {
     window.removeEventListener(RESEARCH_QUEUE_CHANGED, wake);
     window.removeEventListener("online", wake);
     window.removeEventListener("pageshow", wake);
+    queueChannel?.removeEventListener("message", wake);
+    queueChannel?.close();
     runnerStarted = false;
     activeController?.abort();
   };
@@ -683,7 +692,11 @@ async function pumpQueue(): Promise<void> {
       void transact<ResearchTaskRecord[]>("readonly", store => store.getAll()).then(all => {
         const now = Date.now();
         const settings = all.find(task => task.id === SETTINGS_ID) as (ResearchTaskRecord & { queuePaused?: boolean }) | undefined;
-        if (!settings?.queuePaused && all.some(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now))) void pumpQueue();
+        const activeLeaseExists = all.some(task => task.id !== SETTINGS_ID && task.status === "running" && (task.leaseUntil ?? 0) > now);
+        const queuedWorkExists = all.some(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now));
+        // Do not spin while another tab owns the live lease. Its completion is
+        // broadcast through queueChannel and will wake this runner exactly when useful.
+        if (!settings?.queuePaused && !activeLeaseExists && queuedWorkExists) void pumpQueue();
       }).catch(() => undefined);
     }
   }

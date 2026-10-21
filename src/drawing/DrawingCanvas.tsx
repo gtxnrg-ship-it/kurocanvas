@@ -312,7 +312,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
       const at = pointFromEvent(e);
       const lettering: Stroke = { id: crypto.randomUUID(), layerId: activeLayerId, tool: 'brush', shape: 'text', text: textDraft, color, size: Math.max(12, size * 2), points: [at] };
       moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
-      setEditUndoStack(old => [...old, moveSnapshotRef.current!]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
+      const beforeText = moveSnapshotRef.current;
+      if (beforeText) setEditUndoStack(old => [...old, beforeText]);
+      setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
       setStrokes(old => [...old, lettering]); setRedoStack([]); moveSnapshotRef.current = null; setNotice('Text object placed · undo is available'); return;
     }
     moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
@@ -348,13 +350,15 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     if (panRef.current) { panRef.current = null; return; }
     if (selectionDragRef.current) {
       const drag = selectionDragRef.current; selectionDragRef.current = null;
-      if (drag.moved && moveSnapshotRef.current) { setEditUndoStack(old => [...old, moveSnapshotRef.current!]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice('Object moved · Undo is available'); }
+      const beforeMove = moveSnapshotRef.current;
+      if (drag.moved && beforeMove) { setEditUndoStack(old => [...old, beforeMove]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice('Object moved · Undo is available'); }
       moveSnapshotRef.current = null; return;
     }
     if (!activeRef.current) return;
     setStrokes(old => [...old, activeRef.current!]);
     activeRef.current = null;
-    if (moveSnapshotRef.current) setEditUndoStack(old => [...old, moveSnapshotRef.current!]);
+    const beforeStroke = moveSnapshotRef.current;
+    if (beforeStroke) setEditUndoStack(old => [...old, beforeStroke]);
     moveSnapshotRef.current = null; setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setPlanRedoStack([]);
     setRedoStack([]);
     setNotice('Drawing mark added · Undo is available');
@@ -406,7 +410,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult }: { pe
     }
     if (!action && planRedoStack.length) {
       const snapshot = planRedoStack[planRedoStack.length - 1];
-      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: point => ({ ...point }) })) as unknown as Stroke[], layers: layers.map(layer => ({ ...layer })), background };
+      const current: PlanSnapshot = { planId: snapshot.planId, strokes: strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) })), layers: layers.map(layer => ({ ...layer })), background };
       setPlanUndoStack(old => [...old, current]); setPlanRedoStack(old => old.slice(0, -1));
       docRef.current = { ...docRef.current, strokes: snapshot.strokes, background: snapshot.background };
       setStrokes(snapshot.strokes); setLayers(snapshot.layers); setBackground(snapshot.background); setRedoStack([]);

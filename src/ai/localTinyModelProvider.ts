@@ -7,6 +7,9 @@ type TextMessage = { role: string; content: string };
 export type WorkerRequest =
   | { id: number; type: "prepare" }
   | { id: number; type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
+type WorkerRequestPayload =
+  | { type: "prepare" }
+  | { type: "generate"; messages: TextMessage[]; maxOutputTokens: number };
 export type WorkerResponse =
   | { id: number; type: "progress"; percent: number; file?: string; status: string }
   | { id: number; type: "ready" }
@@ -102,7 +105,7 @@ export class LocalTinyModelProvider implements ModelProvider {
     return { text: "", modelId: model.id, providerId: this.id, finishReason: "cancelled" };
   }
 
-  private send(request: Omit<WorkerRequest, "id">, signal?: AbortSignal): Promise<WorkerResponse> {
+  private send(request: WorkerRequestPayload, signal?: AbortSignal): Promise<WorkerResponse> {
     if (signal?.aborted) return Promise.reject(new Error("Local model request cancelled."));
     return new Promise<WorkerResponse>((resolve, reject) => {
       const id = this.nextRequestId++;

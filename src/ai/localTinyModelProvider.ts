@@ -30,7 +30,7 @@ type PendingRequest = {
 
 const MODEL: ModelDescriptor = {
   id: KURO_TINY_MODEL_DESCRIPTOR_ID,
-  name: "Kuro Tiny · SmolLM2 135M Instruct",
+  name: "Kuro Local · Qwen3-0.6B",
   providerId: "kuro-local-browser",
   location: "local",
   roles: ["fast-helper"],
@@ -51,7 +51,7 @@ const MODEL: ModelDescriptor = {
  */
 export class LocalTinyModelProvider implements ModelProvider {
   readonly id = "kuro-local-browser";
-  readonly displayName = "Kuro Tiny · On-device browser model";
+  readonly displayName = "Kuro Local · Qwen3-0.6B browser model";
   private progressListener?: ProgressListener;
   private worker?: ModelWorker;
   private nextRequestId = 1;

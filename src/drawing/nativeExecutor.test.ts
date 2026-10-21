@@ -27,6 +27,30 @@ describe("native drawing executor", () => {
     const restored = applyNativeDrawingCommand(updated.state, updated.inverse[0]);
     expect(restored.state.strokes[0]).toMatchObject({ color: "#112233", size: 4 });
   });
+  it("transforms editable stroke geometry and keeps the original state immutable", () => {
+    const drawn = applyNativeDrawingCommand(initial, add).state;
+    const transformed = applyNativeDrawingCommand(drawn, {
+      version: 1, id: "transform-1", type: "stroke.transform", strokeId: "stroke-1",
+      translateX: 10, translateY: 15, scaleX: 2, scaleY: 1.5, rotationDegrees: 0,
+    });
+    expect(transformed.state.strokes[0].points).toEqual([
+      { x: 10, y: 20, pressure: 0.7 },
+    ]);
+    expect(transformed.state.strokes[0].rotation).toBe(0);
+    expect(drawn.strokes[0].points).toEqual([{ x: 10, y: 20, pressure: 0.7 }]);
+    expect(transformed.changed).toBe(true);
+    expect(transformed.inverse).toHaveLength(2);
+  });
+
+  it("rejects transforms that would move editable geometry outside the canvas", () => {
+    const drawn = applyNativeDrawingCommand(initial, { ...add, points: [{ x: 1590, y: 1190, pressure: 0.5 }] }).state;
+    expect(() => applyNativeDrawingCommand(drawn, {
+      version: 1, id: "transform-outside", type: "stroke.transform", strokeId: "stroke-1",
+      translateX: 100, translateY: 0, scaleX: 1, scaleY: 1, rotationDegrees: 0,
+    })).toThrow(/outside the canvas/i);
+    expect(drawn.strokes[0].points[0]).toMatchObject({ x: 1590, y: 1190 });
+  });
+
   it("rejects drawing on a locked layer without mutating input", () => {
     const locked = { ...initial, layers: initial.layers.map(layer => ({ ...layer, locked: true })) };
     expect(() => applyNativeDrawingCommand(locked, add)).toThrow(/locked/);

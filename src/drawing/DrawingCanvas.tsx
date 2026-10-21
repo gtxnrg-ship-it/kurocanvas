@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus } from 'lucide-react';
 import { drawingStorage, storyMemoryStorage } from '../core/storage';
 import { buildSvgDocument } from './svgExport';
+import { mirroredPointSets, type SymmetryMode } from './symmetry';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
 import type { NativeDrawingCommand } from './commands';
@@ -9,7 +10,6 @@ import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord 
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
-type SymmetryMode = 'none' | 'vertical' | 'horizontal' | 'both';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
@@ -18,15 +18,12 @@ type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 function mirrorStrokeCopies(stroke: Stroke, width: number, height: number, mode: SymmetryMode, preview = false): Stroke[] {
   if (mode === 'none' || (stroke.shape && !['line','rectangle','ellipse'].includes(stroke.shape))) return [];
-  const copies: Stroke[] = [];
-  const makeCopy = (mirrorX: boolean, mirrorY: boolean, suffix: string): Stroke => ({
-    ...stroke, id: preview ? stroke.id + '-preview-' + suffix : crypto.randomUUID(),
-    points: stroke.points.map(point => ({ ...point, x: mirrorX ? width - point.x : point.x, y: mirrorY ? height - point.y : point.y })),
-  });
-  if (mode === 'vertical' || mode === 'both') copies.push(makeCopy(true, false, 'vertical'));
-  if (mode === 'horizontal' || mode === 'both') copies.push(makeCopy(false, true, 'horizontal'));
-  if (mode === 'both') copies.push(makeCopy(true, true, 'both'));
-  return copies;
+  const suffixes = mode === 'both' ? ['vertical','horizontal','both'] : [mode];
+  return mirroredPointSets(stroke.points, width, height, mode).map((points, index) => ({
+    ...stroke,
+    id: preview ? stroke.id + '-preview-' + suffixes[index] : crypto.randomUUID(),
+    points: points as Point[],
+  }));
 }
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };

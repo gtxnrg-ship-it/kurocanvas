@@ -1,0 +1,36 @@
+.style-bible-studio{margin-top:22px;padding:clamp(16px,2.4vw,26px);border:1px solid rgba(134,164,219,.24);border-radius:18px;background:linear-gradient(145deg,rgba(22,29,43,.97),rgba(16,18,27,.99));color:#eef2fb}
+.style-bible-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.style-bible-head small{color:#a7c7ff;font-size:10px;font-weight:800;letter-spacing:.14em}
+.style-bible-head h2{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:20px}
+.style-bible-head h2 svg{color:#a9c8ff}
+.style-bible-head p,.style-bible-section-head p{max-width:720px;margin:0;color:#a6b0c5;font-size:13px;line-height:1.6}
+.style-bible-head>button,.style-bible-section-head>button{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;border:1px solid rgba(142,177,244,.34);border-radius:10px;background:#243650;color:#f4f7ff;padding:10px 13px;font-size:12px;font-weight:700;cursor:pointer}
+.style-bible-head>button:disabled{opacity:.55;cursor:wait}
+.style-bible-project{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0;padding:12px;border:1px solid rgba(129,166,223,.19);border-radius:11px;background:rgba(54,81,124,.13);font-size:12px}
+.style-bible-project span{color:#9daac0;font-size:11px}
+.style-bible-message{font-size:12px;color:#b6c8e8;line-height:1.5}
+.style-bible-base{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin:18px 0}
+.style-bible-base label,.style-bible-card-grid label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.style-bible-base label>span,.style-bible-card-grid label>span{font-size:12px;font-weight:750;color:#e4ebf9}
+.style-bible-base input,.style-bible-base textarea,.style-bible-card-grid input,.style-bible-card-grid textarea,.style-bible-card-grid select{width:100%;box-sizing:border-box;border:1px solid #354057;border-radius:9px;background:#121722;color:#f3f6fd;padding:10px 11px;font:inherit;font-size:12px;line-height:1.55;resize:vertical}
+.style-bible-base input:focus,.style-bible-base textarea:focus,.style-bible-card-grid input:focus,.style-bible-card-grid textarea:focus,.style-bible-card-grid select:focus{outline:2px solid rgba(142,177,244,.48);outline-offset:1px}
+.style-bible-section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:24px 0 12px;padding-top:19px;border-top:1px solid rgba(151,175,218,.15)}
+.style-bible-section-head h3{margin:0 0 6px;font-size:15px}
+.style-bible-section-head>button{padding:8px 10px;font-size:11px}
+.style-bible-card{margin:12px 0;padding:14px;border:1px solid #303a50;border-radius:12px;background:rgba(11,14,22,.38)}
+.style-bible-card>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.style-bible-card>header b{font-size:12px;color:#c3d8ff}
+.style-bible-card>header button{display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:#aab8ce;padding:7px;cursor:pointer}
+.style-bible-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.style-bible-wide{grid-column:1/-1}
+.style-bible-approved,.style-bible-pending{display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:11px}
+.style-bible-approved{color:#9fe2bf}
+.style-bible-pending{color:#d4ba86}
+.style-bible-conflict{display:flex;align-items:flex-start;gap:10px;margin:14px 0;padding:12px;border:1px solid rgba(242,136,136,.35);border-radius:10px;background:rgba(120,38,38,.14);color:#ffc6c6}
+.style-bible-conflict p{margin:5px 0 0;font-size:12px;line-height:1.5}
+.style-bible-footnote{margin:18px 0 0;padding:12px 14px;border-left:2px solid #86a9e7;background:rgba(71,99,149,.12);color:#b7c5dc;font-size:11px;line-height:1.65}
+@media(max-width:720px){.style-bible-head,.style-bible-section-head{flex-direction:column}.style-bible-base,.style-bible-card-grid{grid-template-columns:minmax(0,1fr)}.style-bible-wide{grid-column:1}.style-bible-head>button,.style-bible-section-head>button{width:100%}}
+
+.style-bible-research{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:3px}
+.style-bible-research a{font-size:11px;color:#c6b2ff;text-decoration:none;border:1px solid rgba(167,139,250,.24);border-radius:7px;padding:6px 8px;background:rgba(167,139,250,.06)}
+.style-bible-research a:hover{border-color:#a78bfa;background:rgba(167,139,250,.12)}

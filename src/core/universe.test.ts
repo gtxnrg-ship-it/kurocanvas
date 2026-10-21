@@ -7,6 +7,7 @@ import {
   validateChatMessageRecord,
   validateConversationRecord,
   validateUniverseRecord,
+  validateUniverseProjectPartition,
   type ChatMessageRecord,
 } from "./universe";
 
@@ -59,5 +60,28 @@ describe("chat universe isolation", () => {
     const bundle = createChatUniverse("Archived");
     bundle.universe.lifecycle = "archived";
     expect(() => createConversationInUniverse(bundle.universe)).toThrow(/archived/i);
+  });
+});
+
+
+describe("universe-to-project isolation partition", () => {
+  it("allows exactly one universe to own a project", () => {
+    const one = createChatUniverse("Rain City", "project-a").universe;
+    const otherProject = createChatUniverse("Ashen Crown", "project-b").universe;
+    expect(validateUniverseProjectPartition([one, otherProject])).toEqual([]);
+  });
+
+  it("rejects two independent universes sharing the same project memory boundary", () => {
+    const one = createChatUniverse("Rain City", "project-a").universe;
+    const two = createChatUniverse("Ashen Crown", "project-a").universe;
+    expect(one.id).not.toBe(two.id);
+    expect(validateUniverseProjectPartition([one, two])).toContain(
+      "A project cannot own multiple isolated universes. Create a separate project for each universe to keep story memory and canon isolated.",
+    );
+  });
+
+  it("does not report the same universe twice as a separate owner", () => {
+    const one = createChatUniverse("Rain City", "project-a").universe;
+    expect(validateUniverseProjectPartition([one, { ...one }])).toEqual([]);
   });
 });

@@ -16,6 +16,11 @@ describe("chapter recall hallucination guard", () => {
     expect(missingChapterRecallMessage("Write a new flashback scene for chapter 12 where Ren meets Mira.", false)).toBeUndefined();
   });
 
+  it("allows a recap request when the user includes the actual source text", () => {
+    const query = "Summarize chapter 12: " + "Ren is 18, has short black hair, and a scar above his left eyebrow. ".repeat(3);
+    expect(missingChapterRecallMessage(query, false)).toBeUndefined();
+  });
+
   it("does not block general chapter discussion without factual recall intent", () => {
     expect(missingChapterRecallMessage("Let's plan the art style for chapter 12.", false)).toBeUndefined();
   });

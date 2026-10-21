@@ -3,7 +3,7 @@
  * not a claim that every listed artifact is downloadable or executable in this web build.
  */
 export type ModelTier = "entry" | "mid" | "flagship" | "desktop";
-export type ModelRuntime = "transformers-js-web" | "litert-native" | "llama-cpp-native" | "remote-api";
+export type ModelRuntime = "transformers-js-web" | "litert-lm" | "llama-cpp-native" | "remote-api";
 export interface KuroModelOption {
   id: string;
   name: string;
@@ -36,14 +36,14 @@ export const KURO_MODEL_CATALOG: readonly KuroModelOption[] = [
   },
   {
     id: "qwen3-0.6b-native", name: "Qwen3 0.6B (quantized)", tier: "entry",
-    platforms: ["android", "ios", "tablet", "desktop"], runtime: "llama-cpp-native",
-    modalities: ["text"], bestFor: "Compact multilingual chat and lightweight reasoning",
-    status: "native-runtime-needed", sourceUrl: "https://huggingface.co/Qwen",
-    notes: "Runtime-specific quantization and device benchmarks required before recommendation."
+    platforms: ["android", "ios", "tablet", "desktop"], runtime: "litert-lm",
+    downloadBytes: 330_000_000, modalities: ["text"], bestFor: "Compact multilingual chat and lightweight reasoning",
+    status: "native-runtime-needed", sourceUrl: "https://huggingface.co/litert-community/Qwen3-0.6B-int4",
+    notes: "A roughly 330 MB INT4 LiteRT-LM artifact is published for mobile and web/WASM; Kuro still needs the LiteRT-LM adapter and per-device benchmark."
   },
   {
     id: "gemma3-1b-native", name: "Gemma 3 1B (quantized)", tier: "mid",
-    platforms: ["android", "ios", "tablet", "desktop"], runtime: "litert-native",
+    platforms: ["android", "ios", "tablet", "desktop"], runtime: "litert-lm",
     downloadBytes: 529_000_000, modalities: ["text"], bestFor: "More capable local text tasks on supported hardware",
     status: "native-runtime-needed", sourceUrl: "https://developers.googleblog.com/google-ai-edge-small-language-models-multimodality-rag-function-calling/",
     notes: "Google AI Edge has described a 529 MB quantized variant; the exact artifact and runtime must match the target platform."

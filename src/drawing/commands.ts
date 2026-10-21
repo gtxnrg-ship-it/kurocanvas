@@ -47,6 +47,19 @@ export interface UpdateStrokeCommand {
   patch: { tool?: "brush" | "eraser"; color?: string; size?: number };
 }
 
+/** Transform existing editable geometry in-place without flattening it to an image. */
+export interface TransformStrokeCommand {
+  version: typeof DRAWING_COMMAND_VERSION;
+  id: string;
+  type: "stroke.transform";
+  strokeId: string;
+  translateX: number;
+  translateY: number;
+  scaleX: number;
+  scaleY: number;
+  rotationDegrees: number;
+}
+
 /** Internal reversible command used by undo; restores the exact stroke ID and stack position. */
 export interface RestoreStrokeCommand {
   version: typeof DRAWING_COMMAND_VERSION;
@@ -101,6 +114,7 @@ export type NativeDrawingCommand =
   | AddStrokeCommand
   | RemoveStrokeCommand
   | UpdateStrokeCommand
+  | TransformStrokeCommand
   | RestoreStrokeCommand
   | SetLayerVisibilityCommand
   | SetLayerOpacityCommand
@@ -187,6 +201,17 @@ export function validateDrawingCommand(
       if (value.patch.tool !== undefined && value.patch.tool !== "brush" && value.patch.tool !== "eraser") errors.push("Unsupported updated stroke tool.");
       if (value.patch.color !== undefined && (typeof value.patch.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.patch.color))) errors.push("Updated stroke color must be a six-digit hex color.");
       if (value.patch.size !== undefined && (!finite(value.patch.size) || value.patch.size <= 0 || value.patch.size > MAX_STROKE_SIZE)) errors.push("Updated stroke size is outside the supported range.");
+      break;
+    }
+    case "stroke.transform": {
+      if (!nonEmptyString(value.strokeId, 160)) errors.push("Stroke ID is missing or too long.");
+      else if (bounds.strokeLayerById && !Object.prototype.hasOwnProperty.call(bounds.strokeLayerById, value.strokeId)) errors.push("Cannot transform a stroke that is not in the active document.");
+      else if (bounds.strokeLayerById && (bounds.lockedLayerIds ?? []).includes(bounds.strokeLayerById[value.strokeId])) errors.push("Cannot transform a stroke on a locked layer.");
+      if (!finite(value.translateX) || Math.abs(Number(value.translateX)) > bounds.width * 2) errors.push("Stroke horizontal translation exceeds the document bounds.");
+      if (!finite(value.translateY) || Math.abs(Number(value.translateY)) > bounds.height * 2) errors.push("Stroke vertical translation exceeds the document bounds.");
+      if (!finite(value.scaleX) || Number(value.scaleX) < 0.1 || Number(value.scaleX) > 10) errors.push("Stroke horizontal scale must be between 0.1 and 10.");
+      if (!finite(value.scaleY) || Number(value.scaleY) < 0.1 || Number(value.scaleY) > 10) errors.push("Stroke vertical scale must be between 0.1 and 10.");
+      if (!finite(value.rotationDegrees) || Number(value.rotationDegrees) < -180 || Number(value.rotationDegrees) > 180) errors.push("Stroke rotation must be between -180 and 180 degrees.");
       break;
     }
     case "stroke.restore": {

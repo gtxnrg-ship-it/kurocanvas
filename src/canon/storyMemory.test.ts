@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { buildStoryMemoryContext, proposeChapterMemory, retrieveStoryMemory, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
+import { buildStoryMemoryContext, proposeChapterMemory, retrieveStoryMemory, shouldCaptureStoryMemory, validateStoryMemoryRecord, type StoryMemoryRecord } from "./storyMemory";
+describe("story memory capture triggers", () => {
+  it.each([
+    "A new character named Mira joins the team.",
+    "In chapter 12, Mira becomes the queen.",
+    "The event changes his powers and appearance.",
+    "Flashback: she remembers the old alliance.",
+    "He is no longer the captain after the betrayal.",
+    "Save this chapter to the story vault.",
+  ])("recognizes narrative details worth proposing: %s", text => {
+    expect(shouldCaptureStoryMemory(text)).toBe(true);
+  });
+
+  it.each([
+    "Can you make the buttons a little rounder?",
+    "The canvas toolbar should feel faster.",
+    "Please change the app background color.",
+  ])("does not trigger on unrelated UI requests: %s", text => {
+    expect(shouldCaptureStoryMemory(text)).toBe(false);
+  });
+});
+
 const record = (overrides: Partial<StoryMemoryRecord> = {}): StoryMemoryRecord => ({
   id: "chapter-12", projectId: "series-a", kind: "chapter", title: "The silver oath",
   summary: "Mira learns that the silver oath was broken at the old bridge; her left sleeve is torn.",

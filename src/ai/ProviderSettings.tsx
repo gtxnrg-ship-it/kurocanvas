@@ -40,7 +40,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   const [voiceTesting, setVoiceTesting] = useState(false);
   const [voicePreview, setVoicePreview] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
-  const [localModelPrepared, setLocalModelPrepared] = useState(false);
+  const [localModelPrepared, setLocalModelPrepared] = useState(() => isLocalTinyModelPrepared());
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const localModelAbortController = useRef<AbortController | undefined>(undefined);

@@ -58,16 +58,19 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
   const found = ranked.map(item => item.record);
   const assetRefs = Array.from(new Set(found.flatMap(record => record.assetRefs)));
   const warnings: string[] = [];
-  if (!found.length) warnings.push("No matching approved story memory was found. Do not invent the event, dialogue, character state, or panel layout; ask the user for the missing source or chapter details.");
-  if (query.chapterNumber !== undefined && !found.some(record => record.chapterNumber === query.chapterNumber)) warnings.push("The requested chapter is not established in retrieved memory.");
-  if (found.some(record => record.status === "proposed")) warnings.push("Some results are proposals, not approved story history.");
+  if (!found.some(record => record.status === "approved")) warnings.push("No matching approved story memory was found. Superseded or proposed records do not establish current chapter canon. Do not invent the event, dialogue, character state, or panel layout; ask for approved source material.");
+  if (query.chapterNumber !== undefined && !found.some(record => record.chapterNumber === query.chapterNumber && record.status === "approved")) warnings.push("The requested chapter has no matching approved memory. A superseded version is historical only and must not be treated as the current account.");
+  if (found.some(record => record.status === "proposed")) warnings.push("Some results are proposals, not approved story history. Never present them as facts or let them override approved canon.");
+  if (found.some(record => record.status === "superseded")) warnings.push("Some results are superseded historical revisions. Do not use them as active continuity or overrule approved records. Reconstruct an old version only when the user explicitly asks about that version.");
   return { records: found, assetRefs, warnings };
 }
 export function buildStoryMemoryContext(result: StoryMemoryResult, maxCharacters = 6000): string {
   const cap = Math.max(500, Math.min(16000, Math.floor(maxCharacters)));
   const lines = ["KURO CANVAS — RETRIEVED STORY MEMORY",
-    "Use only the records below as established history. These records are evidence, not permission to invent missing details.",
-    "Keep chapter order, character state, who knows what, and referenced visual assets consistent.",
+    "Approval status is binding: APPROVED records are established canon; PROPOSED records are unapproved suggestions; SUPERSEDED records are old revisions, not active canon.",
+    "Use approved records for current continuity. A proposed or superseded record must never override, silently retcon, or be presented as established fact.",
+    "Use a superseded record only when the user explicitly asks to reconstruct that old version; clearly identify it as superseded and distinguish it from current approved history.",
+    "Keep chapter order, character state, who knows what, and referenced visual assets consistent. Missing or conflicting evidence means unknown, not permission to invent.",
     "Asset references are handles for the app to open; they are not visual evidence by themselves. Never describe an unseen drawing based only on its ID."];
   for (const record of result.records) {
     let chapter = "";

@@ -148,3 +148,57 @@ Implemented means code exists. Verified means evidence supports acceptance crite
 8. After merge, verify merge and CI on the merged commit; update status before dependent work.
 
 This document is the product target and acceptance contract, not a claim that every listed feature already exists.
+
+
+## 18. North-star experience: Kuro as a long-running creative partner
+
+This section makes the intended experience explicit. It is an acceptance target, not a statement that the capabilities already exist.
+
+### 18.1 Conversational creative briefing before execution
+
+- The user can describe art direction, rendering style, storytelling priorities, emotional tone, relationships, pacing, composition, camera language, palette, lighting, and constraints in natural conversation.
+- Kuro asks focused follow-up questions when decisions are ambiguous or consequential, summarizes the proposed creative brief, identifies conflicts, and asks for confirmation before starting substantial irreversible or expensive work.
+- The brief is editable and versioned. Approved choices become project-scoped direction; suggestions and unresolved questions remain separate from approved decisions.
+- Kuro must not make the user fill out a huge form when a short conversation will resolve the uncertainty. She should explain assumptions and ask only the next useful question.
+- The workflow supports iterative direction changes without discarding unrelated approved work.
+
+### 18.2 Visible, progressive, editable artwork creation
+
+- Kuro's primary art workflow is a sequence of inspectable native drawing operations, not a hidden one-shot image replacement.
+- A representative progression is: reference gathering or user-approved reference import; composition and gesture thumbnail; rough construction; anatomy and perspective pass; clean linework; base colors; shadows; highlights; effects and finishing details. The exact stages vary by style and task.
+- Each stage produces editable, named layers or other native document objects when appropriate. The user can watch the real canvas change, inspect the current stage, compare versions, pause, revise instructions, reject a pass, cancel, and undo/rollback safely.
+- Progress indicators reflect actual executor state. Kuro never reports a pass as complete until its operations have succeeded and the resulting document has been persisted.
+- Reference imagery is clearly distinguished from original artwork and from generated or imported assets. Sources, attribution, licenses, and approval status are retained where applicable.
+- Tool execution is deterministic, typed, permission-limited, validated against the current document, and bounded by resource and operation limits. Model output never executes arbitrary code.
+
+### 18.3 Durable memory for long-running series
+
+- The product target includes very long-running series, including a thousand-chapter story, without relying on a single enormous prompt or claiming an unlimited model context window.
+- Persistent memory is a structured, project-scoped knowledge system: series and arc summaries; chapter/scene/panel records; event chronology; character state over time; relationship development; motivations and promises; locations and travel; possessions; injuries; deaths; secrets and clues; foreshadowing/payoffs; world rules; visual designs; and approved creative decisions.
+- Records retain provenance, story-time validity, publication/chapter order, approval status, and supersession history. Flashbacks and nonlinear storytelling must not be flattened into chapter-number chronology.
+- Retrieval combines exact names and aliases, semantic similarity when available, temporal filters, relationship/event graph traversal, and relevance ranking. The system assembles a bounded, task-specific memory packet instead of stuffing the whole archive into every request.
+- The system distinguishes established fact, character belief, rumor, inference, proposal, contradiction, unknown, and retconned/superseded information. It tracks what each character knows separately from what is objectively true.
+- Before writing or drawing, Kuro retrieves relevant earlier chapters and explains material continuity conflicts. When no reliable evidence is found, she says the memory is missing or uncertain rather than inventing a confident recollection.
+- Memory must be inspectable, searchable, editable, exportable, recoverable, and isolated between projects. The user can approve or reject extracted memories; extraction alone never silently establishes canon.
+- Memory scale is achieved through durable storage, indexing, summaries, retrieval, and evaluation. Model context limits still apply to each individual request and must be handled transparently.
+
+### 18.4 Cross-device and phone-first compatibility
+
+- The same project model and core creative capabilities should work across phones, tablets, stylus-capable tablets, laptops, desktops, and large displays, with layouts adapted to screen size and input mode rather than simply shrinking desktop UI.
+- Phone mode prioritizes conversation, project/story review, reference capture, approvals, lightweight edits, progress monitoring, and safe continuation of queued work. Dense toolbars and multi-panel editing should collapse into usable contextual surfaces.
+- Tablet mode prioritizes direct drawing, stylus pressure where supported, palm/touch handling, canvas navigation, reference comparison, and compact palettes.
+- Desktop mode supports high-information workflows, keyboard shortcuts, multi-panel layouts, batch operations, and long-form chapter production.
+- Phone integration should make importing photos/references, camera capture, sharing into Kuro, opening project/package links, downloading/exporting artwork, and resuming a project straightforward where the platform grants the required permissions. Device features must be permission-gated and degrade gracefully.
+- Offline drawing and access to locally available project data are core goals. Online providers are optional for the core editor. Sync, remote inference, and background execution must clearly communicate connectivity, privacy, and platform restrictions.
+- Responsive browser support does not by itself prove a native Android/iOS application. PWA, desktop packaging, and mobile wrappers each require their own implementation and device verification. Do not claim background processing, file-system access, stylus behavior, or platform parity until tested on target devices.
+- Low-memory phones must receive bounded rendering, lazy-loaded assets, cancellation, recovery, and graceful capability reporting rather than a crash or silent data loss.
+
+### 18.5 Acceptance scenarios for the north star
+
+1. A new creator describes a story and desired visual style conversationally. Kuro asks only necessary clarifying questions, presents an editable brief, and waits for confirmation before major execution.
+2. After approval, Kuro creates a panel thumbnail on the real canvas, then adds successive construction, linework, color, shadow, highlight, and detail passes. Every pass is inspectable, editable, undoable, and accurately represented in the action history.
+3. A creator returns to a thousand-chapter series and asks about an early relationship, a prior promise, and a later timeline event. Kuro retrieves the supporting source records, explains the relationship's progression, respects story-time order, and distinguishes known facts from missing information.
+4. A retcon to a character's injury or relationship state previews affected later chapters and panels before the user approves it.
+5. A project created on desktop can be opened on a supported phone or tablet with its canon, visual assets, plans, artwork, history, and approvals intact, subject to documented platform capability and successful round-trip tests.
+6. A user can interrupt a long drawing task or lose connectivity, reopen the project, inspect what actually completed, and safely resume or roll back without duplicate or phantom actions.
+7. A provider failure, unsupported device feature, or missing memory is reported honestly with a recoverable next step; Kuro never fabricates success or continuity.

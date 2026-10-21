@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { KURO_MODEL_CATALOG } from "./modelCatalog";
 
-describe("Kuro model catalog", () => {
-  it("has distinct device tiers and clearly marks runtime readiness", () => {
-    expect(KURO_MODEL_CATALOG.some(model => model.tier === "entry")).toBe(true);
-    expect(KURO_MODEL_CATALOG.some(model => model.tier === "mid")).toBe(true);
-    expect(KURO_MODEL_CATALOG.some(model => model.tier === "flagship")).toBe(true);
-    expect(KURO_MODEL_CATALOG.find(model => model.id === "qwen3-0.6b-web")?.status).toBe("available-in-web-build");
-    expect(KURO_MODEL_CATALOG.filter(model => model.id !== "qwen3-0.6b-web").every(model => model.status !== "available-in-web-build")).toBe(true);
+describe("Kuro active model catalog", () => {
+  it("contains only the currently shipped Qwen3-0.6B browser runtime", () => {
+    expect(KURO_MODEL_CATALOG).toHaveLength(1);
+    expect(KURO_MODEL_CATALOG[0]).toMatchObject({
+      id: "qwen3-0.6b-web",
+      name: "Qwen3-0.6B (Q4F16 ONNX)",
+      runtime: "transformers-js-web",
+      status: "available-in-web-build",
+      modalities: ["text"],
+    });
   });
-  it("does not advertise the tiny browser model as vision-capable", () => {
-    expect(KURO_MODEL_CATALOG.find(model => model.id === "qwen3-0.6b-web")?.modalities).toEqual(["text"]);
+
+  it("does not advertise unimplemented runtime candidates or vision support", () => {
+    expect(KURO_MODEL_CATALOG.every(model => model.status === "available-in-web-build")).toBe(true);
+    expect(KURO_MODEL_CATALOG.every(model => model.modalities.includes("text") && !model.modalities.includes("image"))).toBe(true);
   });
 });

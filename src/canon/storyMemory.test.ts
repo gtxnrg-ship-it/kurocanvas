@@ -164,6 +164,21 @@ describe("durable story memory", () => {
     expect(proposal?.status).not.toBe("approved");
   });
 
+  it("captures English-word chapter numbers for long-range cameo plants and payoffs", () => {
+    const source = "Track this clue. In Chapter one on timeline main, a stranger bumps into Mira. In Chapter twenty, she learns the stranger is the future captain. Story order 10 is the plant; story order 200 is the payoff.";
+    const proposal = createStoryThreadProposal({
+      type: "easter-egg", title: "The corridor stranger", evidence: source.slice(source.indexOf("In Chapter one")),
+      clueDescription: "A stranger bumps into Mira in Chapter one.",
+      plannedPayoff: "The stranger is revealed as the future captain in Chapter twenty.",
+      audienceTreatment: "background-only", plantChapterNumber: 1, payoffChapterNumber: 20,
+      plantStoryOrder: 10, payoffStoryOrder: 200, plantTimelineId: "main", payoffTimelineId: "main",
+      linkedEntities: ["Mira"],
+    }, source, "series-a", "2026-10-21T00:00:00.000Z", () => "word-thread");
+    expect(proposal?.chapterNumber).toBe(1);
+    expect(proposal?.storyThread?.payoffChapterNumber).toBe(20);
+    expect(proposal?.timelineId).toBe("main");
+  });
+
   it("rejects invented evidence and discards chapter/order/timeline claims absent from the quote", () => {
     const source = "A stranger bumps into Mira in the hallway. Later, the stranger is revealed as the future captain.";
     const base = {

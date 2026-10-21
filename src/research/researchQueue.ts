@@ -267,8 +267,9 @@ export function parseWikipediaResearchPayload(payload: unknown, maxSources = 8):
     const page = raw as { title?: unknown; extract?: unknown; fullurl?: unknown; pageid?: unknown };
     const title = typeof page.title === "string" ? page.title.trim() : "";
     const extract = cleanExtract(page.extract);
-    const url = typeof page.fullurl === "string" && /^https:\/\/en\.wikipedia\.org\//i.test(page.fullurl)
-      ? page.fullurl
+    const suppliedUrl = typeof page.fullurl === "string" ? page.fullurl : "";
+    const url = suppliedUrl
+      ? (/^https:\/\/en\.wikipedia\.org\//i.test(suppliedUrl) ? suppliedUrl : "")
       : Number.isInteger(page.pageid) ? "https://en.wikipedia.org/?curid=" + Number(page.pageid) : "";
     if (!title || !extract || !url) return [];
     return [{ title, extract: extract.slice(0, 3200), url }];
@@ -319,7 +320,7 @@ export async function buildResearchContext(
   if (!ranked.length) return "";
   const lines = [
     "SAVED RESEARCH NOTES — SOURCED REFERENCE MATERIAL, NOT AUTOMATIC CANON",
-    "Use this research to answer the current request. Cite the supplied source URLs when making factual claims. Treat these as collected source excerpts, not proof that every claim is correct or uncontested. Separate documented facts, interpretation, and fictional additions; the author decides what becomes story canon.",
+    "Use this research to answer the current request. Cite the supplied source URLs when making factual claims. Treat these as collected source excerpts, not proof that every claim is correct or uncontested. These notes are reference material, not automatic canon. Separate documented facts, interpretation, and fictional additions; the author decides what becomes story canon.",
   ];
   for (const { task } of ranked) {
     lines.push("\nResearch task: " + task.query + " (depth: " + task.depth + "; collected: " + task.sources.length + " sources)");

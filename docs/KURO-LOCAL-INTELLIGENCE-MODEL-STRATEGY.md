@@ -1,6 +1,39 @@
 # Kuro Local Intelligence Model Strategy
 
-Status: candidate selection and implementation contract, 2026-10-21. This document records a testable direction, not a claim that a model is already integrated or fine-tuned.
+Status: model choice and connection path implemented; local runtime still external, 2026-10-21.
+
+## Selected first model to integrate: Qwen3.8-27B
+
+Use **Qwen/Qwen3.8-27B** as the first high-capability open-weight candidate for desktop/server evaluation. The official model card describes image-plus-text input, agentic/coding improvements, and Apache-2.0 licensing. This is a deliberate first candidate—not a claim that it is universally best or that its quality matches ChatGPT.
+
+The application now has a dedicated connection preset for `http://localhost:8000/v1` and model ID `Qwen/Qwen3.8-27B`. The existing OpenAI-compatible provider sends Kuro's requests to that endpoint. The preset does not install the model or start the server.
+
+### Run the recommended model locally
+
+On a capable desktop/server with a compatible GPU and enough memory/disk space, follow the current official model card. Its published Transformers weights total about 55.6 GB; actual runtime memory requirements are higher than just the weight file size.
+
+```bash
+python -m venv .venv
+# Activate the environment for your OS, then:
+python -m pip install --upgrade pip
+python -m pip install vllm
+vllm serve Qwen/Qwen3.8-27B --host 127.0.0.1 --port 8000
+```
+
+The first launch downloads model weights and can take substantial time and bandwidth. Do not run this on a low-memory phone. When the server is ready, open Kuro Canvas → Settings → Connect a model → **Use local Qwen3.8 endpoint** → **Test connection and list models** → choose the returned model ID → **Connect model**. Keep the server running while Kuro uses it.
+
+Official references:
+- Model card and runtime instructions: https://huggingface.co/Qwen/Qwen3.8-27B
+- Official model-family repository: https://github.com/QwenLM/Qwen3.8
+
+### What is integrated—and what is not
+
+- **Implemented:** model-provider adapter, model discovery, non-streaming chat-completions requests, cancellation signal propagation, endpoint validation, a Qwen3.8 local endpoint preset, and provider adapter tests.
+- **Not implemented:** bundled model weights/runtime, automatic model download/installation, verified one-click startup, hardware auto-detection, a measured Kuro benchmark result, or ChatGPT-level parity.
+- **Important vision gap:** Qwen3.8 can accept image input, but Kuro's current live chat flow does not yet attach the canvas/reference images to its requests. Do not assume vision is active in the app just because the model supports it.
+- **Important agent gap:** a chat completion is not the same as reliable native-tool execution. The shared action registry, result read-back, iterative visual QA, rollback and cancellation still need end-to-end closure.
+
+This path makes the model connection real without pretending a 55.6 GB model is bundled into a small web app.
 
 ## Primary language-and-vision candidate
 

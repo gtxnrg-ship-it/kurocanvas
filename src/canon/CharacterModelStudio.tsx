@@ -436,7 +436,7 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         for (const record of writes) byId.set(record.id, record);
         return [...byId.values()].sort((a,b)=>a.characterName.localeCompare(b.characterName)||(a.storyOrder??0)-(b.storyOrder??0));
       });
-      setModelId(updated.id); setStateId(updated.characterStateId ?? ""); setMessage(success);
+      setModelId(updated.id); if (updated.characterStateId) setStateId(updated.characterStateId); setMessage(success);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the character model."); }
     finally { setBusy(false); }
   }
@@ -470,6 +470,8 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     const existingBase = !targetState ? models.find(model => normalizeName(model.characterName) === normalizeName(name) && !model.characterStateId) : undefined;
     if (existingBase) {
       if (traits && existingBase.sourceType === "procedural") {
+        const currentlyVisible = selectCharacterModelVariant(models, name, selectedState?.storyOrder);
+        if (currentlyVisible && currentlyVisible.id !== existingBase.id) throw new Error("A chapter-specific variant is active for " + name + ". Specify that approved characterStateId so I update the correct timeline model rather than a hidden base.");
         // Keep the existing model record and its scar/timeline links; change only the
         // explicitly requested procedural traits. Uploaded GLB source meshes are never overwritten.
         const updated: CharacterModelRecord = { ...existingBase, proceduralTraits: traits, updatedAt: timestamp() };
@@ -477,8 +479,6 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
         const readback = await characterModelStorage.list(projectId);
         const saved = readback.find(model => model.id === updated.id);
         if (!saved || JSON.stringify(saved.proceduralTraits ?? {}) !== JSON.stringify(traits)) throw new Error("The procedural model update could not be verified after saving.");
-        const currentlyVisible = selectCharacterModelVariant(models, name, selectedState?.storyOrder);
-        if (currentlyVisible && currentlyVisible.id !== existingBase.id) throw new Error("A chapter-specific variant is active for " + name + ". Specify that approved characterStateId so I update the correct timeline model rather than a hidden base.");
         await waitForNativeModel(existingBase.id);
         return;
       }
@@ -490,6 +490,8 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
       return;
     }
     const existingCharacter = models.find(model => normalizeName(model.characterName) === normalizeName(name));
+    if (!targetState && !existingBase && existingCharacter) throw new Error("This character already has chapter-specific 3D variants. Specify an approved characterStateId instead of creating an ambiguous base model.");
+    if (!targetStateId) setStateId("");
     const now = timestamp();
     const model: CharacterModelRecord = {
       id: crypto.randomUUID(), projectId, characterName: name, ...(targetStateId ? { characterStateId: targetStateId } : {}), storyOrder: targetState?.storyOrder ?? 0,

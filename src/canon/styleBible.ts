@@ -47,6 +47,28 @@ export function validateStyleBible(value: unknown, projectId?: string): string[]
 
 const norm = (s: string) => s.normalize("NFKC").toLocaleLowerCase().trim();
 const stateSignature = (s: CharacterVisualState) => JSON.stringify([s.age ?? "", s.hair ?? "", s.scars ?? "", s.outfit ?? "", s.body ?? "", s.eyes ?? "", s.accessories ?? "", s.injuries ?? "", s.other ?? ""]);
+
+export type CharacterVisualTraitKey = "age" | "hair" | "scars" | "outfit" | "body" | "eyes" | "accessories" | "injuries" | "other";
+export interface ResolvedCharacterVisualState {
+  latest: CharacterVisualState;
+  traits: Partial<Record<CharacterVisualTraitKey, string>>;
+}
+/** Resolve approved visual changes chronologically; omitted traits persist, explicit values replace them. */
+export function resolveCharacterVisualState(
+  states: CharacterVisualState[], characterName: string, targetStoryOrder: number,
+): ResolvedCharacterVisualState | undefined {
+  const traitKeys: CharacterVisualTraitKey[] = ["age","hair","scars","outfit","body","eyes","accessories","injuries","other"];
+  const ordered = states.filter(state => state.status === "approved"
+    && norm(state.characterName) === norm(characterName)
+    && state.storyOrder <= targetStoryOrder).sort((a,b)=>a.storyOrder-b.storyOrder);
+  if (!ordered.length) return undefined;
+  const traits: Partial<Record<CharacterVisualTraitKey,string>> = {};
+  for (const state of ordered) for (const trait of traitKeys) {
+    const value = state[trait];
+    if (typeof value === "string" && value.trim()) traits[trait] = value.trim();
+  }
+  return { latest: ordered[ordered.length - 1], traits };
+}
 export function findStyleConflicts(bible: ProjectStyleBible): StyleConflict[] {
   const approved = bible.characterStates.filter(s => s.status === "approved");
   const conflicts: StyleConflict[] = [];
@@ -94,17 +116,25 @@ export function buildStyleBibleContext(
   const states = statusApproved(bible.characterStates)
     .filter(state => requestedOrder === undefined || (state.chapterNumber ?? state.storyOrder) <= requestedOrder)
     .sort((a,b) => a.storyOrder-b.storyOrder);
-  const byCharacter = new Map<string, CharacterVisualState>();
+  const traitKeys = ["age", "hair", "scars", "outfit", "body", "eyes", "accessories", "injuries", "other"] as const;
+  const resolved = new Map<string, { latest: CharacterVisualState; traits: Partial<Record<(typeof traitKeys)[number], string>> }>();
   for (const state of states) {
     const key = norm(state.characterName);
-    const current = byCharacter.get(key);
-    if (!current || state.storyOrder >= current.storyOrder) byCharacter.set(key, state);
+    const entry = resolved.get(key) ?? { latest: state, traits: {} };
+    for (const trait of traitKeys) {
+      const value = state[trait];
+      // Character states are chronological updates: blank means "unchanged",
+      // while an explicit value such as "none" is an intentional change.
+      if (typeof value === "string" && value.trim()) entry.traits[trait] = value.trim();
+    }
+    entry.latest = state;
+    resolved.set(key, entry);
   }
   if (requestedOrder !== undefined) lines.push("Target story order: " + requestedOrder + ". Future visual states are forbidden in this request.");
-  if (byCharacter.size) lines.push("LATEST APPROVED CHARACTER STATES AT OR BEFORE THE REQUESTED STORY ORDER");
-  for (const state of byCharacter.values()) {
-    const traits = [["age",state.age],["hair",state.hair],["scars",state.scars],["outfit",state.outfit],["body",state.body],["eyes",state.eyes],["accessories",state.accessories],["injuries",state.injuries],["other",state.other]].filter((entry): entry is [string,string] => typeof entry[1] === "string" && !!entry[1].trim());
-    lines.push("- " + state.characterName + " (" + state.chapterLabel + ", order " + state.storyOrder + "): " + (traits.map(([key,value])=>key+": "+value).join("; ") || "No detailed visual traits recorded."));
+  if (resolved.size) lines.push("RESOLVED APPROVED CHARACTER STATES AT OR BEFORE THE REQUESTED STORY ORDER (unchanged traits persist forward)");
+  for (const { latest, traits: resolvedTraits } of resolved.values()) {
+    const traits = traitKeys.filter(key => resolvedTraits[key]).map(key => key + ": " + resolvedTraits[key]);
+    lines.push("- " + latest.characterName + " (" + latest.chapterLabel + ", order " + latest.storyOrder + "): " + (traits.join("; ") || "No detailed visual traits recorded."));
   }
   const limit = Math.max(500, Math.min(12000, Math.floor(maxCharacters)));
   let context = lines.join("\n");

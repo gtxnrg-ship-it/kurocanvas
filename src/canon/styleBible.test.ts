@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, validateStyleBible, type ProjectStyleBible } from "./styleBible";
+import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, resolveCharacterVisualState, validateStyleBible, type ProjectStyleBible } from "./styleBible";
 
 function seeded(): ProjectStyleBible {
   const bible = createEmptyStyleBible("project-1");
@@ -58,5 +58,35 @@ describe("project style bible", () => {
     const bible = seeded();
     bible.characterStates[1].status = "proposed";
     expect(buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 12")).not.toContain("thin scar across left eyebrow");
+  });
+
+  it("exposes the resolved approved visual state for a character at a specific story order", () => {
+    const bible = seeded();
+    bible.characterStates.push({ id:"state-3", characterName:"Ren", storyOrder:13, chapterLabel:"Chapter 13", hair:"longer hair", status:"approved" });
+    const resolved = resolveCharacterVisualState(bible.characterStates, "Ren", 13);
+    expect(resolved?.latest.chapterLabel).toBe("Chapter 13");
+    expect(resolved?.traits.hair).toBe("longer hair");
+    expect(resolved?.traits.scars).toBe("thin scar across left eyebrow");
+    expect(resolveCharacterVisualState(bible.characterStates, "Ren", 1)?.traits.scars).toBe("none");
+  });
+
+  it("carries forward scars and other unchanged traits until an explicit change is recorded", () => {
+    const bible = seeded();
+    bible.characterStates.push({
+      id: "state-3", characterName: "Ren", storyOrder: 13, chapterLabel: "Chapter 13",
+      hair: "longer grown-out undercut", status: "approved",
+    });
+    const chapter13 = buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 13", 5200, 13);
+    expect(chapter13).toContain("longer grown-out undercut");
+    expect(chapter13).toContain("thin scar across left eyebrow");
+    expect(chapter13).toContain("age: 18");
+
+    bible.characterStates.push({
+      id: "state-4", characterName: "Ren", storyOrder: 14, chapterLabel: "Chapter 14",
+      scars: "none", status: "approved",
+    });
+    const chapter14 = buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 14", 5200, 14);
+    expect(chapter14).toContain("scars: none");
+    expect(chapter14).not.toContain("thin scar across left eyebrow");
   });
 });

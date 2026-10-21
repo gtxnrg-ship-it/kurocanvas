@@ -118,6 +118,6 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
   }
   const limit = Math.max(500, Math.min(12000, Math.floor(maxCharacters)));
   let result = lines.join("\n");
-  if (result.length > limit) result = result.slice(0, limit - 24).trimEnd() + "\n[Art direction context truncated.]";
+  if (result.length > limit) result = result.slice(0, limit - 40).trimEnd() + "\n[Art direction context truncated.]";
   return result;
 }

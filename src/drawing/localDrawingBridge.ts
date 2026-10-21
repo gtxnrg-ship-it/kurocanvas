@@ -99,6 +99,8 @@ export function applyCommandsToLocalDrawing(
         id: stroke.id, layerId: stroke.layerId, tool: stroke.tool, color: stroke.color,
         size: stroke.size, points: stroke.points.map(point => ({ ...point })),
         ...(stroke.shape ? { shape: stroke.shape } : {}),
+        ...(stroke.imageDataUrl ? { imageDataUrl: stroke.imageDataUrl } : {}),
+        ...(stroke.imageName ? { imageName: stroke.imageName } : {}),
         ...(stroke.text !== undefined ? { text: stroke.text } : {}),
         ...(stroke.fontFamily ? { fontFamily: stroke.fontFamily } : {}),
         ...(stroke.filled !== undefined ? { filled: stroke.filled } : {}),

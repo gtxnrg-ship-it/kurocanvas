@@ -208,3 +208,9 @@
 .story-timeline-card small{color:#9c91ad;font-size:10px;line-height:1.45}
 .story-timeline-card button{justify-self:start;padding:6px 9px;border:1px solid #514064;border-radius:7px;background:#211a2d;color:#e7dafa;font-size:10px}
 .story-timeline-card button:disabled{opacity:.5;cursor:not-allowed}
+
+.custom-swatch{position:relative;display:inline-flex;width:19px;height:19px;flex:0 0 19px}
+.custom-swatch>button:first-child{width:19px;height:19px}
+.draw-colors .custom-swatch .custom-swatch-remove{position:absolute;top:-7px;right:-7px;width:12px;height:12px;min-width:12px;padding:0;border:1px solid #09080f;border-radius:50%;background:#5b496e;color:#fff;font-size:10px;line-height:9px;z-index:2}
+.draw-colors .add-color-swatch{width:auto;min-width:50px;height:24px;padding:0 7px;border:1px solid #514064;border-radius:7px;background:#211a2d;color:#ded0f5;font-size:9px;white-space:nowrap}
+.draw-colors .add-color-swatch:hover{border-color:#a78bfa;background:#302340}

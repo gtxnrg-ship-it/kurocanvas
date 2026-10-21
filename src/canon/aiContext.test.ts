@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
+import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint } from "./aiContext";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import { createEmptyCanon, type CanonEntity, type CanonFact } from "./universe";
 
@@ -144,6 +144,47 @@ describe("approved canon AI context", () => {
     expect(isStoryProductionRequest("Let's brainstorm the emperor privately")).toBe(false);
     expect(isStoryProductionRequest("Let's brainstorm Chapter 1")).toBe(false);
     expect(isStoryProductionRequest("Brainstorm and write Chapter 1")).toBe(true);
+  });
+
+  it("recognizes explicit author-directed clues without treating ordinary discussion as an instruction", () => {
+    expect(isIntentionalForeshadowingRequest("Write Chapter 1 and include an Easter egg cameo for the future emperor.")).toBe(true);
+    expect(isIntentionalForeshadowingRequest("Draft a hallway scene where a stranger bumps into Mira, but the reader won't know who he is yet.")).toBe(true);
+    expect(isIntentionalForeshadowingRequest("What is an Easter egg in storytelling?")).toBe(false);
+  });
+
+  it("uses future knowledge for an explicitly requested cameo while keeping alternate timelines separate", () => {
+    const secret: CanonEntity = { id: "secret", projectId: "series-a", kind: "character", name: "The Secret Emperor", aliases: ["Silver Sovereign"], status: "approved" };
+    const city: CanonEntity = { id: "sun-city", projectId: "series-a", kind: "location", name: "Sun City", aliases: [], status: "approved" };
+    const futureFact: CanonFact = {
+      id: "future-city-fall", projectId: "series-a", subjectId: "sun-city",
+      predicate: "destruction", value: "Sun City is destroyed after the treaty breaks",
+      status: "approved", storyOrder: 40, timelineId: "main",
+    };
+    const alternateFact: CanonFact = {
+      id: "alternate-city-outcome", projectId: "series-a", subjectId: "sun-city",
+      predicate: "fate", value: "Sun City survives in the Echo timeline",
+      status: "approved", storyOrder: 5, timelineId: "echo",
+    };
+    const state = (id: string, characterId: string, storyOrder: number, chapterNumber: number, revealAtStoryOrder?: number): CharacterEvolutionState => ({
+      id, universeId: "u1", characterId, timelineId: "main", storyOrder, chapterNumber, status: "approved",
+      ...(revealAtStoryOrder === undefined ? {} : { revealAtStoryOrder }),
+      appearance: { ageYears: 16 }, relationshipStateRefs: [], assetRefs: [], sourceMessageIds: [],
+      changeSummary: "Approved story point", createdAt: "2026-01-01T00:00:00.000Z",
+    });
+    const testBundle = { ...bundle, entities: [entity, secret, city], facts: [futureFact, alternateFact] };
+    const gate = {
+      enabled: true, universeId: "u1", timelineId: "main", chapterNumber: 1,
+      allowAuthorDirectedForeshadowing: true, states: [state("hero-ch1", "hero", 10, 1), state("secret-future", "secret", 5, 1, 40)],
+    };
+    const context = buildApprovedCanonContext(testBundle, {
+      projectId: "series-a", userMessage: "Write Chapter 1 with an Easter egg cameo", revealGate: gate,
+    });
+    expect(context).toContain("AUTHOR-DIRECTED FORESHADOWING MODE");
+    expect(context).toContain("Sun City is destroyed after the treaty breaks");
+    expect(context).not.toContain("Sun City survives in the Echo timeline");
+    expect(hasUnrevealedCharacterMention("The Secret Emperor walks past the hero.", testBundle, gate)).toBe(false);
+    const turns = [{ role: "user", content: "The Secret Emperor should briefly appear in the background." }];
+    expect(filterConversationTurnsForRevealGate(turns, testBundle, gate)).toEqual(turns);
   });
 
   it("excludes later approved canon facts from an earlier story-production prompt", () => {

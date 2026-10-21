@@ -11,6 +11,15 @@ export interface ScarOverlay {
   angle: number;
   color: string;
 }
+export interface ProceduralCharacterTraits {
+  hair?: string;
+  age?: string;
+  outfit?: string;
+  skinTone?: string;
+  eyeColor?: string;
+  bodyType?: "slim" | "average" | "athletic" | "stocky";
+}
+
 export interface CharacterModelRecord {
   id: string;
   projectId: string;
@@ -19,6 +28,8 @@ export interface CharacterModelRecord {
   characterStateId?: string;
   storyOrder?: number;
   sourceType: "procedural" | "uploaded-glb";
+  /** Persisted traits consumed by the native procedural mesh builder. */
+  proceduralTraits?: ProceduralCharacterTraits;
   fileName: string;
   modelBlob?: Blob;
   frontFace: "positive-z" | "negative-z";
@@ -68,6 +79,16 @@ export function validateCharacterModel(value: unknown, projectId?: string): stri
   if (model.sourceType !== "procedural" && model.sourceType !== "uploaded-glb") errors.push("Character model source type is invalid.");
   if (model.sourceType === "uploaded-glb" && (!(typeof Blob !== "undefined" && model.modelBlob instanceof Blob) || model.modelBlob.size < 4 || model.modelBlob.size > 15 * 1024 * 1024)) errors.push("Uploaded character models must be GLB blobs between 4 bytes and 15 MB.");
   if (model.sourceType === "procedural" && model.modelBlob) errors.push("Procedural models must not contain an uploaded blob.");
+  if (model.proceduralTraits !== undefined) {
+    const traits = model.proceduralTraits;
+    if (!traits || typeof traits !== "object" || Array.isArray(traits)) errors.push("Procedural character traits must be an object.");
+    else {
+      for (const key of ["hair", "age", "outfit", "skinTone", "eyeColor"] as const) {
+        if (traits[key] !== undefined && (typeof traits[key] !== "string" || traits[key].trim().length > 160)) errors.push("Procedural trait " + key + " must be at most 160 characters.");
+      }
+      if (traits.bodyType !== undefined && !["slim", "average", "athletic", "stocky"].includes(traits.bodyType)) errors.push("Procedural body type is unsupported.");
+    }
+  }
   if (model.frontFace !== "positive-z" && model.frontFace !== "negative-z") errors.push("Character model front-face orientation is invalid.");
   if (!Array.isArray(model.scarOverlays)) errors.push("Character model scar overlays must be a list.");
   else for (const scar of model.scarOverlays) {

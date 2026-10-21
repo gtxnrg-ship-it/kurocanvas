@@ -38,6 +38,24 @@ export function selectCharacterModelVariant(
   return eligible[eligible.length - 1];
 }
 
+export function resolveActiveScarOverlays(
+  overlays: ScarOverlay[],
+  states: Array<{ characterName: string; storyOrder: number; status: string; scars?: string }>,
+  characterName: string,
+  targetStoryOrder: number,
+  resolvedScars?: string,
+): ScarOverlay[] {
+  const absent = (value?: string) => !value?.trim() || /^(none|no scars?|removed|cleared|not present|no visible scars?)$/i.test(value.trim());
+  if (absent(resolvedScars)) return [];
+  return overlays.filter(scar => {
+    const explicitRemoval = states.some(state => state.status === "approved"
+      && state.characterName.normalize("NFKC").trim().toLocaleLowerCase() === characterName.normalize("NFKC").trim().toLocaleLowerCase()
+      && state.storyOrder >= scar.introducedAtOrder && state.storyOrder <= targetStoryOrder && absent(state.scars));
+    return scar.introducedAtOrder <= targetStoryOrder && !explicitRemoval
+      && (scar.removedAtOrder === undefined || targetStoryOrder < scar.removedAtOrder);
+  });
+}
+
 export function validateCharacterModel(value: unknown, projectId?: string): string[] {
   if (!value || typeof value !== "object") return ["Character model record must be an object."];
   const model = value as Partial<CharacterModelRecord>, errors: string[] = [];

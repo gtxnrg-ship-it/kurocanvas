@@ -249,12 +249,21 @@ export function buildApprovedCanonContext(
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
     if (options.revealGate.allowAuthorDirectedForeshadowing) {
       const point = resolveRevealPoint(options.revealGate);
-      if (point.ambiguous) {
-        revealNotice = "AUTHOR-DIRECTED FORESHADOWING: The author's clue request is explicit, but the chapter maps to conflicting approved timelines. Ask which timeline to use before selecting a specific future cameo; do not blend parallel universes.";
+      const storedTimelines = [...new Set(bundle.facts
+        .map(fact => fact.timelineId)
+        .filter((value): value is string => typeof value === "string" && !!value.trim()))];
+      const authorTimeline = point.timelineId ?? options.revealGate.timelineId
+        ?? (storedTimelines.length === 1 ? storedTimelines[0] : undefined);
+      if (point.ambiguous || (storedTimelines.length > 1 && !authorTimeline)) {
+        // Keep project-wide entities visible to the author, but don't mix mutually
+        // exclusive time-lined facts when the intended continuity is unresolved.
+        source = { ...bundle, facts: bundle.facts.filter(fact => fact.timelineId === undefined && fact.storyOrder === undefined) };
+        revealNotice = "AUTHOR-DIRECTED FORESHADOWING: The author explicitly requested an intentional clue/cameo, but the requested point does not resolve to one approved timeline. Project entities and timeless canon remain available; timeline-specific outcomes are omitted to avoid blending parallel histories. Ask which timeline/point applies, or write only what is established independently of those timelines.";
       } else {
-        revealNotice = "AUTHOR-DIRECTED FORESHADOWING MODE: The author explicitly requested an intentional early clue/cameo. Full project canon may be used as AUTHOR-ONLY planning knowledge. Keep the actual chapter/dialogue/art reader-facing: preserve the intended subtlety and do not reveal a secret identity or future payoff on-page unless the author explicitly asks. A deliberate cameo is not an accidental continuity violation.";
-        revealMaxStoryOrder = point.storyOrder;
-        revealTimelineId = point.timelineId;
+        revealNotice = "AUTHOR-DIRECTED FORESHADOWING MODE: The author explicitly requested an intentional early clue/cameo. Use the selected timeline's complete approved canon—including future facts—as AUTHOR-ONLY planning knowledge. Keep the actual chapter/dialogue/art reader-facing: preserve the intended subtlety and do not reveal a secret identity or future payoff on-page unless the author explicitly asks. A deliberate cameo is not an accidental continuity violation.";
+        revealTimelineId = authorTimeline;
+        // Unlike ordinary sequential production, an explicit author-directed clue needs
+        // future knowledge. Timeline scope still applies; chronology is not a content ban.
       }
     } else {
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);

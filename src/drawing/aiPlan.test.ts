@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAIStrokePlan } from "./aiPlan";
+import { parseAIStrokePlan, requestAIStrokePlan } from "./aiPlan";
 
 const stroke = {
   version: 1, id: "stroke-1", type: "stroke.add", layerId: "layer-default",
@@ -42,5 +42,53 @@ describe("parseAIStrokePlan", () => {
   it("limits plan size and point count", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many", commands: Array.from({ length: 13 }, (_, i) => ({ ...stroke, id: "s" + i })) }))).toThrow(/12 native actions/i);
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many points", commands: [{ ...stroke, points: Array.from({ length: 21 }, (_, i) => ({ x: i, y: i })) }] }))).toThrow(/20 points/i);
+  });
+});
+
+describe("bounded AI drawing-plan repair", () => {
+  it("repairs malformed model JSON once and revalidates the repaired native actions", async () => {
+    let calls = 0;
+    let capturedError = "";
+    const result = await requestAIStrokePlan(async attempt => {
+      calls++;
+      if (attempt.mode === "initial") return "{ malformed";
+      capturedError = attempt.validationError;
+      expect(attempt.previousOutput).toBe("{ malformed");
+      return JSON.stringify({ summary: "A small corrected sketch", commands: [stroke] });
+    });
+    expect(calls).toBe(2);
+    expect(capturedError).toMatch(/valid JSON/i);
+    expect(result).toMatchObject({ repaired: true, plan: { summary: "A small corrected sketch", commands: [{ type: "stroke.add" }] } });
+  });
+
+  it("does not retry a valid no-op plan that honestly declines an unsupported effect", async () => {
+    let calls = 0;
+    const result = await requestAIStrokePlan(async () => {
+      calls++;
+      return JSON.stringify({ summary: "This effect is outside the native tool set.", commands: [] });
+    });
+    expect(calls).toBe(1);
+    expect(result).toMatchObject({ repaired: false, plan: { commands: [] } });
+  });
+
+  it("stops after one invalid repair instead of looping or approving malformed work", async () => {
+    let calls = 0;
+    await expect(requestAIStrokePlan(async attempt => {
+      calls++;
+      return attempt.mode === "initial"
+        ? JSON.stringify({ summary: "Bad first plan", commands: [{ ...stroke, layerId: "unknown" }] })
+        : JSON.stringify({ summary: "Still bad", commands: [{ ...stroke, points: [{ x: 5000, y: 5000 }] }] });
+    })).rejects.toThrow(/after one repair attempt/i);
+    expect(calls).toBe(2);
+  });
+
+  it("reports when the repair generation itself fails", async () => {
+    let calls = 0;
+    await expect(requestAIStrokePlan(async attempt => {
+      calls++;
+      if (attempt.mode === "initial") return "{";
+      throw new Error("provider offline");
+    })).rejects.toThrow(/single repair attempt failed: provider offline/i);
+    expect(calls).toBe(2);
   });
 });

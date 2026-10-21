@@ -20,12 +20,12 @@ export interface KuroModelOption {
 }
 export const KURO_MODEL_CATALOG: readonly KuroModelOption[] = [
   {
-    id: "smollm2-135m-web", name: "SmolLM2 135M Instruct (Q8 ONNX)", tier: "entry",
+    id: "qwen3-0.6b-web", name: "Qwen3-0.6B (Q4F16 ONNX)", tier: "entry",
     platforms: ["android", "ios", "tablet", "desktop", "web"], runtime: "transformers-js-web",
-    downloadBytes: 137_000_000, minMemoryBytes: 350 * 1024 * 1024, modalities: ["text"],
+    downloadBytes: 370_000_000, minMemoryBytes: 900 * 1024 * 1024, modalities: ["text"],
     bestFor: "Fast lightweight chat, short rewrites, simple helper tasks",
-    status: "available-in-web-build", sourceUrl: "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct",
-    notes: "Baseline candidate only. Text-only; not validated for reliable tool calls, deep reasoning, or buttery-smooth speed on every device."
+    status: "available-in-web-build", sourceUrl: "https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX",
+    notes: "Browser-local Qwen3-0.6B ONNX candidate. Text-only; first download is about 370 MB, memory estimate is conservative, and actual speed/task quality must be measured per device."
   },
   {
     id: "smollm2-360m-native", name: "SmolLM2 360M Instruct (quantized)", tier: "entry",

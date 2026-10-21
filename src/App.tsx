@@ -88,7 +88,7 @@ export default function App(){
  }
  async function openDrawingFromVault(id:string) {
   try {
-    const drawing=await drawingStorage.load(id);
+    const drawing=await drawingStorage.load(id,activeProjectId);
     if(!drawing) { setMessages(m=>[...m,{role:'kuro',text:'That linked drawing is not available in this browser storage. The memory record is preserved, but its canvas asset may have been deleted or not synced to this device.'}]); setMode('chat'); return; }
     setRequestedDrawingId(id); setMode('canvas');
   } catch(error) {

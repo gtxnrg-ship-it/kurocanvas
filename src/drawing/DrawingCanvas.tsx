@@ -569,6 +569,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             docRef.current = { ...docRef.current, background: step.document.background, strokes: nextStrokes };
             setStrokes(nextStrokes);
             setLayers(nextLayers);
+            if (command.type === 'layer.add') {
+              setActiveLayerId(command.layerId);
+            } else if (command.type === 'layer.remove' && activeLayerId === command.layerId) {
+              setActiveLayerId(nextLayers.find(layer => !layer.locked)?.id || nextLayers[0]?.id || DEFAULT_LAYER.id);
+            }
             setBackground(step.document.background);
             setRedoStack([]);
           }

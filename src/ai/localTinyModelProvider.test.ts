@@ -10,7 +10,7 @@ describe("LocalTinyModelProvider", () => {
       id: "kuro-local:qwen3-0.6b",
       providerId: "kuro-local-browser",
       location: "local",
-      downloadBytes: 450_000_000,
+      downloadBytes: 370_000_000,
       license: "Apache-2.0",
       capabilities: ["chat"],
       metadata: { modelId: KURO_TINY_MODEL_ID, vision: false },

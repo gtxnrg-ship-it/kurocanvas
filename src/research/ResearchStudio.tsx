@@ -19,7 +19,7 @@ const timeLabel = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
-export default function ResearchStudio({ projectId, projects, onProjectChange, onAskKuro }: Props) {
+export default function ResearchStudio({ projectId, projects, onAskKuro }: Props) {
   const [query, setQuery] = useState("");
   const [depth, setDepth] = useState<ResearchDepth>("deep");
   const [tasks, setTasks] = useState<ResearchTaskRecord[]>([]);

@@ -12,6 +12,7 @@ describe("LocalTinyModelProvider", () => {
       location: "local",
       downloadBytes: 370_000_000,
       license: "Apache-2.0",
+      roles: ["reasoning", "planning", "tool-calling", "coding", "story-writing", "continuity", "research", "fast-helper"],
       capabilities: ["chat"],
       metadata: { modelId: KURO_TINY_MODEL_ID, vision: false },
     });

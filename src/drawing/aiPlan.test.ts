@@ -39,9 +39,14 @@ describe("parseAIStrokePlan", () => {
     expect(() => parseAIStrokePlan(JSON.stringify({ summary: "bad", commands: [{ ...stroke, layerId: "missing" }] }))).toThrow(/rejected/i);
   });
 
-  it("limits plan size and point count", () => {
-    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many", commands: Array.from({ length: 13 }, (_, i) => ({ ...stroke, id: "s" + i })) }))).toThrow(/12 native actions/i);
-    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many points", commands: [{ ...stroke, points: Array.from({ length: 21 }, (_, i) => ({ x: i, y: i })) }] }))).toThrow(/20 points/i);
+  it("supports substantial bounded plans while enforcing action and point budgets", () => {
+    const expanded = Array.from({ length: 16 }, (_, i) => ({ ...stroke, id: "s" + i, points: Array.from({ length: 32 }, (_, point) => ({ x: point, y: i })) }));
+    expect(parseAIStrokePlan(JSON.stringify({ summary: "An expanded sketch", commands: expanded })).commands).toHaveLength(16);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many", commands: Array.from({ length: 49 }, (_, i) => ({ ...stroke, id: "s" + i })) }))).toThrow(/48 native actions/i);
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "too many points per stroke", commands: [{ ...stroke, points: Array.from({ length: 129 }, (_, i) => ({ x: i, y: i })) }] }))).toThrow(/128 points/i);
+    const pointHeavy = Array.from({ length: 40 }, (_, i) => ({ ...stroke, id: "s" + i, points: Array.from({ length: 128 }, (_, point) => ({ x: point, y: i })) }));
+    expect(() => parseAIStrokePlan(JSON.stringify({ summary: "over point budget", commands: pointHeavy }))).toThrow(/total point budget/i);
+    expect(() => parseAIStrokePlan(" ".repeat(512 * 1024 + 1))).toThrow(/response-size limit/i);
   });
 });
 

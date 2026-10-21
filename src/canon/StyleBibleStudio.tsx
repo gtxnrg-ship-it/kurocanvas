@@ -102,6 +102,7 @@ export default function StyleBibleStudio({ projectId, projects }: { projectId: s
             <label><span>Canon status</span><select value={state.status} onChange={event=>updateState(state.id,{status:event.target.value as StyleRecordStatus})}>{statusOptions.map(status=><option key={status} value={status}>{status}</option>)}</select></label>
           </div>
           {state.status==="approved" ? <p className="style-bible-approved"><Check size={13}/> This state can be used for this chapter and later chapters.</p> : <p className="style-bible-pending">This state is not used as established visual canon until approved.</p>}
+          {state.sourceEvidence && <blockquote className="style-bible-evidence"><b>Source evidence</b><span>{state.sourceEvidence}</span></blockquote>}
         </article>)}
       </>}
       <p className="style-bible-footnote">Safety rule: conflicting approved designs at the same story order block generation rather than choosing a random version. Missing visual history stays unknown; it is never silently invented.</p>

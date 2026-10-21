@@ -5,7 +5,7 @@ export interface StyleInspiration {
 }
 export interface StyleRule { id: string; category: string; rule: string; status: StyleRecordStatus; }
 export interface CharacterVisualState {
-  id: string; characterName: string; storyOrder: number; chapterLabel: string; chapterNumber?: number;
+  id: string; characterName: string; storyOrder: number; chapterLabel: string; chapterNumber?: number; sourceEvidence?: string;
   age?: string; hair?: string; scars?: string; outfit?: string; body?: string;
   eyes?: string; accessories?: string; injuries?: string; other?: string;
   status: StyleRecordStatus;
@@ -40,7 +40,7 @@ export function validateStyleBible(value: unknown, projectId?: string): string[]
     if (!item || typeof item.id !== "string" || typeof item.category !== "string" || typeof item.rule !== "string" || !["approved","proposed","superseded"].includes(item.status)) errors.push("Every style rule needs a category, rule, ID, and status.");
   }
   for (const state of Array.isArray(bible.characterStates) ? bible.characterStates : []) {
-    if (!state || typeof state.id !== "string" || typeof state.characterName !== "string" || !state.characterName.trim() || !Number.isFinite(state.storyOrder) || typeof state.chapterLabel !== "string" || (state.chapterNumber !== undefined && (!Number.isFinite(state.chapterNumber) || state.chapterNumber < 0)) || !["approved","proposed","superseded"].includes(state.status)) errors.push("Every character visual state needs a name, finite story order, chapter label, and status.");
+    if (!state || typeof state.id !== "string" || typeof state.characterName !== "string" || !state.characterName.trim() || !Number.isFinite(state.storyOrder) || typeof state.chapterLabel !== "string" || (state.chapterNumber !== undefined && (!Number.isFinite(state.chapterNumber) || state.chapterNumber < 0)) || (state.sourceEvidence !== undefined && typeof state.sourceEvidence !== "string") || !["approved","proposed","superseded"].includes(state.status)) errors.push("Every character visual state needs a name, finite story order, chapter label, and status.");
   }
   return [...new Set(errors)];
 }

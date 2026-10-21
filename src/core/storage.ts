@@ -1,6 +1,7 @@
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
+import type { BrushPreset } from "../drawing/brushProfiles";
 
 const DB_NAME = "kuro-canvas-local";
 const DB_VERSION = 5;
@@ -124,7 +125,7 @@ export interface LocalDrawingDocument {
     fillColor?: string;
     filled?: boolean;
     rotation?: number;
-    brushPreset?: "ink" | "pencil" | "marker" | "airbrush";
+    brushPreset?: BrushPreset;
     color: string;
     size: number;
     points: Array<{ x: number; y: number; pressure: number }>;

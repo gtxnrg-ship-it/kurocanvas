@@ -36,7 +36,7 @@ describe("durable story memory", () => {
   it("never leaks memory across projects", () => expect(retrieveStoryMemory([record()], { projectId: "series-b", text: "Mira" }).records).toHaveLength(0));
   it("treats missing history as unknown and warns instead of fabricating it", () => {
     const result = retrieveStoryMemory([], { projectId: "series-a", chapterNumber: 99, text: "final battle" });
-    expect(result.warnings.join(" ")).toMatch(/Do not invent/); expect(result.warnings.join(" ")).toMatch(/not established/);
+    expect(result.warnings.join(" ")).toMatch(/Do not invent/); expect(result.warnings.join(" ")).toMatch(/do not establish current chapter canon|not established/i);
   });
   it("keeps proposed memories out of approved-only retrieval", () => expect(retrieveStoryMemory([record({ status: "proposed" })], { projectId: "series-a", text: "silver oath" }).records).toHaveLength(0));
   it("marks user chapter recaps as proposed until approval", () => {

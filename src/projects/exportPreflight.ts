@@ -25,7 +25,7 @@ export function findMissingDrawingReferences(
     for (const reference of memory.assetRefs) {
       if (!reference.startsWith("drawing:")) continue;
       const drawingId = reference.slice("drawing:".length).trim();
-      if (!drawingId || available.has(drawingId)) continue;
+      if (drawingId && available.has(drawingId)) continue;
       const titles = owners.get(drawingId) ?? new Set<string>();
       titles.add(memory.title.trim() || "Untitled memory");
       owners.set(drawingId, titles);

@@ -260,7 +260,8 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     // History belongs to one document only; never replay another drawing's snapshots here.
     setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
     setLoaded(false); setSaveState('loading');
-    drawingStorage.load(drawingId).then(saved => {
+    drawingStorage.load(drawingId).then(async saved => {
+      if (saved) await preloadDrawingImages(saved.strokes as Stroke[]);
       if (cancelled) return;
       if (saved) {
         const doc: LocalDrawingDocument = saved;

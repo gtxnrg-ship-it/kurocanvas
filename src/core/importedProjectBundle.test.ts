@@ -36,6 +36,21 @@ describe("atomic project import preflight", () => {
     expect(validateImportedProjectBundle(value as unknown as ImportedProjectBundle)).toContain("Imported reference sources must be a list.");
   });
 
+  it("rejects unsupported canvas dimensions in drawings and saved revisions", () => {
+    const value = bundle();
+    value.drawings.push({ ...drawing(value.project.id), id: "too-small", width: 1, height: 1 });
+    const owner = drawing(value.project.id);
+    value.drawings.push(owner);
+    value.drawingRevisions.push({
+      id: "invalid-revision", drawingId: owner.id, title: "Invalid dimensions",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      document: { ...owner, width: 7000, height: 7000 },
+    });
+    const errors = validateImportedProjectBundle(value);
+    expect(errors.filter(error => error === "Imported drawing is invalid or belongs to a different project.")).toHaveLength(1);
+    expect(errors).toContain("Imported drawing revision is invalid or references a missing drawing.");
+  });
+
   it("rejects a drawing or memory that escapes the freshly imported project", () => {
     const value = bundle();
     value.drawings.push(drawing("some-other-project"));

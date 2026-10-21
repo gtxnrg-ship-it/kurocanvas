@@ -6,5 +6,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => ({
   base: mode === 'pages' ? '/kurocanvas/' : '/',
   plugins: [react()],
+  worker: { format: 'es' },
   server: { host: '0.0.0.0' },
 }));

@@ -47,7 +47,7 @@ describe("native drawing executor", () => {
     expect(() => applyNativeDrawingCommand(drawn, {
       version: 1, id: "transform-outside", type: "stroke.transform", strokeId: "stroke-1",
       translateX: 100, translateY: 0, scaleX: 1, scaleY: 1, rotationDegrees: 0,
-    })).toThrow(/outside the canvas/i);
+    })).toThrow(/extend beyond the canvas/i);
     expect(drawn.strokes[0].points[0]).toMatchObject({ x: 1590, y: 1190 });
   });
 

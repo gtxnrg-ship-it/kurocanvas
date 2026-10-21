@@ -549,7 +549,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       cancelled = true;
       if (cancelPlanExecutionRef.current === cancel) cancelPlanExecutionRef.current = null;
     };
-  }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, layers, planRunNonce]);
+  }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, planRunNonce]);
 
   const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = e.currentTarget.getBoundingClientRect();

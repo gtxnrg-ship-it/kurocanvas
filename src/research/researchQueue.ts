@@ -146,6 +146,46 @@ export function createResearchTask(
   return task;
 }
 
+/**
+ * Prepare research records for a package import without reusing local task IDs
+ * or triggering unrequested network activity on first open.
+ */
+export function normalizeImportedResearchTasks(
+  value: unknown,
+  sourceProjectId: string,
+  destinationProjectId: string,
+  idFactory: () => string = () => crypto.randomUUID(),
+  now = new Date().toISOString(),
+): ResearchTaskRecord[] {
+  if (!Array.isArray(value)) throw new Error("Bundled research task history must be a list.");
+  if (!sourceProjectId.trim() || !destinationProjectId.trim()) throw new Error("Research import needs source and destination project IDs.");
+  const seen = new Set<string>();
+  const tasks = value as unknown[];
+  for (const candidate of tasks) {
+    if (!candidate || typeof candidate !== "object") throw new Error("Bundled research task history contains an invalid record.");
+    const task = candidate as Partial<ResearchTaskRecord>;
+    if (typeof task.id !== "string" || !task.id.trim()) throw new Error("Every bundled research task needs a stable ID.");
+    if (seen.has(task.id)) throw new Error("Bundled research task history contains duplicate IDs.");
+    seen.add(task.id);
+    if (task.projectId !== sourceProjectId) throw new Error("A bundled research task belongs to a different project.");
+    const errors = validateResearchTask(task, sourceProjectId);
+    if (errors.length) throw new Error("Bundled research task failed validation: " + errors.join(" "));
+  }
+  return (tasks as ResearchTaskRecord[]).map(task => {
+    const isCompleted = task.status === "completed";
+    return {
+      ...task,
+      id: idFactory(),
+      projectId: destinationProjectId,
+      status: isCompleted ? "completed" : "cancelled",
+      progress: isCompleted ? 100 : Math.min(task.progress, 99),
+      stage: isCompleted ? task.stage : "Imported unfinished research — retry to run on this device",
+      leaseUntil: undefined,
+      updatedAt: now,
+    };
+  });
+}
+
 const SETTINGS_ID = "__queue-settings__";
 async function persistQueuePausedState(value: boolean): Promise<void> {
   await transact<IDBValidKey>("readwrite", store => store.put({ id: SETTINGS_ID, queuePaused: value, updatedAt: new Date().toISOString() }));

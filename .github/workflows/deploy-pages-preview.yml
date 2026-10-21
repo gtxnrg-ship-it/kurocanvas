@@ -3,7 +3,7 @@ name: Publish development preview
 on:
   push:
     branches:
-      - feat/universe-per-chat-foundation
+      - main
   workflow_dispatch:
 
 permissions:

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { canonStorage, drawingStorage, projectStorage, storyMemoryStorage, type LocalDrawingDocument } from '../core/storage';
+import { artDirectionStorage, canonStorage, drawingStorage, projectStorage, storyMemoryStorage, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
+import { validateArtDirection, type ArtDirectionBible } from '../canon/artDirection';
 import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
@@ -44,6 +45,8 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       const assets: Record<string, string> = {};
       const memories = await storyMemoryStorage.list(id);
       assets['kuro/story-memory.v1.json'] = JSON.stringify(memories);
+      const artDirection = await artDirectionStorage.load(id);
+      if (artDirection) assets['kuro/art-direction.v1.json'] = JSON.stringify(artDirection);
       const canon = await canonStorage.load(id);
       if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
       const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
@@ -62,7 +65,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', and ' + linkedDrawings + ' linked drawings.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', and ' + linkedDrawings + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }
@@ -117,6 +120,17 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         if (issues.length) throw new Error('The bundled World Bible failed validation: ' + issues.map(issue => issue.message).join(' '));
       }
 
+      let artDirection: ArtDirectionBible | undefined;
+      if (importedAssets['kuro/art-direction.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/art-direction.v1.json']); } catch { throw new Error('The bundled Art Direction Bible is not valid JSON.'); }
+        if (!raw || typeof raw !== 'object') throw new Error('The bundled Art Direction Bible is invalid.');
+        const value = raw as Partial<ArtDirectionBible>;
+        artDirection = { ...value, projectId: project.id, schemaVersion: 1, influences: Array.isArray(value.influences) ? value.influences : [], updatedAt: now } as ArtDirectionBible;
+        const errors = validateArtDirection(artDirection, project.id);
+        if (errors.length) throw new Error('The bundled Art Direction Bible failed validation: ' + errors.join(' '));
+      }
+
       let oldMemories: StoryMemoryRecord[] = [];
       if (importedAssets['kuro/story-memory.v1.json']) {
         let raw: unknown;
@@ -159,6 +173,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       try {
         await projectStorage.save(project); projectSaved = true;
         if (canon) await canonStorage.save(canon);
+        if (artDirection) await artDirectionStorage.save(artDirection);
         for (const drawing of drawings) { await drawingStorage.save(drawing); savedDrawingIds.push(drawing.id); }
         for (const memory of memories) await storyMemoryStorage.save(memory);
       } catch (error) {
@@ -167,7 +182,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         throw error;
       }
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', and ' + drawings.length + ' linked drawings.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', and ' + drawings.length + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {

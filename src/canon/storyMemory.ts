@@ -248,7 +248,7 @@ export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query
         ? Math.max(0, 40 - (query.chapterNumber - record.chapterNumber)) : 0;
     const entityBoost = query.entityIds?.some(id => record.entityIds.includes(id)) ? 20 : 0;
     return { record, score: score + chapterBoost + entityBoost };
-  }).filter(item => item.score > 0)
+  }).filter(item => item.score > 0 || query.includePriorChapters === true && item.record.chapterNumber === undefined && item.record.sceneNumber === undefined && item.record.storyOrder === undefined && item.record.timelineId === undefined)
     .sort((a,b) => b.score-a.score || (b.record.storyOrder ?? -1)-(a.record.storyOrder ?? -1) || b.record.updatedAt.localeCompare(a.record.updatedAt))
     .slice(0, limit);
   const found = ranked.map(item => item.record);

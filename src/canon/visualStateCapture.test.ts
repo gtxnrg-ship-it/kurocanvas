@@ -35,7 +35,7 @@ describe("evidence-backed character visual capture", () => {
     const invalid = [
       { ...candidate, evidence: "Chapter 12: Ren has blue hair." },
       { ...candidate, evidence: "Ren is 18 and has short black hair.", chapterNumber: 12 },
-      { ...candidate, scars: "a dragon tattoo" },
+      { ...candidate, age: "", hair: "", eyes: "", scars: "a dragon tattoo", outfit: "", body: "", accessories: "", injuries: "", other: "" },
     ];
     expect(proposeVisualStatesFromEvidence(invalid, userMessage, [], () => "id")).toEqual([]);
   });

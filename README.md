@@ -8,7 +8,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 >
 > **Rough completion estimate:** approximately **45% of the full product vision is implemented in some form**. This is an engineering estimate, not a test-coverage metric. Core foundations exist, but several of the hardest end-to-end workflows and release requirements remain incomplete. **Release readiness is substantially lower than feature-foundation progress.**
 >
-> **Latest branch verification:** the current branch head has successful GitHub Actions runs for the checks configured in CI. This confirms those automated checks passed on that commit; it does **not** prove every user journey works or that the app is ready for release.
+> **Verification status:** automated checks are running against the latest changes. Check [GitHub Actions](https://github.com/gtxnrg-ship-it/kurocanvas/actions) for the exact commit and result. A successful typecheck/build/test run confirms only those checks passed; it does **not** prove every user journey works or that the app is ready for release.
 
 - **Development branch:** `feat/universe-per-chat-foundation`
 - **Pull request:** [#127 — universe-first workspace, continuity memory, and native art-agent harness](https://github.com/gtxnrg-ship-it/kurocanvas/pull/127)

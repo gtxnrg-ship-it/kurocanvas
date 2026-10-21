@@ -8,7 +8,8 @@ import { parseAIStrokePlan } from './drawing/aiPlan';
 import ProjectManager from './projects/ProjectManager';
 import { artDirectionStorage, canonStorage, drawingStorage, projectStorage, storyMemoryStorage, styleBibleStorage } from './core/storage';
 import { buildApprovedCanonContext } from './canon/aiContext';
-import { createEmptyCanon, type CanonEntity } from './canon/universe';
+import { createEmptyCanon } from './canon/universe';
+import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
 import ArtDirectionStudio from './canon/ArtDirectionStudio';
@@ -78,16 +79,7 @@ if(activeProjectId && captureStory){
     const characterCandidates=Array.isArray(parsed.newCharacters)?parsed.newCharacters:[];
     if(characterCandidates.length){
       const bundle=await canonStorage.load(activeProjectId) ?? createEmptyCanon(activeProjectId);
-      const additions:CanonEntity[]=[];
-      for(const item of characterCandidates.slice(0,8)){
-        const evidence=typeof item.evidence==='string'?item.evidence.trim():'';
-        const name=typeof item.name==='string'?item.name.trim():'';
-        if(!evidence||!text.includes(evidence)||!name||!evidence.includes(name))continue;
-        const duplicate=[...bundle.entities,...additions].some(entity=>entity.kind.toLocaleLowerCase()==='character'&&(entity.name.toLocaleLowerCase()===name.toLocaleLowerCase()||entity.aliases.some(alias=>alias.toLocaleLowerCase()===name.toLocaleLowerCase())));
-        if(duplicate)continue;
-        const aliases=(Array.isArray(item.aliases)?item.aliases:[]).filter((alias):alias is string=>typeof alias==='string'&&alias.trim()&&evidence.includes(alias.trim())).map(alias=>alias.trim()).slice(0,8);
-        additions.push({id:crypto.randomUUID(),projectId:activeProjectId,kind:'character',name,aliases,status:'proposed' as const});
-      }
+      const additions=proposeCharacterEntitiesFromEvidence(characterCandidates,text,bundle.entities,activeProjectId,()=>crypto.randomUUID());
       if(additions.length){
         await canonStorage.save({...bundle,entities:[...bundle.entities,...additions]});
         characterSaved=additions.length;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus } from 'lucide-react';
 import { drawingStorage, storyMemoryStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
@@ -11,12 +11,42 @@ type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble'; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+const imageCache = new Map<string, HTMLImageElement>();
+function readImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read that image file.'));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read that image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+function preloadDrawingImages(strokes: Array<{ shape?: string; imageDataUrl?: string }>): Promise<void> {
+  const urls = [...new Set(strokes.filter(stroke => stroke.shape === 'image' && stroke.imageDataUrl).map(stroke => stroke.imageDataUrl!))];
+  return Promise.all(urls.map(url => new Promise<void>((resolve, reject) => {
+    const cached = imageCache.get(url);
+    if (cached?.complete) {
+      if (cached.naturalWidth > 0) resolve();
+      else reject(new Error('A saved reference image could not be decoded.'));
+      return;
+    }
+    if (cached) {
+      cached.addEventListener('load', () => resolve(), { once: true });
+      cached.addEventListener('error', () => reject(new Error('A saved reference image could not be decoded.')), { once: true });
+      return;
+    }
+    const image = new Image();
+    imageCache.set(url, image);
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('A saved reference image could not be decoded.'));
+    image.src = url;
+  }))).then(() => undefined);
+}
 const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false, opacity: 1, blendMode: 'normal' };
 
 function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
@@ -37,7 +67,13 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.fillStyle = stroke.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (stroke.shape === 'text' && stroke.points.length) {
+  if (stroke.shape === 'image' && stroke.points.length && stroke.imageDataUrl) {
+    const image = imageCache.get(stroke.imageDataUrl);
+    if (image?.complete && image.naturalWidth > 0) {
+      const start = stroke.points[0], end = stroke.points[stroke.points.length - 1];
+      ctx.drawImage(image, Math.min(start.x, end.x), Math.min(start.y, end.y), Math.max(1, Math.abs(end.x - start.x)), Math.max(1, Math.abs(end.y - start.y)));
+    }
+  } else if (stroke.shape === 'text' && stroke.points.length) {
     const start = stroke.points[0];
     ctx.fillStyle = stroke.color;
     const font = stroke.fontFamily === 'serif' ? 'Georgia, serif' : stroke.fontFamily === 'sans' ? 'Arial, sans-serif' : 'Trebuchet MS, Comic Sans MS, cursive';
@@ -124,6 +160,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[] } | null;
 export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Stroke | null>(null);
@@ -159,6 +196,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [notice, setNotice] = useState('Ready to draw · Pressure-aware pointer input');
   const [showHelp, setShowHelp] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [saveState, setSaveState] = useState<'loading'|'saved'|'saving'|'error'>('loading');
   const [planAction, setPlanAction] = useState<DrawingActionRecord | null>(null);
   const [planRunNonce, setPlanRunNonce] = useState(0);
@@ -232,8 +270,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     let cancelled = false;
     // History belongs to one document only; never replay another drawing's snapshots here.
     setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setEditUndoStack([]); setEditRedoStack([]); setHistoryOrder([]); setRedoOrder([]); setSelectedStrokeId(null);
-    setLoaded(false); setSaveState('loading');
-    drawingStorage.load(drawingId).then(saved => {
+    setLoaded(false); setLoadError(false); setSaveState('loading');
+    drawingStorage.load(drawingId).then(async saved => {
+      if (saved) await preloadDrawingImages(saved.strokes as Stroke[]);
       if (cancelled) return;
       if (saved) {
         const doc: LocalDrawingDocument = saved;
@@ -252,7 +291,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setLoaded(true); setSaveState('saved');
     }).catch(error => {
       if (cancelled) return;
-      setLoaded(true); setSaveState('error');
+      setLoaded(true); setLoadError(true); setSaveState('error');
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
@@ -261,7 +300,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
     render(strokes, background);
-    if (!loaded) return;
+    if (!loaded || loadError) return;
     setSaveState('saving');
     const timer = globalThis.setTimeout(() => {
       drawingStorage.save({
@@ -276,7 +315,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       });
     }, 450);
     return () => globalThis.clearTimeout(timer);
-  }, [strokes, background, layers, loaded, render, drawingId, drawingName, refreshDocuments]);
+  }, [strokes, background, layers, loaded, loadError, render, drawingId, drawingName, refreshDocuments]);
 
   useEffect(() => {
     const runKey = pendingPlan ? pendingPlan.id + ':' + planRunNonce : '';
@@ -528,6 +567,34 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   };
   const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
+  const importReferenceImage = async (file?: File) => {
+    if (!file) return;
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type)) { setNotice('Use a PNG, JPEG, or WebP reference image.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setNotice('Reference images must be 10 MB or smaller.'); return; }
+    const destinationLayer = layers.find(layer => !layer.locked && layer.visible) || layers.find(layer => !layer.locked);
+    if (!destinationLayer) { setNotice('Unlock a layer before importing a reference image.'); return; }
+    try {
+      const imageDataUrl = await readImageFile(file);
+      await preloadDrawingImages([{ shape: 'image', imageDataUrl }]);
+      const image = imageCache.get(imageDataUrl);
+      if (!image || !image.naturalWidth || !image.naturalHeight) throw new Error('The selected file is not a readable image.');
+      const scale = Math.min(1, 800 / image.naturalWidth, 600 / image.naturalHeight);
+      const width = Math.max(1, image.naturalWidth * scale), height = Math.max(1, image.naturalHeight * scale);
+      const x = (docRef.current.width - width) / 2, y = (docRef.current.height - height) / 2;
+      const reference: Stroke = {
+        id: crypto.randomUUID(), layerId: destinationLayer.id, tool: 'brush', shape: 'image',
+        imageDataUrl, imageName: file.name.slice(0, 180), color: '#ffffff', size: 1,
+        points: [{ x, y, pressure: 1 }, { x: x + width, y: y + height, pressure: 1 }],
+      };
+      const before = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+      setEditUndoStack(old => [...old, before]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]);
+      setStrokes(old => [reference, ...old]); setSelectedStrokeId(reference.id); setTool('select');
+      setNotice('Imported ' + (file.name || 'reference image') + ' as a selectable object. Resize, rotate, move, or undo it as needed.');
+    } catch (error) {
+      setNotice('Could not import reference image: ' + (error instanceof Error ? error.message : 'unknown error'));
+    }
+  };
+
   const saveDrawingToStoryVault = async () => {
     if (!projectId) { setNotice('Choose a project before linking a drawing to the Story Vault.'); return; }
     if (!loaded) { setNotice('Wait for this drawing to finish loading before saving a reference.'); return; }
@@ -680,7 +747,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       {tool==='text' && <><label className="text-draft-control">Lettering <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder="Type text, then tap canvas" maxLength={500}/></label><label className="brush-preset-control">Font <select aria-label="Lettering font" value={letteringFont} onChange={e => setLetteringFont(e.target.value as 'comic'|'sans'|'serif')}><option value="comic">Comic</option><option value="sans">Sans</option><option value="serif">Serif</option></select></label></>}
       {selectedStroke && tool==='select' && <div className="selected-object-actions" role="group" aria-label="Selected object actions"><button onClick={duplicateSelected} title="Duplicate selected object"><Copy size={14}/> Duplicate</button><button onClick={removeSelected} title="Delete selected object"><Trash2 size={14}/> Delete</button></div>}
       <label className="size-control">Size <input type="range" min="1" max="36" value={size} onChange={e => setSize(Number(e.target.value))}/><b>{tool==='text'?Math.max(12,size*2):size}px</b></label>
-      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
+      <div className="draw-actions"><button title="Undo" disabled={!strokes.length && !planUndoStack.length && !editUndoStack.length} onClick={undo}><RotateCcw size={15}/></button><button title="Redo" disabled={!redoStack.length && !planRedoStack.length && !editRedoStack.length} onClick={redo}><RotateCw size={15}/></button><button title="Zoom out" onClick={() => setZoom(z => Math.max(.5, +(z-.1).toFixed(1)))}><Minus size={15}/></button><span>{Math.round(zoom*100)}%</span><button title="Zoom in" onClick={() => setZoom(z => Math.min(1.5, +(z+.1).toFixed(1)))}><Plus size={15}/></button><button title="Clear canvas" disabled={!strokes.length} onClick={clear}><Trash2 size={15}/></button><button onClick={() => imageInputRef.current?.click()} title="Import a reference image"><ImagePlus size={15}/> Reference image</button><input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={event => { void importReferenceImage(event.target.files?.[0]); event.target.value=''; }}/>{projectId && <button onClick={() => void saveDrawingToStoryVault()} title="Link this exact drawing to the project Story Vault"><Library size={15}/> Save to Vault</button>}<button className="export" onClick={exportPng}><Download size={15}/> Export PNG</button></div>
     </div>
     <div className="layer-panel"><div className="layer-panel-head"><b>Layers</b><div className="layer-panel-actions"><button onClick={addLayer}>＋ Add layer</button><button onClick={duplicateActiveLayer}>Duplicate</button><button onClick={deleteActiveLayer} disabled={layers.length<=1}>Delete active</button></div></div>{[...layers].map((layer, index) => ({ layer, index })).reverse().map(({layer,index}) => <div key={layer.id} className={'layer-row '+(activeLayerId===layer.id?'active-layer':'')}><button className="layer-select" onClick={() => setActiveLayerId(layer.id)}>{layer.name}{activeLayerId===layer.id?' · Active':''}</button><button title={layer.visible?'Hide layer':'Show layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,visible:!item.visible}:item))}>{layer.visible?'◉':'○'}</button><button title={layer.locked?'Unlock layer':'Lock layer'} onClick={() => setLayers(old => old.map(item => item.id===layer.id?{...item,locked:!item.locked}:item))}>{layer.locked?'🔒':'🔓'}</button><button title="Move layer up" disabled={index===layers.length-1} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index+1]]=[next[index+1],next[index]]; return next; })}>↑</button><button title="Move layer down" disabled={index===0} onClick={() => setLayers(old => { const next=[...old]; [next[index],next[index-1]]=[next[index-1],next[index]]; return next; })}>↓</button><button title="Rename layer" onClick={() => renameLayer(layer.id)}>✎</button><label className="layer-opacity">Opacity <input type="range" min="0" max="100" value={Math.round((layer.opacity ?? 1)*100)} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,opacity:Number(e.target.value)/100}:item))}/></label><select aria-label={'Blend mode for '+layer.name} value={layer.blendMode ?? 'normal'} onChange={e => setLayers(old => old.map(item => item.id===layer.id?{...item,blendMode:e.target.value as BlendMode}:item))}><option value="normal">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option></select></div>)}</div>
     <div className="drawing-stage" ref={wrapRef}>

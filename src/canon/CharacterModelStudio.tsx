@@ -160,12 +160,19 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rootRef = useRef<THREE.Group | null>(null);
+  const modelContentRef = useRef<THREE.Group | null>(null);
+  const animationMixerRef = useRef<THREE.AnimationMixer | null>(null);
   const scarRootRef = useRef<THREE.Group | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const boundsRef = useRef(new THREE.Box3(new THREE.Vector3(-.5,0,-.3),new THREE.Vector3(.5,2.5,.3)));
   const [models, setModels] = useState<CharacterModelRecord[]>([]);
+  const [modelsReady, setModelsReady] = useState(false);
+  const [motionPreset, setMotionPreset] = useState<CharacterMotionPreset>("idle");
+  const motionPresetRef = useRef<CharacterMotionPreset>("idle");
+  const [animationClips, setAnimationClips] = useState<THREE.AnimationClip[]>([]);
+  const [activeAnimationIndex, setActiveAnimationIndex] = useState("");
   const [styleBible, setStyleBible] = useState<ProjectStyleBible | null>(null);
   const [modelId, setModelId] = useState("");
   const [stateId, setStateId] = useState("");
@@ -179,14 +186,15 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
 
   useEffect(() => {
     let alive = true;
-    if (!projectId) { setModels([]); setStyleBible(null); setModelId(""); setStateId(""); return; }
+    setModelsReady(false);
+    if (!projectId) { setModels([]); setStyleBible(null); setModelId(""); setStateId(""); setModelsReady(true); return; }
     setBusy(true);
     void Promise.all([characterModelStorage.list(projectId), styleBibleStorage.load(projectId)]).then(([loadedModels,bible]) => {
       if (!alive) return;
-      setModels(loadedModels); setStyleBible(bible ?? null);
+      setModels(loadedModels); setStyleBible(bible ?? null); setModelsReady(true);
       setModelId(current => loadedModels.some(model => model.id === current) ? current : loadedModels[0]?.id ?? "");
       setMessage("Loaded " + loadedModels.length + " saved character model" + (loadedModels.length === 1 ? "" : "s") + " for this project.");
-    }).catch(error => { if (alive) setMessage(error instanceof Error ? error.message : "Could not load character models."); })
+    }).catch(error => { if (alive) { setMessage(error instanceof Error ? error.message : "Could not load character models."); setModelsReady(true); } })
       .finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [projectId]);

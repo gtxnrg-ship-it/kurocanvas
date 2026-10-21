@@ -671,6 +671,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
+      if (planAction?.status === 'running') return;
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
       if (modifier) {
@@ -691,7 +692,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [undo, redo]);
+  }, [undo, redo, planAction?.status]);
   const addCurrentColorToPalette = () => {
     const result = addPaletteColor(customColors, color);
     if (!result.added) {
@@ -767,6 +768,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(target.tagName))) return;
+      if (planAction?.status === 'running') return;
       const key = event.key.toLowerCase();
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && key === 'd' && tool === 'select' && selectedStroke) { event.preventDefault(); duplicateSelected(); return; }
@@ -779,7 +781,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [tool, selectedStrokeId, strokes, layers, duplicateSelected, removeSelected, nudgeSelected]);
+  }, [tool, selectedStrokeId, strokes, layers, duplicateSelected, removeSelected, nudgeSelected, planAction?.status]);
   const clear = () => { if (!strokes.length || !globalThis.confirm('Clear all strokes from this canvas?')) return; setEditUndoStack(old => [...old, strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setEditRedoStack([]); setPlanRedoStack([]); setStrokes([]); setRedoStack([]); setSelectedStrokeId(null); setNotice('Canvas cleared · Undo is available'); };
 
   const importReferenceImage = async (file?: File) => {
@@ -1013,7 +1015,11 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     } catch (error) { setSaveState('error'); setNotice('Delete failed: ' + (error instanceof Error ? error.message : 'unknown error')); }
   };
 
-  return <section className="alt drawing-alt">
+  return <section className="alt drawing-alt" aria-busy={planAction?.status === 'running'}>
+    {planAction?.status === 'running' && <div className="drawing-plan-blocker" role="status" aria-live="polite">
+      <strong>Kuro is applying your approved drawing plan…</strong>
+      <span>She is saving and verifying the actual editable canvas. Editing is paused briefly to protect your changes.</span>
+    </div>}
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
     {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. In Select mode, arrow keys nudge objects (Shift for 10 px), Delete removes, and Ctrl/Cmd+D duplicates. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">

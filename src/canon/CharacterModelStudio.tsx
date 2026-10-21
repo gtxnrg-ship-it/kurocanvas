@@ -343,13 +343,120 @@ export default function CharacterModelStudio({ projectId, projects, pendingAgent
     catch(error){setMessage(error instanceof Error?error.message:"Could not remove model.");}
     finally{setBusy(false);}
   }
-  async function resetView() {
+  async function animateCameraTo(position: THREE.Vector3, target: THREE.Vector3) {
     const camera = cameraRef.current, controls = controlsRef.current;
-    if (!camera || !controls) return;
-    camera.position.set(0,1.45,5.8);
-    controls.target.set(0,1.25,0);
-    controls.update();
-    setMessage("View centered. Drag to orbit and scroll to zoom.");
+    if (!camera || !controls) throw new Error("The live 3D viewport is not ready yet.");
+    const fromPosition = camera.position.clone();
+    const fromTarget = controls.target.clone();
+    const startedAt = performance.now();
+    const wasEnabled = controls.enabled;
+    controls.enabled = false;
+    await new Promise<void>(resolve => {
+      const tick = (now: number) => {
+        if (cameraRef.current !== camera || controlsRef.current !== controls) { resolve(); return; }
+        const progress = Math.min(1, (now - startedAt) / 320);
+        const eased = progress * progress * (3 - 2 * progress);
+        camera.position.lerpVectors(fromPosition, position, eased);
+        controls.target.lerpVectors(fromTarget, target, eased);
+        controls.update();
+        if (progress < 1) requestAnimationFrame(tick);
+        else { controls.enabled = wasEnabled; resolve(); }
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  async function applyCameraPreset(preset: CharacterCameraPreset) {
+    const pose = CAMERA_PRESETS[preset];
+    if (!pose) throw new Error("Unknown 3D camera preset.");
+    await animateCameraTo(new THREE.Vector3(...pose.position), new THREE.Vector3(...pose.target));
+    setMessage("Kuro moved the live camera to the " + preset.replace(/-/g, " ") + " view. The model geometry was not changed.");
+  }
+
+  async function animateModelRotation(degrees?: number, reset = false) {
+    const root = rootRef.current;
+    if (!root) throw new Error("The character preview is not ready yet.");
+    const from = root.rotation.y;
+    const to = reset ? 0 : from + (degrees ?? 0) * Math.PI / 180;
+    const startedAt = performance.now();
+    await new Promise<void>(resolve => {
+      const tick = (now: number) => {
+        if (rootRef.current !== root) { resolve(); return; }
+        const progress = Math.min(1, (now - startedAt) / 260);
+        const eased = progress * progress * (3 - 2 * progress);
+        root.rotation.y = from + (to - from) * eased;
+        if (progress < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    setMessage(reset ? "Reset the displayed model orientation. The source model was not edited."
+      : "Rotated the displayed model by " + degrees + "°. This is a non-destructive viewport action.");
+  }
+
+  async function executeAgentCommand(command: CharacterModelAgentCommand) {
+    switch (command.type) {
+      case "camera.preset":
+        await applyCameraPreset(command.preset);
+        return;
+      case "camera.zoom": {
+        const camera = cameraRef.current, controls = controlsRef.current;
+        if (!camera || !controls) throw new Error("The live 3D viewport is not ready yet.");
+        const direction = camera.position.clone().sub(controls.target);
+        const distance = THREE.MathUtils.clamp(direction.length() / command.factor, controls.minDistance, controls.maxDistance);
+        direction.setLength(distance);
+        await animateCameraTo(controls.target.clone().add(direction), controls.target.clone());
+        setMessage((command.factor >= 1 ? "Zoomed in " : "Zoomed out ") + Math.round(Math.abs(command.factor - 1) * 100) + "%. Camera movement only; model geometry was not changed.");
+        return;
+      }
+      case "model.rotateView":
+        await animateModelRotation(command.degrees);
+        return;
+      case "model.resetViewRotation":
+        await animateModelRotation(undefined, true);
+        return;
+    }
+  }
+
+  useEffect(() => {
+    const action = pendingAgentAction;
+    if (!action || action.projectId !== projectId || !onAgentActionResult || handledAgentActionRef.current === action.id) return;
+    handledAgentActionRef.current = action.id;
+    let cancelled = false;
+    const run = async () => {
+      setAgentActionProgress({ id: action.id, completed: 0, total: action.commands.length, command: action.summary });
+      setMessage("Kuro is operating the live 3D viewport tools.");
+      try {
+        for (let index = 0; index < action.commands.length; index++) {
+          if (cancelled) return;
+          const command = action.commands[index];
+          setAgentActionProgress({ id: action.id, completed: index, total: action.commands.length, command: describeCharacterModelAgentCommand(command) });
+          await executeAgentCommand(command);
+          if (cancelled) return;
+          setAgentActionProgress({ id: action.id, completed: index + 1, total: action.commands.length, command: describeCharacterModelAgentCommand(command) });
+        }
+        if (cancelled) return;
+        const completed = action.commands.map(describeCharacterModelAgentCommand).join("; ");
+        setAgentActionProgress(null);
+        setMessage("Completed " + action.commands.length + " native 3D viewport action(s). No image was generated and no source mesh was overwritten.");
+        onAgentActionResult(action.id, "success", completed);
+      } catch (error) {
+        if (cancelled) return;
+        const reason = error instanceof Error ? error.message : "Unknown viewport-tool failure.";
+        setAgentActionProgress(null);
+        setMessage("The 3D agent action failed: " + reason);
+        onAgentActionResult(action.id, "error", reason);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  // The action ID is the idempotency key: changing parent callbacks or progress state must not replay it.
+  }, [pendingAgentAction?.id]);
+
+  async function resetView() {
+    await applyCameraPreset("front");
+    await animateModelRotation(undefined, true);
+    setMessage("View centered and model orientation reset. Drag to orbit and scroll to zoom.");
   }
 
   const stateOptions: CharacterVisualState[] = statesForCharacter;

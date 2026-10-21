@@ -62,6 +62,38 @@ function safeWikimediaUrl(value: unknown, expectedHost: "commons.wikimedia.org" 
   }
 }
 
+/** Validate persisted search cards before rendering external images from local chat history. */
+export function normalizeReferenceSearchResults(value: unknown): ReferenceSearchResult[] {
+  if (!Array.isArray(value)) return [];
+  const results: ReferenceSearchResult[] = [];
+  for (const raw of value.slice(0, 12)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const item = raw as Record<string, unknown>;
+    const sourceUrl = safeWikimediaUrl(item.sourceUrl, "commons.wikimedia.org");
+    const imageUrl = safeWikimediaUrl(item.imageUrl, "upload.wikimedia.org");
+    const thumbnailUrl = safeWikimediaUrl(item.thumbnailUrl, "upload.wikimedia.org");
+    const licenseUrl = item.licenseUrl === "" ? "" : safeHttps(item.licenseUrl);
+    if (!sourceUrl || !imageUrl || !thumbnailUrl || !licenseUrl
+      || typeof item.title !== "string" || !item.title.trim()
+      || typeof item.description !== "string" || typeof item.query !== "string"
+      || typeof item.creator !== "string" || typeof item.license !== "string"
+      || typeof item.attribution !== "string") continue;
+    results.push({
+      title: item.title.slice(0, 300),
+      description: item.description.slice(0, 1800),
+      query: item.query.slice(0, 180),
+      sourceUrl,
+      imageUrl,
+      thumbnailUrl,
+      creator: item.creator.slice(0, 500),
+      license: item.license.slice(0, 300),
+      licenseUrl,
+      attribution: item.attribution.slice(0, 800),
+    });
+  }
+  return results;
+}
+
 export function parseWikimediaSearchResponse(payload: unknown, query: string): ReferenceSearchResult[] {
   if (!payload || typeof payload !== "object") return [];
   const root = payload as { query?: { pages?: Record<string, unknown> } };

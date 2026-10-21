@@ -60,7 +60,7 @@ describe("OpenAICompatibleProvider", () => {
 
   it("does not infer vision capability or hardware estimates from an arbitrary model name", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
-      data: [{ id: "Qwen/Qwen3.8-27B" }, { id: "small-vision-model" }],
+      data: [{ id: "arbitrary-large-model-name" }, { id: "small-vision-model" }],
     })) as unknown as typeof fetch;
     const provider = new OpenAICompatibleProvider({
       baseUrl: "http://localhost:8000/v1",

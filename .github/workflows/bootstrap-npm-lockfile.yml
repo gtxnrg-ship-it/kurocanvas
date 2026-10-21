@@ -1,0 +1,47 @@
+name: Bootstrap checked-in npm lockfile
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-npm-lockfile.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-npm-lockfile
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Pin npm version used by project CI
+        run: npm install --global npm@11.6.0
+      - name: Generate lockfile with current peer dependency policy
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
+      - name: Commit generated lockfile to main
+        run: |
+          if [ ! -s package-lock.json ]; then
+            echo "::error::npm did not generate package-lock.json"
+            exit 1
+          fi
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo "A tracked lockfile already exists; no bootstrap commit needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "build: pin npm dependency graph in lockfile"
+          git push origin HEAD:main

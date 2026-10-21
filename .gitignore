@@ -1,0 +1,30 @@
+# JavaScript dependencies and generated builds
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local environment and machine-specific files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Editor and operating-system metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Capacitor's generated native project is recreated and synced by Android CI.
+# Remove this rule only when intentionally checking in the Android project.
+android/
+
+# Temporary model downloads and local test outputs
+.cache/
+.transformers-cache/

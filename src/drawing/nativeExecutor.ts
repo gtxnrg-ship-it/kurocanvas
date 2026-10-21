@@ -126,6 +126,69 @@ export function applyNativeDrawingCommand(
     };
   }
 
+  if (command.type === "stroke.transform") {
+    const index = strokes.findIndex(stroke => stroke.id === command.strokeId);
+    if (index < 0) throw new Error("Cannot transform stroke: stroke does not exist.");
+    const current = strokes[index];
+    const layer = layers.find(item => item.id === (current.layerId || layers[0]?.id));
+    if (!layer) throw new Error("Cannot transform stroke: its layer does not exist.");
+    if (layer.locked) throw new Error("Cannot transform stroke: its layer is locked.");
+    if (!current.points.length) throw new Error("Cannot transform stroke: it has no geometry.");
+    const xs = current.points.map(point => point.x);
+    const ys = current.points.map(point => point.y);
+    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const radians = command.rotationDegrees * Math.PI / 180;
+    const cosine = Math.cos(radians), sine = Math.sin(radians);
+    const transformed = current.points.map(point => ({
+      ...point,
+      x: centerX + (point.x - centerX) * command.scaleX + command.translateX,
+      y: centerY + (point.y - centerY) * command.scaleY + command.translateY,
+    }));
+    if (transformed.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y)
+      || point.x < 0 || point.y < 0 || point.x > state.width || point.y > state.height)) {
+      throw new Error("Cannot transform stroke: the result would extend beyond the canvas.");
+    }
+    const newXs = transformed.map(point => point.x);
+    const newYs = transformed.map(point => point.y);
+    const transformedCenterX = (Math.min(...newXs) + Math.max(...newXs)) / 2;
+    const transformedCenterY = (Math.min(...newYs) + Math.max(...newYs)) / 2;
+    const effectiveRotation = (current.rotation ?? 0) + radians;
+    const effectiveCosine = Math.cos(effectiveRotation), effectiveSine = Math.sin(effectiveRotation);
+    const visuallyTransformed = transformed.map(point => {
+      const dx = point.x - transformedCenterX, dy = point.y - transformedCenterY;
+      return { x: transformedCenterX + dx * effectiveCosine - dy * effectiveSine, y: transformedCenterY + dx * effectiveSine + dy * effectiveCosine };
+    });
+    if (visuallyTransformed.some(point => point.x < 0 || point.y < 0 || point.x > state.width || point.y > state.height)) {
+      throw new Error("Cannot transform stroke: its rotated result would extend beyond the canvas.");
+    }
+    const updated: NativeStroke = { ...current, points: transformed, rotation: effectiveRotation };
+    strokes[index] = updated;
+    const original: RestoreStrokeCommand["stroke"] = {
+      id: current.id, layerId: current.layerId || layers[0]?.id || "",
+      tool: current.tool, color: current.color, size: current.size,
+      points: current.points.map(point => ({ ...point })),
+      ...(current.shape ? { shape: current.shape } : {}),
+      ...(current.imageDataUrl ? { imageDataUrl: current.imageDataUrl } : {}),
+      ...(current.imageName ? { imageName: current.imageName } : {}),
+      ...(current.text !== undefined ? { text: current.text } : {}),
+      ...(current.fontFamily ? { fontFamily: current.fontFamily } : {}),
+      ...(current.filled !== undefined ? { filled: current.filled } : {}),
+      ...(current.fillColor ? { fillColor: current.fillColor } : {}),
+      ...(current.rotation !== undefined ? { rotation: current.rotation } : {}),
+      ...(current.brushPreset ? { brushPreset: current.brushPreset } : {}),
+    };
+    return {
+      state: { ...state, layers, strokes },
+      inverse: [
+        { version: 1, id: command.id + ":undo:remove", type: "stroke.remove", strokeId: current.id },
+        { version: 1, id: command.id + ":undo:restore", type: "stroke.restore", stroke: original, index },
+      ],
+      changed: command.translateX !== 0 || command.translateY !== 0 || command.scaleX !== 1
+        || command.scaleY !== 1 || command.rotationDegrees !== 0,
+    };
+  }
+
   if (command.type === "stroke.restore") {
     const layer = layers.find(item => item.id === command.stroke.layerId);
     if (!layer) throw new Error("Cannot restore stroke: target layer does not exist.");

@@ -67,6 +67,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   unresolvedTarget: boolean;
   hiddenTokens: string[];
   maxStoryOrder?: number;
+  timelineId?: string;
 } {
   const point = resolveRevealPoint(gate);
   const states = eligibleRevealStates(gate);
@@ -95,7 +96,11 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   const maxStoryOrder = point.storyOrder !== undefined && point.timelineId && !point.ambiguous
     ? point.storyOrder
     : undefined;
-  if (!hiddenIds.size) return { bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined, hiddenTokens: [], ...(maxStoryOrder === undefined ? {} : { maxStoryOrder }) };
+  const timelineId = maxStoryOrder === undefined ? undefined : point.timelineId;
+  if (!hiddenIds.size) return {
+    bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined, hiddenTokens: [],
+    ...(maxStoryOrder === undefined ? {} : { maxStoryOrder, ...(timelineId ? { timelineId } : {}) }),
+  };
   const publicEntities = bundle.entities.filter(entity => !hiddenIds.has(entity.id));
   const tokens = [...hiddenNames].map(value => value.normalize("NFKC").toLocaleLowerCase().trim()).filter(value => value.length >= 3);
   const refersToHiddenCharacter = (value: unknown) => {
@@ -112,7 +117,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
     hiddenCount: hiddenIds.size,
     unresolvedTarget: point.ambiguous || point.storyOrder === undefined,
     hiddenTokens: tokens,
-    ...(maxStoryOrder === undefined ? {} : { maxStoryOrder }),
+    ...(maxStoryOrder === undefined ? {} : { maxStoryOrder, ...(timelineId ? { timelineId } : {}) }),
   };
 }
 
@@ -194,11 +199,13 @@ export function buildApprovedCanonContext(
   let source = bundle;
   let revealNotice = "";
   let revealMaxStoryOrder: number | undefined;
+  let revealTimelineId: string | undefined;
   if (options.revealGate?.enabled) {
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);
     source = filtered.bundle;
     revealMaxStoryOrder = filtered.maxStoryOrder;
+    revealTimelineId = filtered.timelineId;
     if (filtered.unresolvedTarget) {
       revealNotice = "STORY OUTPUT CONTINUITY GUARD: The requested chapter/timeline does not map to one approved story point. Character identities, appearance facts, and reveal-sensitive canon are withheld. Ask for the chapter/timeline mapping rather than inventing which characters or designs belong in this scene.";
     } else if (filtered.hiddenCount) {
@@ -212,7 +219,7 @@ export function buildApprovedCanonContext(
     projectId: options.projectId,
     text: options.userMessage,
     statuses: ["approved"],
-    ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder }),
+    ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder, ...(revealTimelineId ? { timelineId: revealTimelineId } : {}) }),
     limit: maxFacts,
   });
   if ((!retrieved.entities.length || !retrieved.facts.length) && !revealNotice) return "";

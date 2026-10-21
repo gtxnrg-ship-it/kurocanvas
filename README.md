@@ -6,7 +6,11 @@ Kuro Canvas is planned as a chat-first, AI-assisted creative studio for manga, m
 
 ## Current status
 
-This foundation commit establishes a responsive React + TypeScript + Vite interface prototype. Navigation, chat flow, workspace panels, reader view, and creative-vault view are UI scaffolding. Tool activity and scene art are illustrative; a production drawing engine, persistent project storage, real AI tool execution, and export pipeline are not implemented yet.
+Kuro Canvas is an actively developed, local-first creative application built with React, TypeScript, and Vite. The repository already contains a native editable 2D canvas, layers and drawing tools, local project/drawing/revision storage, project packaging, canon and visual-reference studios, story-memory retrieval, and an optional OpenAI-compatible model-provider interface.
+
+The universe-first workspace is being developed on an open pull request. That work adds isolated universe and conversation records, locally persisted transcripts, resume flows, relationship-state history, evidence-linked relationship proposals, and a more explicit native-action planning contract. The latest branch also adds recent-conversation navigation and explicitly attached conversations within a universe.
+
+**Do not treat this status as a release claim.** The universe branch has not yet been verified by a successful latest-head CI run, and it must not be merged until typecheck, build, tests, and review pass. Kuro's native-tool loop is still incomplete: the goal is for Kuro to operate the same editable canvas tools as a human, inspect the resulting document, and revise it safely. No image generator may stand in for that workflow. Local model packaging, full native action coverage, robust end-to-end verification, and platform-specific performance testing remain unfinished.
 
 ## Product principles
 
@@ -32,18 +36,19 @@ Node.js 20+ recommended.
 
 - [Cross-platform and low-end performance strategy](docs/CROSS-PLATFORM-PERFORMANCE.md) — current framework decision, optimization order, device targets, and release gates.
 
-## Planned architecture
+## Implementation priorities
 
-1. Responsive application shell and design system
-2. Real 2D drawing engine, editable action history, layers, and stylus/touch input
-3. Versioned local project model, autosave, recovery, and .kuro package format
-4. Typed Kuro tool registry with preview/approval/undo semantics
-5. Creative vault, template versions, asset provenance, and dependency tracking
-6. Infinite/virtualized Webtoon workspace and comic-specific editing tools
-7. 3D reference studio with lazy asset loading and resource cleanup
-8. Export pipeline: raster images, layered interchange evaluation, PDF, and Webtoon export presets
-9. Canon and continuity engine, research provenance, optional model providers
-10. Automated tests, device benchmarks, accessibility, and release pipeline
+The work is sequenced by dependency, not by visual novelty:
+
+1. **Finish the universe/conversation data boundary.** Every transcript, canon fact, relationship event, drawing, revision, queued task, and asset must be scoped to its owning universe. A new chat starts a new universe by default; attaching another chat is an explicit action.
+2. **Make history resumable and durable.** Preserve full source transcripts and project state. Searchable summaries may accelerate retrieval but must never replace source records.
+3. **Unify native drawing actions.** Expose human and Kuro operations through one typed, allowlisted registry. Validate coordinates, layers, locks, sizes, and payloads; checkpoint before batches; support cancellation, rollback, provenance, and actual-document read-back.
+4. **Close the creative feedback loop.** Kuro inspects the editable result, compares it with the brief and references, identifies concrete defects, and applies bounded corrections. Never report success before the canvas confirms the change.
+5. **Finish continuity and evidence.** Track character knowledge, relationship changes, emotional history, appearance states, timeline, source evidence, and approval/supersession status. Ask instead of inventing missing facts.
+6. **Make the UI complete.** Home surfaces prior universes, saved conversations, and works; chat switching is explicit; canvas, reader, Vault, relationship studio, and settings have consistent empty/loading/error states and responsive layouts.
+7. **Complete portable projects and export.** Validate archive paths and schemas, preserve editable layers and references, preflight missing assets, and test import/export round trips.
+8. **Ship the model/runtime honestly.** Support local inference where the device/runtime can sustain it, disclose memory/performance limits, and keep hosted providers optional rather than mandatory.
+9. **Release only after verification.** Require typecheck, production build, regression tests, accessibility checks, and device benchmarks. Mark work Verified only when the corresponding checks have actually passed.
 
 ## Official Kuro icon
 

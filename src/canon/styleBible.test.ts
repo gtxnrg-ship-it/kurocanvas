@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, validateStyleBible, type ProjectStyleBible } from "./styleBible";
+import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts, resolveCharacterVisualState, validateStyleBible, type ProjectStyleBible } from "./styleBible";
 
 function seeded(): ProjectStyleBible {
   const bible = createEmptyStyleBible("project-1");
@@ -58,6 +58,16 @@ describe("project style bible", () => {
     const bible = seeded();
     bible.characterStates[1].status = "proposed";
     expect(buildStyleBibleContext(bible, "project-1", "Draw Ren in chapter 12")).not.toContain("thin scar across left eyebrow");
+  });
+
+  it("exposes the resolved approved visual state for a character at a specific story order", () => {
+    const bible = seeded();
+    bible.characterStates.push({ id:"state-3", characterName:"Ren", storyOrder:13, chapterLabel:"Chapter 13", hair:"longer hair", status:"approved" });
+    const resolved = resolveCharacterVisualState(bible.characterStates, "Ren", 13);
+    expect(resolved?.latest.chapterLabel).toBe("Chapter 13");
+    expect(resolved?.traits.hair).toBe("longer hair");
+    expect(resolved?.traits.scars).toBe("thin scar across left eyebrow");
+    expect(resolveCharacterVisualState(bible.characterStates, "Ren", 1)?.traits.scars).toBeUndefined();
   });
 
   it("carries forward scars and other unchanged traits until an explicit change is recorded", () => {

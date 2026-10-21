@@ -13,7 +13,7 @@ type Layer = { id: string; name: string; visible: boolean; locked: boolean; opac
 type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text'; filled?: boolean; text?: string; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
-type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean };
+type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
 const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false, opacity: 1, blendMode: 'normal' };
@@ -301,17 +301,34 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     }
     if (tool === 'select') {
       const at = pointFromEvent(e);
-      const target = [...strokes].reverse().find(stroke => {
+      const selected = selectedStrokeId ? strokes.find(stroke => stroke.id === selectedStrokeId) : undefined;
+      const selectedBounds = selected ? getStrokeBounds(selected) : undefined;
+      const radius = Math.max(8, 14 * docRef.current.width / Math.max(1, e.currentTarget.getBoundingClientRect().width));
+      const selectedCenter = selectedBounds ? { x: selectedBounds.x + selectedBounds.width / 2, y: selectedBounds.y + selectedBounds.height / 2 } : undefined;
+      let mode: SelectionDrag['mode'] = 'move';
+      let target: Stroke | undefined;
+      if (selected && selectedBounds && selectedCenter) {
+        const rotateHandle = { x: selectedCenter.x, y: selectedBounds.y - radius * 1.25 };
+        const resizeHandle = { x: selectedBounds.x + selectedBounds.width, y: selectedBounds.y + selectedBounds.height };
+        const rotateDistance = Math.hypot(at.x - rotateHandle.x, at.y - rotateHandle.y);
+        const resizeDistance = Math.hypot(at.x - resizeHandle.x, at.y - resizeHandle.y);
+        if (rotateDistance <= radius) { target = selected; mode = 'rotate'; }
+        else if (resizeDistance <= radius) { target = selected; mode = 'resize'; }
+      }
+      if (!target) target = [...strokes].reverse().find(stroke => {
         const layer = layers.find(item => item.id === (stroke.layerId || layers[0]?.id));
         if (layer?.locked || layer?.visible === false) return false;
         const bounds = getStrokeBounds(stroke);
         return at.x >= bounds.x && at.x <= bounds.x + bounds.width && at.y >= bounds.y && at.y <= bounds.y + bounds.height;
       });
-      if (!target) { setSelectedStrokeId(null); setNotice('Tap an unlocked object to select and move it.'); return; }
+      if (!target) { setSelectedStrokeId(null); setNotice('Tap an unlocked object to select it. Drag inside to move; use the top handle to rotate and corner handle to resize.'); return; }
+      const bounds = getStrokeBounds(target);
+      const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+      if (target.id !== selectedStrokeId) mode = 'move';
       setSelectedStrokeId(target.id); e.currentTarget.setPointerCapture(e.pointerId);
-      selectionDragRef.current = { pointerX: e.clientX, pointerY: e.clientY, strokeId: target.id, startPoints: target.points.map(point => ({ ...point })), moved: false };
+      selectionDragRef.current = { pointerX: e.clientX, pointerY: e.clientY, strokeId: target.id, startPoints: target.points.map(point => ({ ...point })), moved: false, mode, bounds, center, startAngle: Math.atan2(at.y - center.y, at.x - center.x) };
       moveSnapshotRef.current = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
-      setNotice('Drag to move the selected drawing object'); return;
+      setNotice(mode === 'rotate' ? 'Drag to rotate the selected object' : mode === 'resize' ? 'Drag the corner to resize the selected object' : 'Drag to move the selected drawing object'); return;
     }
     if (layers.find(layer => layer.id === activeLayerId)?.locked) { setNotice('This layer is locked. Select an unlocked layer to draw.'); return; }
     if (tool === 'text') {
@@ -342,7 +359,23 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       const dx = ((e.clientX - drag.pointerX) / Math.max(1, rect.width)) * docRef.current.width;
       const dy = ((e.clientY - drag.pointerY) / Math.max(1, rect.height)) * docRef.current.height;
       if (Math.abs(dx) + Math.abs(dy) > 0.25) drag.moved = true;
-      setStrokes(old => old.map(stroke => stroke.id === drag.strokeId ? { ...stroke, points: drag.startPoints.map(point => ({ ...point, x: point.x + dx, y: point.y + dy })) } : stroke));
+      const at = pointFromEvent(e);
+      let points: Point[];
+      if (drag.mode === 'move') {
+        points = drag.startPoints.map(point => ({ ...point, x: point.x + dx, y: point.y + dy }));
+      } else if (drag.mode === 'resize') {
+        const sx = Math.max(0.03, (drag.bounds.width + dx) / Math.max(1, drag.bounds.width));
+        const sy = Math.max(0.03, (drag.bounds.height + dy) / Math.max(1, drag.bounds.height));
+        points = drag.startPoints.map(point => ({ ...point, x: drag.bounds.x + (point.x - drag.bounds.x) * sx, y: drag.bounds.y + (point.y - drag.bounds.y) * sy }));
+      } else {
+        const angle = Math.atan2(at.y - drag.center.y, at.x - drag.center.x) - drag.startAngle;
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+        points = drag.startPoints.map(point => {
+          const x = point.x - drag.center.x, y = point.y - drag.center.y;
+          return { ...point, x: drag.center.x + x * cos - y * sin, y: drag.center.y + x * sin + y * cos };
+        });
+      }
+      setStrokes(old => old.map(stroke => stroke.id === drag.strokeId ? { ...stroke, points } : stroke));
       return;
     }
     if (!activeRef.current) return;
@@ -358,7 +391,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     if (selectionDragRef.current) {
       const drag = selectionDragRef.current; selectionDragRef.current = null;
       const beforeMove = moveSnapshotRef.current;
-      if (drag.moved && beforeMove) { setEditUndoStack(old => [...old, beforeMove]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice('Object moved · Undo is available'); }
+      if (drag.moved && beforeMove) { setEditUndoStack(old => [...old, beforeMove]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]); setNotice((drag.mode === 'move' ? 'Object moved' : drag.mode === 'resize' ? 'Object resized' : 'Object rotated') + ' · Undo is available'); }
       moveSnapshotRef.current = null; return;
     }
     if (!activeRef.current) return;

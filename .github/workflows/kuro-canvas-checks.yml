@@ -19,9 +19,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
+          node-version: 24
+      - name: Pin npm version with the known peer-graph fix
+        run: npm install --global npm@11.6.0
+      - name: Resolve dependency graph into a per-run lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund --legacy-peer-deps
       - name: Dependency security audit (diagnostic)
         shell: bash
         run: |

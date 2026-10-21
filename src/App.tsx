@@ -193,10 +193,6 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  async function send(){const text=draft.trim();if(!text||working)return;if(!isLocalTinyModelPrepared()){setMessages(m=>[...m,{role:'kuro',text:'I have not sent your request to a model yet. Qwen3-0.6B is Kuro’s only model, and it must be prepared explicitly in Preferences first. Open Preferences → Download & prepare Qwen3-0.6B, then send your draft again. I will not start a surprise 370 MB download from the chat box.'}]);setProviderNotice('Qwen3-0.6B needs preparation in Preferences');return;}chatAbortControllerRef.current?.abort();const requestController=new AbortController();chatAbortControllerRef.current=requestController;const requestGeneration=++chatRequestGenerationRef.current;const requestIsCurrent=()=>!requestController.signal.aborted&&chatRequestGenerationRef.current===requestGeneration;let recentTurns=buildKuroConversationTurns(messages,24,4000,text,26000);setDraft('');setMessages(m=>[...m,{role:'user',text}]);setWorking(true);let draftForMemoryCapture='';try{
  const referenceQuery=extractReferenceSearchQuery(text);
  if(referenceQuery){
-  if(!activeProjectId){
-   setMessages(m=>[...m,{role:'kuro',text:'Choose or create a project before saving visual references. The search itself can run, but I need a project to attach results to.'}]);
-   return;
-  }
   setProviderNotice('Searching Wikimedia Commons for '+referenceQuery+'…');
   const results=await searchWikimediaCommons(referenceQuery,requestController.signal);
   if(!requestIsCurrent())return;

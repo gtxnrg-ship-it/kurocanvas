@@ -8,11 +8,11 @@ import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatin
 import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
 
 export interface ActiveProviderConfig {
+  /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
   baseUrl: string;
   modelUri: string;
   apiKey?: string;
   allowInsecureLocalhost: boolean;
-  /** User-confirmed capability; model-list endpoints rarely disclose vision support. */
   supportsVision?: boolean;
 }
 
@@ -26,13 +26,14 @@ interface ProviderSettingsProps {
   onClose: () => void;
 }
 
-export default function ProviderSettings({ initialBaseUrl, initialModelUri, initialSupportsVision = false, voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
-  const [baseUrl, setBaseUrl] = useState(initialBaseUrl || LOCAL_TINY_BASE_URL);
-  const [apiKey, setApiKey] = useState("");
-  const [modelUri, setModelUri] = useState(initialModelUri || LOCAL_TINY_MODEL_URI);
-  const [allowInsecureLocalhost, setAllowInsecureLocalhost] = useState(baseUrl.startsWith("http://localhost") || baseUrl.startsWith("http://127.0.0.1"));
-  const [supportsVision, setSupportsVision] = useState(initialSupportsVision && baseUrl !== LOCAL_TINY_BASE_URL);
-  const [models, setModels] = useState<ModelDescriptor[]>([]);
+const canonicalConfig: ActiveProviderConfig = {
+  baseUrl: LOCAL_TINY_BASE_URL,
+  modelUri: LOCAL_TINY_MODEL_URI,
+  allowInsecureLocalhost: false,
+  supportsVision: false,
+};
+
+export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -41,35 +42,57 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
   const [modelProgress, setModelProgress] = useState(0);
   const [localModelPrepared, setLocalModelPrepared] = useState(false);
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
+  const [models, setModels] = useState<ModelDescriptor[]>([]);
   const localModelAbortController = useRef<AbortController | undefined>(undefined);
   const [localBenchmark, setLocalBenchmark] = useState<LocalModelBenchmark | undefined>(
     () => loadLocalModelBenchmark(KURO_TINY_MODEL_DESCRIPTOR_ID),
   );
 
+  async function checkModelAdapter() {
+    setBusy(true);
+    setError("");
+    setStatus("Checking the local Qwen adapter…");
+    try {
+      const provider = createConfiguredProvider(canonicalConfig);
+      const found = await provider.listModels();
+      const qwen = found.filter(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
+      if (qwen.length !== 1) throw new Error("Kuro expected exactly one Qwen3-0.6B model descriptor but did not find it.");
+      setModels(qwen);
+      setStatus("Qwen3-0.6B adapter is connected. The first generation may still need to download and initialize the model weights.");
+      onSave(canonicalConfig);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not connect to Kuro's local model adapter.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadAndConnectLocalModel() {
     const controller = new AbortController();
     localModelAbortController.current = controller;
     setLocalModelPreparing(true);
-    setBusy(true); setError(""); setStatus("Preparing Kuro Local model…"); setModelProgress(0);
+    setBusy(true);
+    setError("");
+    setStatus("Preparing Qwen3-0.6B on this device…");
+    setModelProgress(0);
     try {
       const found = await prepareLocalTinyModel(progress => {
         setModelProgress(progress.percent);
         setStatus(progress.status + (progress.percent > 0 ? " · " + progress.percent + "%" : ""));
       }, controller.signal);
       if (controller.signal.aborted) throw new Error("Local model preparation cancelled.");
-      setModels(found);
-      setBaseUrl(LOCAL_TINY_BASE_URL);
-      setModelUri(LOCAL_TINY_MODEL_URI);
+      const qwen = found.filter(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
+      if (qwen.length !== 1) throw new Error("The prepared adapter did not return exactly one Qwen3-0.6B model.");
+      setModels(qwen);
       setLocalModelPrepared(true);
-      setSupportsVision(false);
-      onSave({ baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false, supportsVision: false });
-      setStatus("Kuro Local is prepared and connected. You can now measure its warm generation speed on this device.");
+      onSave(canonicalConfig);
+      setStatus("Qwen3-0.6B is prepared and connected. Kuro's model requests remain on-device.");
     } catch (e) {
       if (controller.signal.aborted) {
-        setStatus("Local model download/preparation cancelled. The canvas remains available; prepare the model again when ready.");
+        setStatus("Model preparation cancelled. Your projects and canvas remain available; prepare Qwen again when ready.");
         setError("");
       } else {
-        setError(e instanceof Error ? e.message : "Could not download or initialize the local model.");
+        setError(e instanceof Error ? e.message : "Could not download or initialize Qwen3-0.6B.");
       }
     } finally {
       if (localModelAbortController.current === controller) localModelAbortController.current = undefined;
@@ -81,30 +104,25 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
   function cancelLocalModelPreparation() {
     const controller = localModelAbortController.current;
     if (!controller || controller.signal.aborted) return;
-    setStatus("Cancelling local model preparation…");
+    setStatus("Cancelling model preparation…");
     controller.abort();
   }
 
   async function benchmarkLocalModel() {
-    if (!localModelPrepared) {
-      setError("Download and prepare Kuro Local first. Benchmarking never starts a model download by itself.");
-      return;
-    }
-    setBusy(true); setError(""); setStatus("Warming up local inference before the measured run…");
+    setBusy(true);
+    setError("");
+    setStatus("Warming up local inference before the measured run…");
     try {
-      const provider = createConfiguredProvider({
-        baseUrl: LOCAL_TINY_BASE_URL, modelUri: LOCAL_TINY_MODEL_URI, allowInsecureLocalhost: false,
-      });
+      const provider = createConfiguredProvider(canonicalConfig);
       const model = (await provider.listModels()).find(item => item.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
-      if (!model) throw new Error("Kuro Local is not registered with the local provider.");
-      // Exclude one warm-up request so initial worker/model setup does not distort the speed figure.
+      if (!model) throw new Error("Qwen3-0.6B is not registered with the local adapter.");
       await provider.generate({
         role: "fast-helper",
         messages: [{ role: "user", content: "Reply with one short greeting." }],
         temperature: 0,
         maxOutputTokens: 16,
       }, model);
-      setStatus("Measuring real output-token speed locally…");
+      setStatus("Measuring local generation speed…");
       const started = performance.now();
       const response = await provider.generate({
         role: "fast-helper",
@@ -119,7 +137,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
       const result = createLocalModelBenchmark(model.id, response.usage?.outputTokens ?? 0, elapsedMs);
       setLocalBenchmark(result);
       saveLocalModelBenchmark(result);
-      setStatus(localBenchmarkRatingLabel(result.rating) + " · " + result.tokensPerSecond.toFixed(1) + " output tokens/s · " + result.elapsedMs + " ms for " + result.outputTokens + " tokens. This measures text generation speed only, not story quality, visual reasoning, or overall canvas frame rate.");
+      setStatus(localBenchmarkRatingLabel(result.rating) + " · " + result.tokensPerSecond.toFixed(1) + " output tokens/s · " + result.elapsedMs + " ms for " + result.outputTokens + " tokens. This is a speed check, not a measure of story or drawing quality.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "The on-device speed benchmark failed.");
     } finally {
@@ -127,28 +145,17 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
     }
   }
 
-  async function discoverModels() {
-    setBusy(true); setError(""); setStatus("");
-    try {
-      const provider = createConfiguredProvider({ baseUrl, modelUri, apiKey: apiKey.trim() || undefined, allowInsecureLocalhost });
-      const found = await provider.listModels();
-      setModels(found);
-      if (!found.length) setStatus("The endpoint responded, but did not return any model IDs.");
-      else {
-        setStatus("Found " + found.length + " model(s). Choose one, then connect.");
-        if (!modelUri || !found.some(model => model.modelUri === modelUri)) setModelUri(found[0].modelUri || found[0].name);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not connect to the model provider.");
-    } finally { setBusy(false); }
-  }
-
   async function previewVoice() {
-    const selected = models.find(model => model.modelUri === modelUri || model.name === modelUri);
-    if (!selected) { setError("Test the connection and select a model before previewing Kuro's voice."); return; }
-    setVoiceTesting(true); setError(""); setVoicePreview("");
+    const selected = models.find(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
+    if (!selected) {
+      setError("Check the local adapter or prepare Qwen3-0.6B before previewing Kuro's voice.");
+      return;
+    }
+    setVoiceTesting(true);
+    setError("");
+    setVoicePreview("");
     try {
-      const provider = createConfiguredProvider({ baseUrl, modelUri, apiKey: apiKey.trim() || undefined, allowInsecureLocalhost });
+      const provider = createConfiguredProvider(canonicalConfig);
       const response = await provider.generate({
         role: "reasoning",
         messages: [
@@ -158,48 +165,59 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
         temperature: 0.75,
         maxOutputTokens: 220,
       }, selected);
-      setVoicePreview(response.text.trim() || "The model returned an empty reply. Try again or choose another model.");
+      setVoicePreview(response.text.trim() || "The model returned an empty reply. Try again after checking model preparation.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Kuro's voice preview failed.");
-    } finally { setVoiceTesting(false); }
+    } finally {
+      setVoiceTesting(false);
+    }
   }
 
   function save() {
-    if (!baseUrl.trim() || !modelUri.trim()) { setError("Enter a provider URL and choose a model."); return; }
-    try {
-      // Validate remote URLs; local model selection does not require a server URL.
-      if (baseUrl !== LOCAL_TINY_BASE_URL) new URL(baseUrl.trim());
-      if (baseUrl !== LOCAL_TINY_BASE_URL) createConfiguredProvider({ baseUrl, modelUri, apiKey: apiKey.trim() || undefined, allowInsecureLocalhost });
-      onSave({ baseUrl: baseUrl.trim(), modelUri: modelUri.trim(), apiKey: apiKey.trim() || undefined, allowInsecureLocalhost, supportsVision: supportsVision && baseUrl.trim() !== LOCAL_TINY_BASE_URL });
-      onClose();
-    } catch (e) { setError(e instanceof Error ? e.message : "Invalid provider configuration."); }
+    onSave(canonicalConfig);
+    setStatus("Saved: Qwen3-0.6B · on-device · text-only.");
+    onClose();
   }
 
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
-    <div className="provider-settings-head"><div><small>REAL MODEL CONNECTION</small><h2 id="provider-settings-title">Connect Kuro to a model</h2><p>Works with compatible hosted APIs and local inference servers. Model weights and inference software are installed separately.</p></div><button onClick={onClose} aria-label="Close settings">×</button></div>
-    <ModelAdvisor benchmark={localBenchmark} />
-    <fieldset className="kuro-voice-settings"><legend>Kuro's personality</legend><label>Tsundere intensity<select value={voiceIntensity} onChange={e=>onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}><option value="subtle">Subtle · dry wit, gentle warmth</option><option value="playful">Balanced · playful teasing</option><option value="expressive">Expressive · dramatic anime energy</option></select></label><p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p><button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting||models.length===0}>{voiceTesting?"Trying her voice…":"Preview Kuro's voice"}</button>{voicePreview&&<blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}</fieldset>
-    <div className="provider-recommended-model">
-      <strong>Recommended local model: Qwen3-0.6B</strong>
-      <p>A compact, text-only instruction model for Kuro's first on-device harness. The browser-ready quantized ONNX weights are approximately 370 MB based on the published model repository size; runtime memory is higher and varies by device. The first download needs internet, then Transformers.js caches the files in this browser. Browser cache can be evicted, so this is not a guarantee of permanent offline storage. This model is small and general-purpose—not a vision model or a fine-tuned Kuro expert—so every drawing plan must still pass the app's validation and approval flow.</p>
-      <button type="button" className="provider-secondary" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Downloading / preparing… " + modelProgress + "%" : localModelPrepared ? "Model prepared · prepare again" : "Download ~370 MB model & connect"}</button>
-      {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel download / preparation</button>}
-      <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark warm generation on this device"}</button>
-      <p className="provider-muted">The benchmark uses a short local text prompt after a warm-up. It sends no benchmark prompt to a hosted provider and does not measure drawing quality or guarantee smooth performance in every task.</p>
-      <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
-      {status && baseUrl === LOCAL_TINY_BASE_URL && <p className="provider-status" role="status">{status}</p>}
+    <div className="provider-settings-head">
+      <div>
+        <small>LOCAL MODEL · SINGLE ADAPTER</small>
+        <h2 id="provider-settings-title">Kuro's intelligence</h2>
+        <p>Kuro currently runs one model: Qwen3-0.6B on your device. Her drawing, memory, canon, research, and workflow harnesses are app features—not separate models.</p>
+      </div>
+      <button onClick={onClose} aria-label="Close settings">×</button>
     </div>
-    <label>API base URL<input value={baseUrl} onChange={e=>setBaseUrl(e.target.value)} placeholder="https://api.openai.com/v1" autoComplete="url" /></label>
-    <label>API key <span className="provider-muted">(kept in memory only; re-enter after refresh)</span><input value={apiKey} onChange={e=>setApiKey(e.target.value)} type="password" autoComplete="new-password" placeholder="Optional for local endpoints" /></label>
-    <label className="provider-check"><input type="checkbox" checked={allowInsecureLocalhost} onChange={e=>setAllowInsecureLocalhost(e.target.checked)} /> Allow HTTP only for a localhost model endpoint</label>
-    <label className="provider-check"><input type="checkbox" checked={supportsVision && baseUrl !== LOCAL_TINY_BASE_URL} disabled={baseUrl === LOCAL_TINY_BASE_URL} onChange={e=>setSupportsVision(e.target.checked)} /> My selected model supports image input (vision)</label>
-    <p className="provider-muted">This capability cannot be verified from most compatible model lists. Enable it only when the selected model and server support image_url inputs. When enabled, Kuro may send the current canvas preview with drawing requests. Kuro Local is text-only, so this option is disabled for it.</p>
-    <div className="provider-actions"><button onClick={discoverModels} disabled={busy}>{busy ? "Checking…" : "Test connection and list models"}</button></div>
-    {models.length > 0 && <label>Model<select value={modelUri} onChange={e=>setModelUri(e.target.value)}>{models.map(m=><option key={m.id} value={m.modelUri || m.name}>{m.name}</option>)}</select></label>}
-    {!models.length && <label>Model ID<input value={modelUri} onChange={e=>setModelUri(e.target.value)} placeholder="e.g. gpt-4.1-mini or local model ID" /></label>}
-    {status && <p className="provider-status">{status}</p>}
+    <ModelAdvisor benchmark={localBenchmark} />
+    <div className="provider-recommended-model">
+      <strong>Qwen3-0.6B · the only active model</strong>
+      <p>The quantized ONNX weights are approximately 370 MB. The first download needs internet; Transformers.js then caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the model can see images.</p>
+      <div className="provider-actions">
+        <button type="button" onClick={checkModelAdapter} disabled={busy}>{busy ? "Checking…" : "Check local adapter"}</button>
+        <button type="button" onClick={downloadAndConnectLocalModel} disabled={busy}>{localModelPreparing ? "Preparing… " + modelProgress + "%" : localModelPrepared ? "Prepare model again" : "Download & prepare Qwen3-0.6B"}</button>
+        {localModelPreparing && <button type="button" className="provider-secondary" onClick={cancelLocalModelPreparation}>Cancel preparation</button>}
+      </div>
+      <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || !localModelPrepared}>{busy ? "Working…" : "Benchmark generation speed"}</button>
+      <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance.</p>
+      <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
+    </div>
+    <fieldset className="kuro-voice-settings">
+      <legend>Kuro's personality</legend>
+      <label>Tsundere intensity<select value={voiceIntensity} onChange={e => onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}>
+        <option value="subtle">Subtle · dry wit, gentle warmth</option>
+        <option value="playful">Balanced · playful teasing</option>
+        <option value="expressive">Expressive · dramatic anime energy</option>
+      </select></label>
+      <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={voiceTesting || models.length === 0}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
+      {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
+    </fieldset>
+    {status && <p className="provider-status" role="status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">Local model requests run in this browser after the model files are cached. Kuro Local is text-only; canvas-image understanding is not supported by this model. You can still connect another OpenAI-compatible provider manually. Privacy note: requests are sent to the provider you configure. In a browser app, hosted API keys are exposed to the client while in use; use a trusted provider and avoid shared devices. Kuro does not save the key to local storage or project files.</p>
-    <div className="provider-actions"><button className="provider-secondary" onClick={onClose}>Cancel</button><button onClick={save}>Connect model</button></div>
+    <p className="provider-warning">No hosted provider or API key is configured by this screen, and no remote model fallback is used. If local inference is unavailable, Kuro reports the problem rather than sending your prompts or project data elsewhere. Image understanding is not supported by Qwen3-0.6B here.</p>
+    <div className="provider-actions">
+      <button className="provider-secondary" onClick={onClose}>Close</button>
+      <button onClick={save}>Use Qwen3-0.6B</button>
+    </div>
   </section>;
 }

@@ -154,6 +154,8 @@ export const projectStorage = {
 
 export interface LocalDrawingDocument {
   id: string;
+  /** Required for new documents; older documents without a projectId are legacy and must be explicitly migrated before universe use. */
+  projectId?: string;
   name?: string;
   version: 1;
   width: number;
@@ -226,21 +228,30 @@ export const drawingRevisionStorage = {
 /** Durable, device-local drawing documents. Writes complete before the promise resolves. */
 export const drawingStorage = {
   async save(document: LocalDrawingDocument): Promise<void> {
-    if (!document.id || document.version !== 1 || !Number.isFinite(document.width) || !Number.isFinite(document.height) || !Array.isArray(document.strokes)) {
-      throw new Error("Refusing to save an invalid drawing document.");
+    if (!document.id || !document.projectId?.trim() || document.version !== 1 || !Number.isFinite(document.width) || !Number.isFinite(document.height) || !Array.isArray(document.strokes)) {
+      throw new Error("A drawing must have a valid ID and owning project before it can be saved.");
+    }
+    const existing = await this.load(document.id);
+    if (existing?.projectId && existing.projectId !== document.projectId) {
+      throw new Error("Universe isolation violation: a drawing cannot be reassigned to another project.");
+    }
+    if (existing && !existing.projectId) {
+      throw new Error("This legacy drawing has no owning project. Explicitly migrate it into a universe before editing.");
     }
     await requestValue<IDBValidKey>(DRAWINGS, "readwrite", store => store.put({ ...document, updatedAt: new Date().toISOString() }));
   },
-  async load(id: string): Promise<LocalDrawingDocument | undefined> {
+  async load(id: string, projectId?: string): Promise<LocalDrawingDocument | undefined> {
     const result = await requestValue<LocalDrawingDocument | undefined>(DRAWINGS, "readonly", store => store.get(id));
     if (result && (result.version !== 1 || !Array.isArray(result.strokes) || !Number.isFinite(result.width) || !Number.isFinite(result.height))) {
       throw new Error("This saved drawing is damaged or uses an unsupported version.");
     }
+    if (result && projectId && result.projectId !== projectId) throw new Error("Universe isolation violation: drawing is not part of the active project.");
     return result;
   },
-  async list(): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
+  async list(projectId?: string): Promise<Array<Pick<LocalDrawingDocument, "id" | "name" | "updatedAt">>> {
     const documents = await requestValue<LocalDrawingDocument[]>(DRAWINGS, "readonly", store => store.getAll());
-    return documents.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
+    const scoped = projectId ? documents.filter(document => document.projectId === projectId) : documents;
+    return scoped.map(({ id, name, updatedAt }) => ({ id, name, updatedAt }))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
   async remove(id: string): Promise<void> {

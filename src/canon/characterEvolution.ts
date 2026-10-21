@@ -110,7 +110,14 @@ export function characterStateAt(
     && state.status === "approved"
     && state.storyOrder <= targetStoryOrder,
   ).sort((a, b) => b.storyOrder - a.storyOrder || b.createdAt.localeCompare(a.createdAt));
-  return eligible[0] ? structuredClone(eligible[0]) : undefined;
+  if (!eligible.length) return undefined;
+  const latestOrder = eligible[0].storyOrder;
+  const latestStates = eligible.filter(state => state.storyOrder === latestOrder);
+  if (latestStates.length > 1) {
+    throw new Error("Ambiguous approved character canon: multiple states exist for character " + characterId
+      + " on timeline " + timelineId + " at story order " + latestOrder + ". Resolve the conflict before drawing.");
+  }
+  return structuredClone(latestStates[0]);
 }
 
 /** Compute age only when both dates are established; returns undefined rather than guessing. */

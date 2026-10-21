@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus } from 'lucide-react';
 import { drawingStorage, storyMemoryStorage } from '../core/storage';
 import type { LocalDrawingDocument } from '../core/storage';
 import { applyCommandsToLocalDrawing } from './localDrawingBridge';
@@ -11,12 +11,33 @@ type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
-type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble'; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
+type Stroke = { id: string; layerId?: string; tool: 'brush' | 'eraser'; shape?: 'line' | 'rectangle' | 'ellipse' | 'text' | 'panel' | 'bubble' | 'image'; imageDataUrl?: string; imageName?: string; filled?: boolean; fillColor?: string; text?: string; fontFamily?: 'comic' | 'sans' | 'serif'; rotation?: number; brushPreset?: BrushPreset; color: string; size: number; points: Point[] };
 type Doc = { version: 1; width: number; height: number; background: string; strokes: Stroke[] };
 type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; background: string };
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+const imageCache = new Map<string, HTMLImageElement>();
+function readImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read that image file.'));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read that image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+function preloadDrawingImages(strokes: Array<{ shape?: string; imageDataUrl?: string }>): Promise<void> {
+  const urls = [...new Set(strokes.filter(stroke => stroke.shape === 'image' && stroke.imageDataUrl).map(stroke => stroke.imageDataUrl!))];
+  return Promise.all(urls.map(url => new Promise<void>((resolve, reject) => {
+    const cached = imageCache.get(url);
+    if (cached?.complete && cached.naturalWidth > 0) { resolve(); return; }
+    const image = cached ?? new Image();
+    imageCache.set(url, image);
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('A saved reference image could not be decoded.'));
+    if (!cached || cached.src !== url) image.src = url;
+  }))).then(() => undefined);
+}
 const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false, opacity: 1, blendMode: 'normal' };
 
 function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {

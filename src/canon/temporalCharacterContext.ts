@@ -1,5 +1,6 @@
 import {
   buildCharacterStateBrief,
+  characterRevealStatusAt,
   characterStateAt,
   validateCharacterEvolutionState,
   type CharacterEvolutionState,
@@ -16,8 +17,8 @@ export interface TemporalCharacterContextOptions {
 
 /**
  * Resolve approved character states for one exact story point.
- * Missing states are explicit; future states, proposals, other timelines, and
- * other universes cannot leak into the prompt.
+ * Future states, proposals, other timelines, other universes and preloaded-but-unrevealed
+ * characters cannot leak into the prompt. This is a hard spoiler boundary, not a style hint.
  */
 export function buildTemporalCharacterContext(
   states: readonly CharacterEvolutionState[],
@@ -33,19 +34,31 @@ export function buildTemporalCharacterContext(
     ? Math.max(1, Math.min(100, Math.floor(options.maxCharacters!))) : 24;
   const maxOutputCharacters = Number.isFinite(options.maxOutputCharacters)
     ? Math.max(500, Math.min(30000, Math.floor(options.maxOutputCharacters!))) : 10000;
-  const ids = [...new Set(options.characterIds.filter(id => typeof id === "string" && id.trim()))].slice(0, maxCharacters);
-  if (!ids.length) return "TEMPORAL CHARACTER CANON: No character IDs were selected. Do not invent which character versions apply.";
+  const requestedIds = [...new Set(options.characterIds.filter(id => typeof id === "string" && id.trim()))].slice(0, maxCharacters);
   const lines = [
     "TEMPORAL CHARACTER CANON — APPROVED STATES ONLY",
     "Universe: " + options.universeId,
     "Timeline: " + options.timelineId,
     "Target story order: " + options.storyOrder,
-    "Only use states at or before this story order. Never apply a later makeover to an earlier scene.",
+    "Only use states at or before this story order. Never apply a later makeover, body, injury stage or reveal to an earlier scene.",
     "A missing state means unknown, not permission to invent continuity.",
+    "VAULT REVEAL GATE: preloaded future cast stays completely outside this context until its approved reveal order. Never name, describe, foreshadow, count or otherwise leak an unrevealed entity. Do not treat access to stored assets as permission to reveal them.",
   ];
-  for (const id of ids) {
-    const state = characterStateAt(states, options.universeId, id, options.timelineId, options.storyOrder);
-    lines.push(buildCharacterStateBrief(state, options.storyOrder));
+  const eligibleIds: string[] = [];
+  for (const id of requestedIds) {
+    const revealStatus = characterRevealStatusAt(states, options.universeId, id, options.timelineId, options.storyOrder);
+    if (revealStatus !== "hidden") eligibleIds.push(id);
+  }
+  if (!requestedIds.length) {
+    lines.push("No character IDs were selected. Do not invent which character versions apply.");
+  } else if (!eligibleIds.length) {
+    // Deliberately do not disclose the number or identities of hidden roster entries.
+    lines.push("No reveal-eligible character details are supplied for this request. Continue only with established, visible scene information.");
+  } else {
+    for (const id of eligibleIds) {
+      const state = characterStateAt(states, options.universeId, id, options.timelineId, options.storyOrder);
+      lines.push(buildCharacterStateBrief(state, options.storyOrder));
+    }
   }
   let output = lines.join("\n\n");
   if (output.length > maxOutputCharacters) output = output.slice(0, maxOutputCharacters - 24).trimEnd() + "\n[Temporal context truncated.]";
@@ -87,7 +100,6 @@ export function resolveTemporalCharacterContext(
     && state.status === "approved"
     && validateCharacterEvolutionState(state, options.universeId).length === 0;
   const relevant = states.filter(belongsToRequest);
-  const timelineIds = [...new Set(relevant.map(state => state.timelineId))];
   const withTimeline = (state: CharacterEvolutionState) => !options.timelineId || state.timelineId === options.timelineId;
 
   let timelineId = options.timelineId;
@@ -128,8 +140,6 @@ export function resolveTemporalCharacterContext(
     const timelineChapterStates = chapterStates.filter(state => state.timelineId === timelineId);
     storyOrder = Math.max(...timelineChapterStates.map(state => state.storyOrder));
     if (options.sceneNumber !== undefined) {
-      // Scene selection already narrowed states; if scene metadata maps to more than one
-      // story point, the data cannot identify a unique frame for continuity.
       const sceneOrders = [...new Set(timelineChapterStates.map(state => state.storyOrder))];
       if (sceneOrders.length > 1) {
         return { status: "ambiguous", context: "TEMPORAL CANON AMBIGUITY: the selected chapter and scene map to more than one story order. Ask for the intended scene position." };
@@ -138,11 +148,14 @@ export function resolveTemporalCharacterContext(
   }
 
   if (!timelineId) {
+    const timelineIds = [...new Set(relevant
+      .filter(state => storyOrder === undefined || state.storyOrder <= storyOrder)
+      .map(state => state.timelineId))];
     if (timelineIds.length > 1) {
       return {
         status: "ambiguous",
-        context: "TEMPORAL CANON AMBIGUITY: approved character history exists on multiple timelines (" + timelineIds.join(", ")
-          + "). Ask which timeline applies before describing appearance or relationship continuity.",
+        context: "TEMPORAL CANON AMBIGUITY: approved character history exists on multiple timelines ("
+          + timelineIds.join(", ") + "). Ask which timeline applies before describing appearance or relationship continuity.",
       };
     }
     timelineId = timelineIds[0];

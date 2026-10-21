@@ -329,7 +329,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         const layer = layers.find(item => item.id === (stroke.layerId || layers[0]?.id));
         if (layer?.locked || layer?.visible === false) return false;
         const bounds = getStrokeBounds(stroke);
-        const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2, pressure: 0.5 };
         const angle = stroke.rotation ?? 0, dx = at.x - center.x, dy = at.y - center.y;
         const local = { x: center.x + dx * Math.cos(angle) + dy * Math.sin(angle), y: center.y - dx * Math.sin(angle) + dy * Math.cos(angle) };
         return local.x >= bounds.x && local.x <= bounds.x + bounds.width && local.y >= bounds.y && local.y <= bounds.y + bounds.height;

@@ -50,7 +50,7 @@ A small open tool-use model has demonstrated that the niche is real, but also th
 
 ## Current-device policy and future replacement strategy
 
-Kuro must not require a 27B model—or any multi-tens-of-gigabytes download—to be useful. Model selection must be based on measured device capability, not one universal default. The software harness should carry as much reliability as possible without hiding capability limits or turning every task into a costly chain of model calls.
+Kuro must not require a 27B model—or any multi-tens-of-gigabytes download—to be useful. The current build intentionally has one model, Qwen3-0.6B, across supported web targets. Device assessment must report likely limitations honestly, not switch models or make a new download choice on the user's behalf. Future replacements are deliberate engineering changes, not runtime model tiers. The software harness should carry as much reliability as possible without hiding capability limits or turning every task into a costly chain of model calls.
 
 - **Current build:** Qwen3-0.6B is the one selectable-in-practice model, across supported web targets. If it cannot initialize, preserve manual drawing, reading and Vault access and report the error; do not silently switch models.
 - **Future replacement:** a better model may be considered only as a deliberate engineering upgrade to the same adapter contract, with explicit migration, context/capability updates, tests and device benchmarks. It is not exposed as a runtime carousel.
@@ -121,18 +121,18 @@ Create a permissioned benchmark covering:
 **Decision gate:** choose the default model only after local hardware tests and human review against the evaluation suite. A large context number or benchmark rank alone is not sufficient.
 
 
-## Shipping status: model weights and runtime are not bundled
+## Shipping status: one local model, explicit preparation
 
-The current application has a compatible-provider connection layer and model capability/selection contracts. This is not a bundled inference engine, does not include model weights, and does not provide a turnkey offline model on first launch. A configured local endpoint means the user or operator has separately installed and started a compatible inference server.
+The shipped app path uses the local Qwen3-0.6B adapter only. It is not a bundled inference engine and does not include model weights. The browser obtains the quantized ONNX artifacts from the documented model repository when the user explicitly prepares the model. The first successful preparation requires network access; subsequent use may rely on browser-managed cache, which can be evicted. This is not a guarantee of fully offline operation.
 
-Do not claim that Kuro has ChatGPT-equivalent intelligence based on the persona prompt or a model name. Conversation quality depends on the selected model, runtime, context construction, retrieval quality, tool integration, and evaluation. The selected Qwen3-0.6B model is a compact browser-local candidate, not a guarantee of parity with larger models. Its task quality must be measured before release. The product must distinguish:
-- **Connected provider:** a configured endpoint answers requests.
-- **Installed local model:** weights and compatible runtime are present and pass a smoke test.
-- **Bundled model/runtime:** the shipped package contains or installs the explicitly licensed runtime and a documented model acquisition flow.
-- **Offline verified:** chat, scoped retrieval, and supported native tools have been tested without network access.
+The application has a generic ModelProvider contract so a future runtime can be substituted without rewriting Kuro's harnesses. That contract is an internal upgrade seam—not permission to expose other model choices. The active factory rejects remote or alternate-model configuration; no hosted endpoint is active and no prompts/canon are meant to be silently routed elsewhere.
 
-A release must show the current state honestly. Model installation must be opt-in, license-aware, resumable, integrity-checked, disk-space checked, and cancellable. Never download tens of gigabytes silently or block first launch while downloading weights.
+A release must show the current state honestly. Model preparation is opt-in, progress/errors are visible, and cancellation stops the worker. Distinguish:
+- **Adapter registered:** the app's Qwen adapter and model descriptor load.
+- **Prepared for this session:** model weights and the runtime have loaded in the current worker; this is not guaranteed after a page reload.
+- **Cached artifacts:** the browser may retain model files, but storage can be evicted.
+- **Offline verified:** preparation, inference, scoped retrieval, and supported tools have been tested without network access on the target device.
 
 ## Chat intelligence acceptance gate
 
-Before calling Kuro ready for general use, evaluate multi-turn conversations that span long transcripts and conflicting revisions; test exact recall against source messages; require evidence for canon claims; test image/reference understanding; test graceful uncertainty; compare response quality against a strong baseline using blind human review; and verify that retrieval never leaks across universes. Measure latency and memory on supported desktop and Android devices. Publish the tested model/runtime combinations and known limitations. No single context-window figure or benchmark score substitutes for these gates.
+Before calling Kuro ready for general use, evaluate multi-turn conversations that span long transcripts and conflicting revisions; test exact recall against source messages; require evidence for canon claims; test graceful uncertainty; compare response quality against a strong baseline using blind human review; and verify that retrieval never leaks across universes. Measure latency and memory on supported desktop and Android devices. Publish the tested Qwen/runtime combinations and known limitations. No single context-window figure or benchmark score substitutes for these gates. Any future model upgrade must pass the same acceptance gate before it becomes the active adapter.

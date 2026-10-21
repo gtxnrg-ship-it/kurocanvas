@@ -376,6 +376,10 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setLoaded(true); setSaveState('saved'); onDrawingOpened?.(drawingId);
     }).catch(error => {
       if (cancelled) return;
+      if (drawingId === 'default-canvas-v1' && !requestedDrawingId && error instanceof Error && error.message.includes('Universe isolation violation')) {
+        setDrawingId(crypto.randomUUID());
+        return;
+      }
       setLoaded(true); setLoadError(true); setSaveState('error');
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });

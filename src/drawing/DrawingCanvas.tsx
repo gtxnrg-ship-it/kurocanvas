@@ -30,12 +30,21 @@ function preloadDrawingImages(strokes: Array<{ shape?: string; imageDataUrl?: st
   const urls = [...new Set(strokes.filter(stroke => stroke.shape === 'image' && stroke.imageDataUrl).map(stroke => stroke.imageDataUrl!))];
   return Promise.all(urls.map(url => new Promise<void>((resolve, reject) => {
     const cached = imageCache.get(url);
-    if (cached?.complete && cached.naturalWidth > 0) { resolve(); return; }
-    const image = cached ?? new Image();
+    if (cached?.complete) {
+      if (cached.naturalWidth > 0) resolve();
+      else reject(new Error('A saved reference image could not be decoded.'));
+      return;
+    }
+    if (cached) {
+      cached.addEventListener('load', () => resolve(), { once: true });
+      cached.addEventListener('error', () => reject(new Error('A saved reference image could not be decoded.')), { once: true });
+      return;
+    }
+    const image = new Image();
     imageCache.set(url, image);
     image.onload = () => resolve();
     image.onerror = () => reject(new Error('A saved reference image could not be decoded.'));
-    if (!cached || cached.src !== url) image.src = url;
+    image.src = url;
   }))).then(() => undefined);
 }
 const DEFAULT_LAYER: Layer = { id: 'layer-default', name: 'Sketch', visible: true, locked: false, opacity: 1, blendMode: 'normal' };

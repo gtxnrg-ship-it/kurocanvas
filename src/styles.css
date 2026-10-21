@@ -228,3 +228,19 @@
 .selection-transform-tools button{padding:6px 9px;border:1px solid #3b324d;border-radius:7px;background:#171421;color:#e4d9f7;font-size:10px;white-space:nowrap}
 .selection-transform-tools button:hover:not(:disabled){border-color:#9b80e6;background:#272039}
 .selection-transform-tools button:disabled,.selection-transform-tools input:disabled{opacity:.4;cursor:not-allowed}
+
+
+/* Universe-first conversation navigation */
+.recent-universes{display:flex;flex-direction:column;gap:5px;min-height:36px;max-height:min(42vh,420px);overflow-y:auto;padding:3px 2px 8px;scrollbar-width:thin;scrollbar-color:#514365 transparent}
+.history-hint{display:block;padding:10px 8px;color:#8e849e;font-size:11px;line-height:1.5}
+.universe-shortcut{display:flex;align-items:center;gap:9px;width:100%;min-width:0;padding:9px 9px;border:1px solid transparent;border-radius:10px;background:transparent;color:#c7bdd8;text-align:left;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.universe-shortcut:hover{background:rgba(171,143,226,.08);border-color:rgba(171,143,226,.12)}
+.universe-shortcut.active{background:linear-gradient(100deg,rgba(146,112,207,.2),rgba(99,76,133,.09));border-color:rgba(173,143,230,.26);color:#f2eaff}
+.universe-dot{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border:1px solid rgba(188,159,244,.2);border-radius:8px;background:#211b2d;color:#c6a8ff;font-size:13px}
+.universe-copy{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.universe-copy b{overflow:hidden;color:inherit;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.universe-copy small{color:#8e849e;font-size:9px}
+.universe-shortcut>i{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#b79aff;box-shadow:0 0 9px rgba(183,154,255,.45)}
+.history-notice{margin:8px 0;padding:9px 11px;border:1px solid rgba(230,172,116,.22);border-radius:9px;background:rgba(123,79,37,.12);color:#e5c39f;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.sidebar .new:disabled{opacity:.55;cursor:wait}
+@media(max-width:760px){.recent-universes{max-height:180px}.universe-shortcut{padding:7px}}

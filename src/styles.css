@@ -132,3 +132,7 @@
 @media(max-width:780px){.text-draft-control{width:100%;flex-basis:100%;min-width:0}.text-draft-control input{width:100%}}
 
 .story-editor-title>button{border:1px solid #443951;border-radius:7px;background:#1b1725;color:#cfc4df;padding:6px 8px;font-size:9px;cursor:pointer}
+
+/* Official Kuro artwork replaces the temporary lettermark */
+.mark.official-mark{overflow:hidden;padding:0;background:#100d18;border:1px solid rgba(198,173,255,.4);box-shadow:0 0 20px rgba(164,124,238,.13)}
+.mark.official-mark img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}

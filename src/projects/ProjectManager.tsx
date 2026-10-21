@@ -214,7 +214,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <span className="project-manager-name"><b>{project.name}</b><small>Updated {new Date(project.updatedAt).toLocaleString()}</small></span>
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
       </article>)}</div>}
-    <p className="project-manager-note">The <code>.kuro.json</code> package now carries project data, World Bible facts, approved and proposed story memories, and drawings explicitly linked from the Story Vault. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
+    <p className="project-manager-note">The <code>.kuro.json</code> package carries project data, World Bible facts, the approved Style Bible and temporal character looks, approved and proposed story memories, and drawings explicitly linked from the Story Vault. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
     <WorldStudio />
   </section>;
 }

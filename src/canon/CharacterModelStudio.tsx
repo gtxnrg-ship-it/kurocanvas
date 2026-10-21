@@ -277,6 +277,14 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
     const next = { ...selectedModel, scarOverlays: selectedModel.scarOverlays.map(scar=>scar.id===id?{...scar,...patch}:scar) };
     await persistModel(next,"Updated the scar overlay. The change is saved locally.",true);
   }
+  async function removeScarMarker(scar: ScarOverlay) {
+    if (!selectedModel) return;
+    if (selectedState && selectedState.storyOrder > scar.introducedAtOrder) {
+      await updateScar(scar.id,{removedAtOrder:selectedState.storyOrder});
+    } else {
+      await persistModel({...selectedModel,scarOverlays:selectedModel.scarOverlays.filter(item=>item.id!==scar.id)},"Removed the mistaken scar marker from the model history.",true);
+    }
+  }
   async function addScar() {
     if (!selectedModel || !selectedState || scarsAbsent) { setMessage("Add and approve a character state that records the scar before placing it on the model."); return; }
     const overlay: ScarOverlay = { id:crypto.randomUUID(),characterStateId:selectedState.id,introducedAtOrder:selectedState.storyOrder,label:"Scar · "+selectedState.chapterLabel,x:.03,y:.34,z:.5,length:.075,angle:45,color:"#8b343b" };
@@ -325,13 +333,13 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
         <div className="character-model-viewer"><div ref={hostRef} className="character-model-canvas"/><div className="character-model-viewer-hint">Drag to orbit · scroll to zoom · touch supported</div>{selectedModel&&<div className="character-model-viewer-label"><b>{selectedModel.characterName}</b><span>{selectedState?.chapterLabel ?? "No approved visual state"}</span></div>}</div>
         <aside className="character-model-inspector">
           <h3>Visual continuity</h3>
-          {selectedModel ? <><div className="character-model-meta"><b>{selectedModel.sourceType==="uploaded-glb" ? selectedModel.fileName : "Procedural blockout rig"}</b><small>{selectedModel.sourceType==="uploaded-glb" ? "Local GLB · editable model view" : "Preview geometry · not final character art"}</small></div>
+          {selectedModel ? <><div className="character-model-meta"><b>{selectedModel.sourceType==="uploaded-glb" ? selectedModel.fileName : "Procedural blockout rig"}</b><small>{selectedModel.sourceType==="uploaded-glb" ? "Local GLB · editable model view" : "Preview geometry · not final character art"}</small><small>Variant: {selectedModel.characterStateId ? styleBible?.characterStates.find(state=>state.id===selectedModel.characterStateId)?.chapterLabel ?? "chapter-specific" : "base model"}</small></div>
             {!selectedState && <div className="character-model-warning"><ShieldAlert size={15}/><p>No approved visual state matches this character. Add a state in Style Bible and approve it before using it as canon.</p></div>}
             {selectedState && <div className="character-model-state"><small>APPROVED STATE</small><b>{selectedState.chapterLabel}</b><span>Story order {selectedState.storyOrder} · {resolved?.traits.age || "Age unknown"}</span><p>Hair: {resolved?.traits.hair || "Unknown"}</p><p>Scars: {resolved?.traits.scars || "Unknown"}</p><p>Outfit: {resolved?.traits.outfit || "Unknown"}</p></div>}
             {selectedState && hasTextScar && activeScars.length===0 && <div className="character-model-warning"><ShieldAlert size={15}/><p>A scar is recorded in the timeline, but no 3D overlay is placed yet. Add a scar marker and adjust it to match the model.</p></div>}
             {selectedState && hasTextScar && <button className="character-model-primary" disabled={busy} onClick={()=>void addScar()}><Plus size={14}/> Add scar overlay</button>}
             {selectedState && scarsAbsent && selectedModel.scarOverlays.some(scar=>scar.introducedAtOrder<selectedState.storyOrder) && <button className="character-model-secondary" disabled={busy} onClick={()=>void recordScarRemoval()}>Record scar removal at this chapter</button>}
-            <div className="character-model-scar-list">{activeScars.map(scar=><article key={scar.id}><header><b>{scar.label}</b><button aria-label="Remove scar marker" onClick={()=>void updateScar(scar.id,{removedAtOrder:selectedState?.storyOrder ?? scar.introducedAtOrder})}><Trash2 size={13}/></button></header>
+            <div className="character-model-scar-list">{activeScars.map(scar=><article key={scar.id}><header><b>{scar.label}</b><button aria-label="Remove scar marker" onClick={()=>void removeScarMarker(scar)}><Trash2 size={13}/></button></header>
               {([["x","Horizontal position",-0.5,0.5,scar.x],["y","Vertical position",-0.5,0.5,scar.y],["z","Surface depth",0,0.5,Math.abs(scar.z)],["length","Length",0.01,0.25,scar.length],["angle","Angle",-180,180,scar.angle]] as Array<[keyof ScarOverlay,string,number,number,number]>).map(([key,label,min,max,value])=><label key={key}><span>{label}<small>{Number(value).toFixed(2)}</small></span><input type="range" min={min} max={max} step={key==="angle"?1:0.01} value={value} onChange={event=>void updateScar(scar.id,{[key]:Number(event.target.value)} as Partial<ScarOverlay>)}/></label>)}
               <label><span>Scar color</span><input type="color" value={scar.color} onChange={event=>void updateScar(scar.id,{color:event.target.value})}/></label>
             </article>)}</div>

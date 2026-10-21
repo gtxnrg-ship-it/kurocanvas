@@ -189,7 +189,8 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
     if (content.length <= budget) return content;
     if (budget <= 1) return content.slice(0, budget);
     const marker = "\n[…context clipped…]\n";
-    const usable = Math.max(0, budget - marker.length);
+    if (budget <= marker.length) return content.slice(-budget);
+    const usable = budget - marker.length;
     const head = Math.ceil(usable * 0.64);
     const tail = usable - head;
     return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
@@ -197,8 +198,11 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
 
   // The first system block contains the persona and execution rules. Preserve both
   // its beginning and its tail, where project context is commonly appended.
+  const hasHistory = messages.some((message, index) =>
+    index !== systemIndex && index !== latestUserIndex && Boolean(message.content),
+  );
   const systemBudget = system && latestUser
-    ? Math.floor(limit * 0.48)
+    ? Math.floor(limit * (hasHistory ? 0.48 : 0.58))
     : system ? limit : 0;
   const boundedSystem = system ? { role: "system", content: clip(system.content, systemBudget) } : undefined;
   let used = boundedSystem?.content.length ?? 0;
@@ -206,7 +210,10 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   // Protect the newest user ask; leave room for recent history rather than letting
   // either the system or transcript consume every available character.
   const latestUserBudget = latestUser
-    ? Math.min(Math.max(1, Math.floor(limit * 0.36)), Math.max(1, limit - used))
+    ? Math.min(
+        hasHistory ? Math.max(1, Math.floor(limit * 0.36)) : Math.max(1, limit - used),
+        Math.max(1, limit - used),
+      )
     : 0;
   const boundedLatestUser = latestUser
     ? { ...latestUser, content: clip(latestUser.content, latestUserBudget) }

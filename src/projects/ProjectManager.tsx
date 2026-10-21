@@ -7,14 +7,14 @@ import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 
-export default function ProjectManager() {
+export default function ProjectManager({ onProjectsChanged }: { onProjectsChanged?: (projects: Array<{ id: string; name: string }>) => void }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Projects and package files stay on this device.');
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
-    try { setProjects(await projectStorage.list()); }
+    try { const items = await projectStorage.list(); setProjects(items); onProjectsChanged?.(items.map(({ id, name }) => ({ id, name }))); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Could not load local projects.'); }
   }
 

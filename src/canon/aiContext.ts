@@ -66,6 +66,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
   hiddenCount: number;
   unresolvedTarget: boolean;
   hiddenTokens: string[];
+  maxStoryOrder?: number;
 } {
   const point = resolveRevealPoint(gate);
   const states = eligibleRevealStates(gate);
@@ -91,7 +92,10 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
     }
   }
 
-  if (!hiddenIds.size) return { bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined, hiddenTokens: [] };
+  const maxStoryOrder = point.storyOrder !== undefined && point.timelineId && !point.ambiguous
+    ? point.storyOrder
+    : undefined;
+  if (!hiddenIds.size) return { bundle, hiddenCount: 0, unresolvedTarget: point.ambiguous || point.storyOrder === undefined, hiddenTokens: [], ...(maxStoryOrder === undefined ? {} : { maxStoryOrder }) };
   const publicEntities = bundle.entities.filter(entity => !hiddenIds.has(entity.id));
   const tokens = [...hiddenNames].map(value => value.normalize("NFKC").toLocaleLowerCase().trim()).filter(value => value.length >= 3);
   const refersToHiddenCharacter = (value: unknown) => {
@@ -108,6 +112,7 @@ function filterUnrevealedCanon(bundle: CanonBundle, gate: CanonRevealGateOptions
     hiddenCount: hiddenIds.size,
     unresolvedTarget: point.ambiguous || point.storyOrder === undefined,
     hiddenTokens: tokens,
+    ...(maxStoryOrder === undefined ? {} : { maxStoryOrder }),
   };
 }
 
@@ -138,7 +143,10 @@ export function filterConversationTurnsForRevealGate<T extends { content: unknow
 
 /** Detect requests that create story material, where reveal gates must be enforced. Private brainstorming stays unrestricted. */
 export function isStoryProductionRequest(message: string): boolean {
-  const storyUnit = /\b(?:chapter|scene|panel|episode|page|storyboard|comic|manga|webtoon)\b/i.test(message);
+  // Cover common narrative-production wording, including requests that omit the words
+  // "chapter", "scene", or "panel". Private discussion/research remains unrestricted
+  // unless the user also asks to produce an artifact.
+  const storyUnit = /\b(?:chapter|scene|panel|episode|page|storyboard|comic|manga|webtoon|story|installment|sequence|narrative|plot\s+beat|story\s+arc|story\s+part|fight\s+sequence|action\s+sequence|final\s+battle|reveal\s+scene|character\s+entrance)\b/i.test(message);
   const explicitOutput = /\b(?:write|draft|continue|generate|illustrate|draw|render|script|produce|compose|start|begin|make|do)\b/i.test(message);
   const privatePlanning = /\b(?:brainstorm|research|discuss|explore|worldbuild|world-building|design the world|build the universe)\b/i.test(message);
   if (privatePlanning && !explicitOutput) return false;
@@ -164,10 +172,12 @@ export function buildApprovedCanonContext(
 
   let source = bundle;
   let revealNotice = "";
+  let revealMaxStoryOrder: number | undefined;
   if (options.revealGate?.enabled) {
     if (options.revealGate.universeId.trim() === "") throw new Error("Choose a universe before applying reveal gates.");
     const filtered = filterUnrevealedCanon(bundle, options.revealGate);
     source = filtered.bundle;
+    revealMaxStoryOrder = filtered.maxStoryOrder;
     if (filtered.unresolvedTarget) {
       revealNotice = "STORY OUTPUT CONTINUITY GUARD: The requested chapter/timeline does not map to one approved story point. Character identities, appearance facts, and reveal-sensitive canon are withheld. Ask for the chapter/timeline mapping rather than inventing which characters or designs belong in this scene.";
     } else if (filtered.hiddenCount) {
@@ -181,6 +191,7 @@ export function buildApprovedCanonContext(
     projectId: options.projectId,
     text: options.userMessage,
     statuses: ["approved"],
+    ...(revealMaxStoryOrder === undefined ? {} : { maxStoryOrder: revealMaxStoryOrder }),
     limit: maxFacts,
   });
   if ((!retrieved.entities.length || !retrieved.facts.length) && !revealNotice) return "";

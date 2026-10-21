@@ -37,7 +37,7 @@ import { parseStoryChapterNumber } from './canon/storyCoordinates';
 import StoryVault from './canon/StoryVault';
 import WorldStudio from './canon/WorldStudio';
 import CharacterTimelineStudio from './canon/CharacterTimelineStudio';
-import { buildReferenceContext, extractReferenceSearchQuery, searchWikimediaCommons, selectApprovedReferenceImages, type ApprovedReferenceImage, type ReferenceSearchResult } from './canon/referenceScout';
+import { buildReferenceContext, extractReferenceSearchQuery, normalizeReferenceSearchResults, searchWikimediaCommons, selectApprovedReferenceImages, type ApprovedReferenceImage, type ReferenceSearchResult } from './canon/referenceScout';
 import ReferenceScout from './canon/ReferenceScout';
 import InlineReferenceResults from './canon/InlineReferenceResults';
 import CharacterModelStudio from './canon/CharacterModelStudio';
@@ -54,6 +54,16 @@ type LocalProjectChoice={id:string;name:string};
 type RecentUniverse={id:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
 function readProviderConfig(): SafeProviderConfig { const canonical={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false};try{const raw=localStorage.getItem('kuro-model-provider');if(raw!==JSON.stringify(canonical))localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));}catch{}return canonical; }
 function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
+function restoreChatMessage(record:{role:string;content:string;metadata?:Record<string,unknown>},projectId:string):Msg{
+ const references=record.metadata?.referenceProjectId===projectId?normalizeReferenceSearchResults(record.metadata.references):[];
+ return {
+  role:record.role==='user'?'user':'kuro',
+  text:record.content,
+  ...(typeof record.metadata?.tool==='string'?{tool:record.metadata.tool}:{}),
+  ...(references.length?{references,referenceProjectId:projectId}:{})
+ };
+}
+
 async function canvasDocumentPreviewDataUrl(drawing: LocalDrawingDocument): Promise<string> {
  const layers=drawing.layers?.length?drawing.layers.map(layer=>({id:layer.id,name:layer.name,visible:layer.visible,opacity:layer.opacity??1,blendMode:layer.blendMode??'normal'})):[{id:'layer-default',name:'Sketch',visible:true,opacity:1,blendMode:'normal'}];
  const svg=buildSvgDocument({width:drawing.width,height:drawing.height,background:drawing.background,strokes:drawing.strokes,layers});
@@ -108,11 +118,11 @@ export default function App(){
  const [records,conversations]=await Promise.all([chatMessageStorage.list(universe.id,selectedConversation),conversationStorage.list(universe.id)]);
  if(!alive)return;
  setRecentUniverses(recent);setRecentConversations(conversationGroups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setUniverseConversations(conversations.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt})));setActiveUniverseId(universe.id);setActiveConversationId(selectedConversation);setActiveProjectId(universe.projectId);
- persistedMessageCount.current=records.length;setMessages(records.map(item=>({role:item.role==='user'?'user':'kuro',text:item.content})));
+ persistedMessageCount.current=records.length;setMessages(records.map(item=>restoreChatMessage(item,universe.projectId)));
  try{localStorage.setItem('kuro-active-universe',universe.id);localStorage.setItem('kuro-active-conversation',selectedConversation);localStorage.setItem('kuro-active-project',universe.projectId);}catch{}
  setCanonNotice('Universe loaded · canon and assets are scoped to this workspace.');
  }catch(error){if(alive)setHistoryNotice('Could not restore local chat history: '+(error instanceof Error?error.message:'unknown storage error'));}finally{if(alive)setHistoryLoading(false);}})();return()=>{alive=false;};},[]);
- useEffect(()=>{if(!activeUniverseId||!activeConversationId||historyLoading)return;const start=persistedMessageCount.current;if(messages.length<start){persistedMessageCount.current=messages.length;return;}const pending=messages.slice(start);if(!pending.length)return;persistedMessageCount.current=messages.length;void (async()=>{try{for(const item of pending){await chatMessageStorage.save({id:crypto.randomUUID(),universeId:activeUniverseId,conversationId:activeConversationId,role:item.role,content:item.text,createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],metadata:item.tool?{tool:item.tool}:{}});}const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);if(conversation){const updated={...conversation,updatedAt:new Date().toISOString()};await conversationStorage.save(updated);}const universe=await universeStorage.load(activeUniverseId);if(universe){await universeStorage.save({...universe,updatedAt:new Date().toISOString()});}const all=await universeStorage.list();setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));}catch(error){setHistoryNotice('A message could not be saved locally: '+(error instanceof Error?error.message:'storage error'));}})();},[messages,activeUniverseId,activeConversationId,historyLoading]);
+ useEffect(()=>{if(!activeUniverseId||!activeConversationId||historyLoading)return;const start=persistedMessageCount.current;if(messages.length<start){persistedMessageCount.current=messages.length;return;}const pending=messages.slice(start);if(!pending.length)return;persistedMessageCount.current=messages.length;void (async()=>{try{for(const item of pending){await chatMessageStorage.save({id:crypto.randomUUID(),universeId:activeUniverseId,conversationId:activeConversationId,role:item.role,content:item.text,createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],metadata:{...(item.tool?{tool:item.tool}:{}),...(item.references?.length&&item.referenceProjectId?{references:item.references,referenceProjectId:item.referenceProjectId}:{})}});}const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);if(conversation){const updated={...conversation,updatedAt:new Date().toISOString()};await conversationStorage.save(updated);}const universe=await universeStorage.load(activeUniverseId);if(universe){await universeStorage.save({...universe,updatedAt:new Date().toISOString()});}const all=await universeStorage.list();setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));}catch(error){setHistoryNotice('A message could not be saved locally: '+(error instanceof Error?error.message:'storage error'));}})();},[messages,activeUniverseId,activeConversationId,historyLoading]);
  async function startNewUniverse(){
   chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
   try{
@@ -135,7 +145,7 @@ export default function App(){
    const conversation=await conversationStorage.load(conversationId||item.homeConversationId,item.id);
    if(!conversation)throw new Error('The saved conversation could not be found in its universe.');
    const [records,conversations]=await Promise.all([chatMessageStorage.list(item.id,conversation.id),conversationStorage.list(item.id)]);setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));
-   persistedMessageCount.current=records.length;setMessages(records.map(record=>({role:record.role==='user'?'user':'kuro',text:record.content})));setActiveDrawingId('');
+   persistedMessageCount.current=records.length;setMessages(records.map(record=>restoreChatMessage(record,item.projectId)));setActiveDrawingId('');
    setActiveUniverseId(item.id);setActiveConversationId(conversation.id);setActiveProjectId(item.projectId);setDraft('');setMode('chat');
    try{localStorage.setItem('kuro-active-universe',item.id);localStorage.setItem('kuro-active-conversation',conversation.id);localStorage.setItem('kuro-active-project',item.projectId);}catch{}
    setCanonNotice('Resumed saved universe · conversation history restored.');
@@ -190,11 +200,12 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   setProviderNotice('Searching Wikimedia Commons for '+referenceQuery+'…');
   const results=await searchWikimediaCommons(referenceQuery,requestController.signal);
   if(!requestIsCurrent())return;
-  const summary=results.length
-   ? 'I found '+results.length+' source-linked visual reference result'+(results.length===1?'':'s')+' for “'+referenceQuery+'”. Review each source and its license below. Nothing has been approved or added to canon.'
+  const visibleResults=normalizeReferenceSearchResults(results).slice(0,12);
+  const summary=visibleResults.length
+   ? 'I found '+visibleResults.length+' source-linked visual reference result'+(visibleResults.length===1?'':'s')+' for “'+referenceQuery+'”. Review each source and its license below. Nothing has been approved or added to canon.'
    : 'I could not find matching Wikimedia Commons image results for “'+referenceQuery+'”. Try broader or more concrete visual terms. No model fallback was used.';
-  const details=results.map((item,index)=>(index+1)+'. '+item.title+' — '+item.creator+'; '+item.license+'. Source: '+item.sourceUrl).join('\\n');
-  setMessages(m=>[...m,{role:'kuro',text:summary+(details?'\\n\\n'+details:''),tool:'Wikimedia Commons · visual-reference lookup',references:results,referenceProjectId:activeProjectId}]);
+  const details=visibleResults.map((item,index)=>(index+1)+'. '+item.title+' — '+item.creator+'; '+item.license+'. Source: '+item.sourceUrl).join('\\n');
+  setMessages(m=>[...m,{role:'kuro',text:summary+(details?'\\n\\n'+details:''),tool:'Wikimedia Commons · visual-reference lookup',...(visibleResults.length?{references:visibleResults,referenceProjectId:activeProjectId}:{} )}]);
   setProviderNotice('Qwen3-0.6B · on-device · text-only');
   return;
  }

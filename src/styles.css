@@ -54,6 +54,22 @@
 .plan-preview{width:100%;aspect-ratio:4/3;max-height:240px;overflow:hidden;border:1px solid rgba(182,154,255,.24);border-radius:10px;background-color:#fffdfb;background-image:linear-gradient(45deg,#eeeaf2 25%,transparent 25%),linear-gradient(-45deg,#eeeaf2 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eeeaf2 75%),linear-gradient(-45deg,transparent 75%,#eeeaf2 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;margin:10px 0 12px}.plan-preview svg{display:block;width:100%;height:100%}
 
 
+/* Premium manual drawing controls */
+.custom-color{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #5b506e;border-radius:50%;overflow:hidden;cursor:pointer;background:conic-gradient(#ff5858,#ffde59,#69ee8a,#5cc8ff,#bd77ff,#ff5858)}
+.custom-color input{width:28px;height:28px;padding:0;border:0;background:transparent;cursor:pointer;opacity:.88}
+.background-control{display:flex;align-items:center;gap:6px;font-size:10px;color:#a49bb8;white-space:nowrap}
+.background-control input{width:24px;height:24px;padding:0;border:1px solid #5b506e;border-radius:6px;background:transparent;cursor:pointer}
+.grid-toggle{border:1px solid #3b324d;border-radius:8px;background:#171421;color:#a9a0bc;padding:7px 9px;font-size:10px;cursor:pointer}
+.grid-toggle.chosen{background:#302146;border-color:#8b6dc1;color:#eadcff}
+.drawing-paper{position:relative}
+.drawing-paper canvas{position:relative;z-index:1}
+.canvas-grid-overlay{position:absolute;z-index:2;inset:0;pointer-events:none;background-image:linear-gradient(to right,rgba(116,96,150,.19) 1px,transparent 1px),linear-gradient(to bottom,rgba(116,96,150,.19) 1px,transparent 1px);background-size:40px 40px;mix-blend-mode:multiply;opacity:.65}
+.layer-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.layer-panel-actions{display:flex;gap:6px;flex-wrap:wrap}
+.layer-panel-actions button{padding:6px 9px;border:1px solid #3b324d;border-radius:7px;background:#171421;color:#cfc4e2;font-size:10px}
+.layer-panel-actions button:disabled{opacity:.3;cursor:not-allowed}
+@media(max-width:780px){.custom-color{width:20px;height:20px}.background-control{font-size:9px}.grid-toggle{padding:6px 8px}.layer-panel-actions{width:100%}.layer-panel-actions button{flex:1}}
+
 /* Durable story vault: proposed canon is visually distinct from approved continuity */
 .story-vault{margin-top:24px;padding:20px;border:1px solid #30283f;border-radius:18px;background:linear-gradient(155deg,rgba(182,154,255,.055),rgba(17,15,25,.8));color:#eee8fa}
 .story-vault-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}

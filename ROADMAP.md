@@ -15,10 +15,10 @@ Never mark a feature complete because its component, type, or README description
 
 Last verified evidence reviewed: **21 October 2026**.
 
-- Main branch at this snapshot: [`9df9182bf2ee`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/9df9182bf2eec3926ee91f7267aa1bca20fae30e). This revision adds a Crossref scholarly-metadata research provider, cross-tab queue coordination, safer task completion, and source-accurate notifications. CI for this exact revision was still running when this snapshot was edited.
-- The last fully observed green acceptance run was [`617719e0bc22`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/617719e0bc22697425a4028debcc423aa7a3818b): the locked-dependency typecheck/test/production-build sequence passed, and the Android workflow assembled and published a debug APK. See the exact [web checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39625544173), [project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39625544470), and [Android build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39625544224). These results apply to that SHA, not automatically to newer commits.
-- A real [rolling Android test APK release](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) exists. It is debug-signed and not production-ready; its release notes and asset digest identify the binary. Physical-device installation and smoke testing remain unverified.
-- The same acceptance sequence now runs in CI using the committed lockfile. It must pass again on the exact current SHA [`9df9182bf2ee`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/9df9182bf2eec3926ee91f7267aa1bca20fae30e) before the latest research changes count as verified.
+- Main branch at this snapshot: [`3c1c9008c694`](https://github.com/gtxnrg-ship-it/kurocanvas/commit/3c1c9008c694589e2024f76d4ad6f5adac2ac724). This revision includes the single replaceable Qwen adapter, rich/safe chat rendering, inline reference results, bounded structured output, native `.kuro` archives, adjustable stylus-pressure sensitivity, and the Crossref research provider.
+- Exact-main acceptance passed on this SHA: **57 test files / 418 tests passed**, TypeScript checks and the Vite production build succeeded. See [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39631839917) and [project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39631839834).
+- The [Android build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39631839799) succeeded and published the [rolling test APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest). The published asset is debug-signed, 12,949,209 bytes, SHA-256 `788d0e8034b0b990b57b63e155427cccb8a7dc386784902bdf323e4e87e2d921`, built from this exact source SHA. Physical-device installation and smoke testing remain unverified.
+- The permanent web and Android workflows install from the committed lockfile using pinned npm and `npm ci`.
 - GitHub Pages source build and tests passed in the last inspected deployment run, but deployment stopped at `actions/configure-pages` with a 404 because the repository's Pages site is not enabled/configured. This is a repository-setting blocker, not a TypeScript failure.
 - The tracked `package-lock.json` is installed with the pinned npm version using `npm ci` in the permanent web and Android workflows; the last observed green runs confirm locked installation on SHA `617719e0bc22`.
 
@@ -27,19 +27,19 @@ Last verified evidence reviewed: **21 October 2026**.
 | Area | Source-level foundation present | Remaining proof or gap |
 |---|---|---|
 | App and navigation | React + TypeScript + Vite; chat, canvas, reader, research, Vault and settings areas | Full journeys, touch navigation, accessibility and mobile layout still need execution checks |
-| Model providers | OpenAI-compatible endpoint configuration/discovery, request deadlines, cancellation and bounded response parsing | No real hosted/local endpoint has been validated in this handoff; streaming and provider-specific compatibility vary |
+| Model providers | One active Qwen3-0.6B local text model behind a replaceable `ModelProvider` adapter, with preparation, cancellation, local benchmark and device-readiness UI | Model weights download on demand; no physical-device quality/speed benchmark has been recorded; text-only reasoning quality is limited by the small model |
 | Local model | Browser worker, WASM inference, cache use, progress, cancellation and a text-only small-model path | Downloads weights on demand; not a fully bundled/offline model; text-only and tightly output-bounded; real Android speed/quality unknown |
 | Response harness | Request-aware answer depth, creator-friendly persona, explicit limits and no-fabricated-success rules | Prompt quality is not a guarantee of model reasoning, output length, consistency or provider policy |
 | Conversation context | Bounded, relevance-ranked turn selection plus separate durable project records | Retrieval misses, context selection quality and very-long-series performance require adversarial regression tests; no literal unlimited context |
 | World and canon | World Bible, art direction/style Bible, project-scoped references, story memory, relationships and character evolution | Search/edit/revision UX, contradictions/retcons, evidence coverage and scale remain incomplete |
 | Temporal story continuity | Chapter/story coordinates, approved states, reveal filtering, memory relevance ranking and recall guards | Needs end-to-end tests across early/late chapters, alternate timelines, out-of-order scenes and full-series planning |
-| Native drawing | Editable strokes, primitives, layers, transforms, validation, approval preview, save/read-back verification and rollback foundations | Not yet a professional drawing application or autonomous production artist; command coverage and iterative visual QA remain limited |
+| Native drawing | Editable strokes/primitives/layers/transforms, approval preview, save/read-back verification, rollback foundations and adjustable stylus-pressure sensitivity | Not yet a professional drawing application or autonomous production artist; command coverage, pressure hardware behavior and iterative visual QA remain limited |
 | 3D character references | Procedural character blockout, camera and trait/state foundations | Not a complete sculpting, modeling, rigging, retargeting or animation editor |
 | Research queue | Persistent tasks, progress/state, cancellation, Wikipedia extracts, Crossref bibliographic metadata/DOI links, bounded abstract excerpts, cross-tab leases and source-aware notifications | Crossref is metadata discovery, not full-text search, a literature review, primary-source discovery or automatic fact verification |
-| Project packages | Versioned `.kuro.json`, drawing/revision serialization, project data import/export and research-history transfer | Size limit, asset coverage and cross-database recovery need more tests; unlinked legacy canvases and some binary references are not included |
+| Project packages | Native `.kuro` ZIP archive with manifest and CRC-checked entries; legacy `.kuro.json` import; universe/transcript/canon/memory/research/drawing/revision serialization | 50 MB limit, no compression yet, asset coverage and full cross-device round-trip need testing; unlinked canvases and binary reference images are excluded |
 | Project lifecycle | Scoped project deletion, research-task cleanup, and compensation if primary deletion fails; unit tests cover lifecycle ordering and recovery | Active-task/multi-tab deletion and real-browser storage-failure recovery still need hands-on testing |
-| Android | A rolling debug-signed test APK is published from a successful workflow: [download APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [release provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) | The verified binary at the last green run corresponds to SHA `617719e0bc22`; physical-device install, permissions, offline behavior, memory use and low-end-phone performance remain unverified |
-| Deployment | GitHub Actions build/deploy workflows and a documented preview URL | Actions runner startup and Pages availability are unresolved until successful workflow evidence appears |
+| Android | A rolling debug-signed test APK is published from successful CI: [download APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [release provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) | The verified binary corresponds to SHA `3c1c9008c694`; physical-device install, permissions, offline behavior, memory use and low-end-phone performance remain unverified |
+| Deployment | Main-branch web checks and development-preview build pass on SHA `3c1c9008c694` | The live GitHub Pages site still requires repository Pages settings and a successful Pages deployment; a build artifact alone is not a live site |
 
 ## Release blockers — finish in this order
 
@@ -49,7 +49,7 @@ Last verified evidence reviewed: **21 October 2026**.
 - [x] Generate and commit `package-lock.json` from the same Node/npm/peer-dependency policy used in CI; remove the temporary bootstrap workflow.
 - [x] Switch the permanent web and Android CI workflows to the committed lockfile with `npm ci`; successful runs on SHA `617719e0bc22` confirm locked installation.
 - [ ] Confirm the exact-main acceptance sequence passes on the latest SHA `9df9182bf2ee` (Actions runs are in progress).
-- [ ] Run `npm run typecheck && npm test && npm run build` on the actual latest `main` SHA after the lockfile/CI change; resolve every real failure before handoff.
+- [x] Run `npm run typecheck && npm test && npm run build` on the exact main SHA `3c1c9008c694`: 57 test files / 418 tests passed and the production build succeeded.
 - [x] Build and publish a debug-signed APK with a SHA-256 digest and source-commit provenance.
 - [ ] Install and launch the published APK on a real Android device and record the device/OS smoke-test outcome.
 - [ ] Record the exact source SHA, workflow run, test results and APK checksum; do not use an old artifact as evidence for newer code.
@@ -61,7 +61,8 @@ Last verified evidence reviewed: **21 October 2026**.
 - [ ] Add an inspectable action timeline with per-action status, selected-step retry, pause/resume/cancel, provenance, checkpoints, and grouped undo/rollback.
 - [ ] Ensure approval is bound to the exact document, layer, and plan shown in the preview; reject stale approvals after the document changes.
 - [ ] Close coverage gaps for layer create/rename/reorder, selections, masks/blending, reference/image placement, lettering and comic-panel operations where the editor supports them.
-- [ ] Add viewport pan/zoom coordinate transforms, pressure/coalesced input, touch/stylus and large-document performance tests.
+- [x] Add an adjustable pressure-sensitivity control for manual stylus drawing.
+- [ ] Verify pressure behavior on actual stylus hardware; add coalesced input and large-document performance tests.
 - [ ] Add a drawing loop in which Kuro inspects the *actual* rendered/editable result, identifies visible defects, revises selected regions, and stops honestly when its tools cannot complete the request.
 - [ ] Test corrupt storage, interrupted saves, switching active drawings, locked/hidden layers, rollback and read-back mismatch. Never report success based only on model text.
 
@@ -86,7 +87,8 @@ Last verified evidence reviewed: **21 October 2026**.
 
 ### P1 — Make research useful beyond a single source index
 
-- [ ] Add a pluggable research provider layer instead of assuming Wikipedia is sufficient for all questions.
+- [x] Add a pluggable research provider layer with Wikipedia extracts and Crossref scholarly metadata/DOI links.
+- [ ] Add deeper primary-source discovery (archives, museums, official documentation) and full-text retrieval where permitted.
 - [ ] Prefer authoritative primary sources, archives, museums, scholarly papers and official documentation when appropriate; preserve source URL, publication/author metadata when available, exact excerpt and collection date.
 - [ ] Label factual claims, uncertainty, conflicting sources, inference and fictional suggestions separately.
 - [ ] Verify citations and source relevance; do not treat snippets or a completed queue status as proof that every claim is settled.

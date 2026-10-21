@@ -35,6 +35,22 @@ describe("drawing action queue", () => {
     expect(() => transitionDrawingAction(action("retry"), { type: "execution.retry", actionId: "retry" })).toThrow(/Only a failed action can be retried/);
   });
 
+  it("cancels planned and running actions but keeps terminal outcomes terminal", () => {
+    const planned = action("planned-cancel");
+    expect(transitionDrawingAction(planned, { type: "execution.cancel", actionId: planned.id }).status).toBe("cancelled");
+
+    const running = transitionDrawingAction(action("running-cancel", false), { type: "execution.start", actionId: "running-cancel" });
+    const cancelled = transitionDrawingAction(running, { type: "execution.cancel", actionId: "running-cancel" });
+    expect(cancelled.status).toBe("cancelled");
+    expect(() => transitionDrawingAction(cancelled, { type: "execution.cancel", actionId: "running-cancel" })).toThrow();
+
+    const completed = transitionDrawingAction(
+      transitionDrawingAction(action("completed", false), { type: "execution.start", actionId: "completed" }),
+      { type: "execution.complete", actionId: "completed" },
+    );
+    expect(() => transitionDrawingAction(completed, { type: "execution.cancel", actionId: "completed" })).toThrow();
+  });
+
   it("transitions multiple actions atomically and preserves queue order", () => {
     const queue = [action("a"), action("b", false)];
     const result = transitionDrawingActions(queue, [

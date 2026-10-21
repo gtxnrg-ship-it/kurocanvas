@@ -148,3 +148,161 @@ Implemented means code exists. Verified means evidence supports acceptance crite
 8. After merge, verify merge and CI on the merged commit; update status before dependent work.
 
 This document is the product target and acceptance contract, not a claim that every listed feature already exists.
+
+
+## 18. North-star experience: Kuro as a long-running creative partner
+
+This section makes the intended experience explicit. It is an acceptance target, not a statement that the capabilities already exist.
+
+### 18.1 Conversational creative briefing before execution
+
+- The user can describe art direction, rendering style, storytelling priorities, emotional tone, relationships, pacing, composition, camera language, palette, lighting, and constraints in natural conversation.
+- Kuro asks focused follow-up questions when decisions are ambiguous or consequential, summarizes the proposed creative brief, identifies conflicts, and asks for confirmation before starting substantial irreversible or expensive work.
+- The brief is editable and versioned. Approved choices become project-scoped direction; suggestions and unresolved questions remain separate from approved decisions.
+- Kuro must not make the user fill out a huge form when a short conversation will resolve the uncertainty. She should explain assumptions and ask only the next useful question.
+- The workflow supports iterative direction changes without discarding unrelated approved work.
+
+### 18.2 Visible, progressive, editable artwork creation
+
+- Kuro's primary art workflow is a sequence of inspectable native drawing operations, not a hidden one-shot image replacement.
+- A representative progression is: reference gathering or user-approved reference import; composition and gesture thumbnail; rough construction; anatomy and perspective pass; clean linework; base colors; shadows; highlights; effects and finishing details. The exact stages vary by style and task.
+- Each stage produces editable, named layers or other native document objects when appropriate. The user can watch the real canvas change, inspect the current stage, compare versions, pause, revise instructions, reject a pass, cancel, and undo/rollback safely.
+- Progress indicators reflect actual executor state. Kuro never reports a pass as complete until its operations have succeeded and the resulting document has been persisted.
+- Reference imagery is clearly distinguished from original artwork and from generated or imported assets. Sources, attribution, licenses, and approval status are retained where applicable.
+- Tool execution is deterministic, typed, permission-limited, validated against the current document, and bounded by resource and operation limits. Model output never executes arbitrary code.
+
+### 18.3 Durable memory for long-running series
+
+- The product target includes very long-running series, including a thousand-chapter story, without relying on a single enormous prompt or claiming an unlimited model context window.
+- Persistent memory is a structured, project-scoped knowledge system: series and arc summaries; chapter/scene/panel records; event chronology; character state over time; relationship development; motivations and promises; locations and travel; possessions; injuries; deaths; secrets and clues; foreshadowing/payoffs; world rules; visual designs; and approved creative decisions.
+- Records retain provenance, story-time validity, publication/chapter order, approval status, and supersession history. Flashbacks and nonlinear storytelling must not be flattened into chapter-number chronology.
+- Retrieval combines exact names and aliases, semantic similarity when available, temporal filters, relationship/event graph traversal, and relevance ranking. The system assembles a bounded, task-specific memory packet instead of stuffing the whole archive into every request.
+- The system distinguishes established fact, character belief, rumor, inference, proposal, contradiction, unknown, and retconned/superseded information. It tracks what each character knows separately from what is objectively true.
+- Before writing or drawing, Kuro retrieves relevant earlier chapters and explains material continuity conflicts. When no reliable evidence is found, she says the memory is missing or uncertain rather than inventing a confident recollection.
+- Memory must be inspectable, searchable, editable, exportable, recoverable, and isolated between projects. The user can approve or reject extracted memories; extraction alone never silently establishes canon.
+- Memory scale is achieved through durable storage, indexing, summaries, retrieval, and evaluation. Model context limits still apply to each individual request and must be handled transparently.
+
+### 18.4 Cross-device and phone-first compatibility
+
+- The same project model and core creative capabilities should work across phones, tablets, stylus-capable tablets, laptops, desktops, and large displays, with layouts adapted to screen size and input mode rather than simply shrinking desktop UI.
+- Phone mode prioritizes conversation, project/story review, reference capture, approvals, lightweight edits, progress monitoring, and safe continuation of queued work. Dense toolbars and multi-panel editing should collapse into usable contextual surfaces.
+- Tablet mode prioritizes direct drawing, stylus pressure where supported, palm/touch handling, canvas navigation, reference comparison, and compact palettes.
+- Desktop mode supports high-information workflows, keyboard shortcuts, multi-panel layouts, batch operations, and long-form chapter production.
+- Phone integration should make importing photos/references, camera capture, sharing into Kuro, opening project/package links, downloading/exporting artwork, and resuming a project straightforward where the platform grants the required permissions. Device features must be permission-gated and degrade gracefully.
+- Offline drawing and access to locally available project data are core goals. Online providers are optional for the core editor. Sync, remote inference, and background execution must clearly communicate connectivity, privacy, and platform restrictions.
+- Responsive browser support does not by itself prove a native Android/iOS application. PWA, desktop packaging, and mobile wrappers each require their own implementation and device verification. Do not claim background processing, file-system access, stylus behavior, or platform parity until tested on target devices.
+- Low-memory phones must receive bounded rendering, lazy-loaded assets, cancellation, recovery, and graceful capability reporting rather than a crash or silent data loss.
+
+### 18.5 Acceptance scenarios for the north star
+
+1. A new creator describes a story and desired visual style conversationally. Kuro asks only necessary clarifying questions, presents an editable brief, and waits for confirmation before major execution.
+2. After approval, Kuro creates a panel thumbnail on the real canvas, then adds successive construction, linework, color, shadow, highlight, and detail passes. Every pass is inspectable, editable, undoable, and accurately represented in the action history.
+3. A creator returns to a thousand-chapter series and asks about an early relationship, a prior promise, and a later timeline event. Kuro retrieves the supporting source records, explains the relationship's progression, respects story-time order, and distinguishes known facts from missing information.
+4. A retcon to a character's injury or relationship state previews affected later chapters and panels before the user approves it.
+5. A project created on desktop can be opened on a supported phone or tablet with its canon, visual assets, plans, artwork, history, and approvals intact, subject to documented platform capability and successful round-trip tests.
+6. A user can interrupt a long drawing task or lose connectivity, reopen the project, inspect what actually completed, and safely resume or roll back without duplicate or phantom actions.
+7. A provider failure, unsupported device feature, or missing memory is reported honestly with a recoverable next step; Kuro never fabricates success or continuity.
+
+
+## 19. Capability harness: specialist agents, not a thin chat wrapper
+
+Kuro's defining advantage is the purpose-built harness around the selected model provider. Provider models may be small, rate-limited, or have modest context windows; the application must amplify their usefulness through scoped specialist workflows, durable external memory, typed tools, staged reasoning artifacts, validators, evaluators, and deterministic execution. Do not promise that harness design makes any model omniscient or removes its context/token limits. Measure capability at the task level and choose local or hosted models according to quality, latency, cost, privacy, and device constraints.
+
+### 19.1 Orchestrated specialist roles
+
+Design toward narrow, composable roles that can be scheduled by a central orchestrator rather than asking one chat completion to do every job at once. Candidate roles include:
+- Creative director: captures intent, asks clarifying questions, maintains the approved art/story brief and detects conflicting instructions.
+- Story architect: long arcs, stakes, pacing, setup/payoff, chapter structure, and continuity of cause and effect.
+- Dialogue and character-voice editor: natural conversational rhythm, subtext, interruptions, silence, distinct voices, and relationship-specific behavior.
+- Canon archivist: extracts candidate facts with citations/provenance, manages temporal validity, retrieves earlier events, and flags contradictions.
+- Visual continuity director: tracks character identity, proportions, face/hair, clothing, palette, materials, line language, lighting, and scene-specific state.
+- Composition and camera planner: shot size, camera height, lens/perspective intent, angle, blocking, eyelines, silhouettes, focus, depth, and panel-to-panel spatial continuity.
+- Panel/storyboard planner: translates scene beats into readable panel sequences, page turns or scroll beats, pacing, and thumbnail compositions.
+- Drawing executor: converts approved plans into bounded native canvas commands, checks results, and records provenance.
+- Lettering/layout specialist: speech balloons, thought/narration boxes, tails, reading order, typography, safe areas, balloon collisions, and text legibility.
+- Critic/QA specialist: checks story logic, dialogue, canon, visual identity, perspective, anatomy, text overflow, panel readability, and whether actual output meets the request.
+
+These roles are logical responsibilities, not a requirement to run a separate expensive model for each step. Use deterministic code, cached results, compact structured outputs, local models, or a shared model when appropriate. Only escalate to more capable/expensive inference when task difficulty justifies it.
+
+### 19.2 Agent harness contract
+
+Each delegated task receives a narrow goal, relevant memory packet, explicit constraints, allowed tools, expected schema, budget/timeout, and completion criteria. Results return as structured artifacts with provenance, confidence or unresolved questions, and validation status. The orchestrator decides whether to accept, repair, retry within bounded limits, ask the user, or stop safely. Untrusted model output is never executable code.
+
+- Separate planning from execution; separate proposals from approved canon.
+- Use checkpoints between costly stages and cache stable artifacts by input/version.
+- Run cheap deterministic validation before model-based critique where possible.
+- Use focused repair loops with bounded attempts, not infinite self-review.
+- Support cancellation and propagate it through providers, agents, queues, and native operations.
+- Keep user-visible progress tied to real state transitions and completed work.
+- Maintain provider/model capability profiles, latency/cost budgets, privacy boundaries, and graceful fallback behavior.
+- Never claim that a specialist ran, a memory was consulted, an image was rendered, or a test passed unless the system records that event.
+
+### 19.3 Visual identity and layered character construction
+
+- A character has a stable identity record plus versioned visual invariants and time-specific states: age, hairstyle/length, face shape, proportions, clothing, accessories, injuries, expression range, posture, and permitted variations.
+- Maintain approved character sheets, expression sheets, turnarounds, pose references, palette/material swatches, and panel exemplars as versioned source assets. Track which reference is authoritative for which attribute and story period.
+- Before generating a panel, retrieve the character's applicable reference bundle and compare the planned shot against identity constraints. Do not treat a prose description alone as sufficient for visual consistency.
+- Represent characters and scene elements as separable, named, editable layers/groups where the chosen medium supports it: rough construction, anatomy/massing, face/features, hair, clothing, props, linework, flats, shadows, highlights, effects, lettering, and background. The stack varies by style and asset; avoid rigidly imposing every layer on every image.
+- Camera-angle changes must preserve spatial relationships and identity, not merely reuse the same front-facing reference. Support reference turnarounds and perspective/camera plans; clearly disclose when a requested view lacks sufficient evidence and needs a new reference or user review.
+- A visual QA pass checks face/shape/hair/clothing/prop consistency, pose readability, perspective, silhouette, lighting direction, layer order, and accidental detail drift. The user can correct a canonical design once and preview affected dependent assets before propagation.
+- Preserve source/reference provenance and distinguish editable native construction from flattened imported raster material. Raster imports may be layered or masked where possible but must not be falsely represented as fully vector/editable source geometry.
+
+### 19.4 Lettering and conversational writing quality
+
+- Dialogue must sound like people responding to each other, not a series of isolated exposition speeches. Preserve each character's vocabulary, cadence, humor, defensiveness, emotional restraint, and relationship dynamics.
+- Story tools check intention, subtext, beat changes, causality, tension, pacing, and whether a scene changes the relationship or advances the plot. Avoid generic praise, repetitive emotional labels, and dialogue that explains facts every participant already knows.
+- Balloon types include speech, thought, narration, whisper, shout, electronic/remote voice, and style variants where supported. Tail direction must identify the correct speaker without crossing or obscuring important art.
+- Layout checks reading order, balloon sequence, panel boundaries, text overflow, minimum legibility at export size, safe margins, and collisions with faces/actions. Text remains editable as text objects and is reflowed when dialogue changes.
+- Support panel-by-panel dialogue editing, speaker attribution, localization-ready text separation, typography settings, and export validation. Lettering is not merely text baked into an image.
+
+### 19.5 Task-level capability and quality evaluation
+
+Evaluate Kuro as a complete system rather than assuming model size predicts outcome. Maintain repeatable test projects and score:
+- Story retrieval accuracy with source evidence and temporal correctness.
+- Character voice distinction, conversational naturalness, plot causality, pacing, and payoff tracking.
+- Visual identity consistency across expressions, outfits, angles, lighting, and chapter gaps.
+- Native-tool correctness, action reversibility, document persistence, and visible progress truthfulness.
+- Camera composition, panel readability, balloon order, typography legibility, and export integrity.
+- Phone/tablet/desktop usability, interruption recovery, offline behavior, and resource use.
+
+Track failures and regression fixtures over time. A beautiful demo is not proof of reliability; improvements should be demonstrated against fixed representative tasks and human review where subjective quality is involved.
+
+
+## 20. Production handoff, format conversion, and publishing adapters
+
+Kuro is not complete when a chapter looks finished inside the editor. A creator must be able to package it, validate it, and move it into the format required by the destination platform without rebuilding the chapter manually.
+
+### 20.1 One canonical project, many exports
+
+Keep a durable, editable native project as the source of truth. Exports are derived deliverables, never destructive conversions of the only copy. A chapter/package should preserve, where applicable:
+- Final page/panel artwork at configured dimensions and resolution, plus editable source layers and text objects in the native project.
+- Reading order, panel/page boundaries, chapter title/number, series metadata, language, credits, and creator-defined publication order.
+- Dialogue/lettering source text separately from flattened output where the destination supports it.
+- Fonts and asset references with licensing/provenance notes, plus a manifest of included files and any missing/unlicensed resources.
+- Export profile, color profile, dimensions, compression, bleed/safe-area settings where relevant, and warnings about lossy flattening or unsupported features.
+
+Provide output profiles for long-strip Webtoon-style vertical comics, paginated manga/comic pages, individual image sequences, PDF proof/review, and a complete editable project/archive. Support high-resolution images without accidental resampling, incorrect ordering, or quality loss. Preserve original project data and offer preview/re-import checks before finalizing an export.
+
+### 20.2 Preflight and release gate
+
+Before export, validate required files, image dimensions/format/size limits, page/panel order, empty or duplicate panels, text clipping, balloon reading order, font availability, metadata, transparent/flattened backgrounds, color conversion, and destination-specific constraints. Show actionable errors and warnings with a preview; never silently discard layers, fonts, text, or unsupported effects. The user explicitly confirms a final package when conversion is lossy.
+
+Every export receives a manifest and reproducible profile settings. Where feasible, include checksums and a validation report so creators can verify that uploaded assets match the approved package. Exports must be repeatable from the same source and settings.
+
+### 20.3 Platform adapter architecture
+
+Use destination adapters behind a common contract: capability discovery, authentication status, format/metadata mapping, preflight, package creation, upload or handoff, draft creation where supported, result/status retrieval, and error recovery. Keep platform-specific constraints out of the editor core. Adapters must declare what they support instead of pretending every site supports every action.
+
+- **MangaDex:** provide a validated export/package workflow and, only where the official API and account permissions permit, a supported chapter-upload flow. Respect MangaDex's current API requirements, manga/chapter metadata, scanlation/translation credits, language, volume/chapter ordering, and community rules. If a safe, supported direct upload is unavailable, deliver a ready-to-upload package with a clear checklist and official destination link.
+- **WEBTOON CANVAS:** provide a vertical-scroll export profile that checks image slicing/dimensions, ordering, file limits, text legibility, and episode metadata against current official requirements. Direct publishing is allowed only if an official, authorized integration exists; otherwise provide a ready-to-upload package and guided handoff to the creator's dashboard.
+- **Other hosting/publishing services:** add adapters incrementally based on documented official APIs, export requirements, creator demand, and policy/licensing. Avoid brittle scraping, credential collection outside approved auth, or automation that violates platform terms.
+
+### 20.4 User approval, credentials, and publication safety
+
+Publishing is a consequential external action. Prepare, validate, and preview freely; require explicit confirmation before uploading, creating a public draft, scheduling, or publishing. Show the exact destination, account, series, chapter, visibility, files, and metadata before submission. Never publish publicly based on ambiguous chat intent. Keep tokens in the platform's approved secure storage, never in project archives, logs, prompts, or exported manifests. Support revoke/disconnect, least privilege, upload retries that avoid accidental duplicate chapters, and a clear receipt/history of actions.
+
+### 20.5 Delivery states and portability acceptance
+
+Distinguish clearly between: **exported locally**, **preflight passed**, **ready to upload**, **uploaded as draft**, **scheduled**, and **published**. A file existing locally is not proof of an upload; an upload response is not proof of publication. Report the platform's returned status and link only when confirmed.
+
+Acceptance scenarios include: export a vertical episode and paginated chapter from one project without losing the editable source; catch text overflow before packaging; reproduce the same package from the same revision; recover from a failed upload without duplicating a chapter; prepare a ready-to-upload MangaDex package; and prepare a WEBTOON-compatible vertical episode with a destination-specific preflight report. Direct integration acceptance tests must use official documented capabilities and a non-public test/draft path where available.

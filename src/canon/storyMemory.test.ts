@@ -50,6 +50,20 @@ describe("durable story memory", () => {
     expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true }).map(item=>item.id)).toEqual([]);
     expect(filterStoryMemoryAtPoint([first, second, future, unknown], "series-a", { productionRequest: true, storyOrder: 20 }).map(item=>item.id)).toEqual(["s10", "s20"]);
   });
+  it("isolates chapter memories by timeline and withholds untagged temporal history", () => {
+    const main = record({ id: "main-2", chapterNumber: 2, storyOrder: 20, timelineId: "main" });
+    const echo = record({ id: "echo-2", chapterNumber: 2, storyOrder: 20, timelineId: "echo" });
+    const untagged = record({ id: "legacy-unscoped", chapterNumber: 1, storyOrder: 10, timelineId: undefined });
+    const timeless = record({ id: "world-note", chapterNumber: undefined, storyOrder: undefined, timelineId: undefined });
+    const selected = filterStoryMemoryAtPoint([main, echo, untagged, timeless], "series-a", {
+      productionRequest: true, chapterNumber: 3, storyOrder: 30, timelineId: "main",
+    });
+    expect(selected.map(item => item.id)).toEqual(["main-2", "world-note"]);
+    expect(filterStoryMemoryAtPoint([main, echo, untagged, timeless], "series-a", {
+      productionRequest: true, chapterNumber: 3, storyOrder: 30,
+    }).map(item => item.id)).toEqual(["world-note"]);
+  });
+
   it("leaves private brainstorming unrestricted while staying project-scoped", () => {
     const future = record({ id: "chapter-80", chapterNumber: 80, storyOrder: 800 });
     const otherProject = record({ id: "foreign", projectId: "series-b", chapterNumber: 1 });

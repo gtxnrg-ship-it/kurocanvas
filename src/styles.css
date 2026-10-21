@@ -228,3 +228,42 @@
 .selection-transform-tools button{padding:6px 9px;border:1px solid #3b324d;border-radius:7px;background:#171421;color:#e4d9f7;font-size:10px;white-space:nowrap}
 .selection-transform-tools button:hover:not(:disabled){border-color:#9b80e6;background:#272039}
 .selection-transform-tools button:disabled,.selection-transform-tools input:disabled{opacity:.4;cursor:not-allowed}
+
+/* Project Style Bible — explicit visual direction and temporal character continuity */
+.style-bible{margin:22px 0;padding:clamp(16px,2.8vw,28px);border:1px solid rgba(164,143,214,.2);border-radius:20px;background:linear-gradient(145deg,rgba(25,22,36,.96),rgba(16,17,25,.98));color:#eeeaf6;display:grid;gap:20px}
+.style-bible-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.style-bible-head small{color:#b9a5f4;font-size:10px;letter-spacing:.15em;font-weight:750}
+.style-bible h2{margin:6px 0;font-size:clamp(21px,3vw,29px);letter-spacing:-.035em}
+.style-bible h3{font-size:15px;margin:0 0 12px;color:#f1ecfb}
+.style-bible p{color:#aaa5b8;font-size:12px;line-height:1.6;margin:6px 0 12px}
+.style-version{white-space:nowrap;padding:7px 10px;border:1px solid #403653;border-radius:10px;color:#c9b5ff;font-size:11px}
+.style-integrity{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border:1px solid rgba(176,149,241,.24);background:rgba(133,94,220,.07);border-radius:12px;color:#c9b8f4}
+.style-integrity p{margin:3px 0 0}
+.style-section{padding:18px 0;border-top:1px solid rgba(255,255,255,.08);display:grid;gap:12px}
+.style-bible label{display:grid;gap:6px;font-size:11px;color:#bcb6ca}
+.style-bible input,.style-bible textarea,.style-bible select{width:100%;box-sizing:border-box;border:1px solid #393343;border-radius:9px;padding:10px 11px;background:#111018;color:#f4f0fb;font:inherit;font-size:12px;outline:none}
+.style-bible input:focus,.style-bible textarea:focus,.style-bible select:focus{border-color:#a78bfa;box-shadow:0 0 0 2px rgba(167,139,250,.12)}
+.style-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.style-form-grid .wide{grid-column:1/-1}
+.style-actions,.style-record-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.style-bible button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #393343;border-radius:9px;padding:8px 10px;background:#211c2b;color:#ded7ee;font-size:11px;cursor:pointer}
+.style-bible button:hover{border-color:#8c73c8;background:#2a223a}
+.style-bible button:disabled{opacity:.45;cursor:not-allowed}
+.style-bible button.primary{background:#9a7ce8;border-color:#9a7ce8;color:#171020;font-weight:750}
+.style-hint{font-size:11px!important;color:#8e899c!important}
+.style-record-list{display:grid;gap:8px}
+.style-record-list article{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px;border:1px solid rgba(255,255,255,.075);border-radius:12px;background:rgba(255,255,255,.018)}
+.style-record-list article>div:first-child{min-width:0;display:grid;gap:5px}
+.style-record-list article b{font-size:12px;color:#eee9f7}
+.style-record-list article p{margin:0;overflow-wrap:anywhere}
+.style-record-list article small{font-size:10px;color:#8f879f;text-transform:uppercase;letter-spacing:.07em}
+.style-record-list a{display:inline-flex;align-items:center;gap:5px;color:#c2a9ff;font-size:11px;text-decoration:none}
+.style-record-actions{flex-shrink:0;justify-content:flex-end}
+.style-chip{width:max-content;max-width:100%;border-radius:6px;padding:4px 6px;background:rgba(163,132,238,.11);color:#c5b0f8;font-size:10px}
+.style-conflicts{padding:13px;border:1px solid rgba(245,158,11,.24);border-radius:12px;background:rgba(245,158,11,.04)}
+.style-conflicts h3{display:flex;align-items:center;gap:7px}
+.style-conflicts p{margin:6px 0}
+.style-conflicts .error{color:#fda4af}
+.style-conflicts .warning{color:#fcd34d}
+.style-bible-notice{border-top:1px solid rgba(255,255,255,.07);padding-top:12px;color:#c9b8f4;font-size:11px}
+@media(max-width:620px){.style-form-grid{grid-template-columns:minmax(0,1fr)}.style-form-grid .wide{grid-column:auto}.style-record-list article{flex-direction:column}.style-record-actions{justify-content:flex-start}.style-bible-head{flex-direction:column}.style-version{align-self:flex-start}}

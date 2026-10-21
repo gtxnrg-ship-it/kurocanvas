@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Activity, Check, Clock3, History, Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import {
   characterStateAt,
   validateCharacterEvolutionState,
   type CharacterAppearanceField,
   type CharacterEvolutionState,
-  type EvolutionCanonStatus,
   type HairLength,
   type BodyIncarnationKind,
   type BodyIdentityContinuity,
@@ -55,6 +54,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
   const [abilitiesAndSkills, setAbilitiesAndSkills] = useState("");
   const [personalityChanges, setPersonalityChanges] = useState("");
   const [visualNotes, setVisualNotes] = useState("");
+  const [changeSummary, setChangeSummary] = useState("");
   const [emotionalState, setEmotionalState] = useState("");
   const [bodyInstanceId, setBodyInstanceId] = useState("");
   const [incarnationKind, setIncarnationKind] = useState<BodyIncarnationKind>("original");
@@ -76,8 +76,10 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
   const [newConditionImpact, setNewConditionImpact] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Character state, body identity, and injury history are saved per universe. New snapshots begin as proposals.");
+  const refreshGeneration = useRef(0);
 
   async function refresh() {
+    const requestId = ++refreshGeneration.current;
     if (!projectId || !universeId) {
       setCharacters([]); setRecords([]); setCharacterId("");
       setMessage("Open a universe before editing its character timeline.");
@@ -89,6 +91,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
         canonStorage.load(projectId),
         characterEvolutionStorage.list(universeId),
       ]);
+      if (requestId !== refreshGeneration.current) return;
       const nextCharacters = (bundle?.entities ?? [])
         .filter(entity => entity.kind.toLocaleLowerCase() === "character" && entity.status !== "superseded" && entity.status !== "contradicted")
         .map(entity => ({ id: entity.id, name: entity.name, status: entity.status, aliases: entity.aliases }));
@@ -97,8 +100,8 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
       setCharacterId(current => nextCharacters.some(item => item.id === current) ? current : nextCharacters[0]?.id ?? "");
       setMessage("Loaded " + states.length + " saved character-state snapshots from this universe.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not load character continuity.");
-    } finally { setBusy(false); }
+      if (requestId === refreshGeneration.current) setMessage(error instanceof Error ? error.message : "Could not load character continuity.");
+    } finally { if (requestId === refreshGeneration.current) setBusy(false); }
   }
   useEffect(() => { void refresh(); }, [projectId, universeId]);
 
@@ -133,15 +136,16 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     setIdentityContinuity(a?.bodyIdentity?.identityContinuity ?? "same-person"); setMemoryContinuity(a?.bodyIdentity?.memoryContinuity ?? "uncertain");
     setPreviousBodyInstanceId(blank(a?.bodyIdentity?.previousBodyInstanceId)); setAgeAtIncarnation(a?.bodyIdentity?.ageAtIncarnation === undefined ? "" : String(a.bodyIdentity.ageAtIncarnation));
     setRevealAtStoryOrder(baseState?.revealAtStoryOrder === undefined ? "" : String(baseState.revealAtStoryOrder));
-    setUnknownFields(a?.unknownFields ?? []); setConditions(a?.physicalConditions ?? []);
+    setUnknownFields(a?.unknownFields ?? []); setConditions(a?.physicalConditions ?? []); setChangeSummary("");
     setConditionsTouched(false); setClearConditions(false);
-  }, [baseState?.id, characterId, timelineId, storyOrder]);
+  }, [baseState?.id, characterId, timelineId]);
 
   function toggleUnknown(field: CharacterAppearanceField, enabled: boolean) {
     setUnknownFields(current => enabled ? [...new Set([...current, field])] : current.filter(item => item !== field));
     if (field === "physicalConditions") {
       setConditionsTouched(false);
       setClearConditions(false);
+      if (!enabled) setConditions(baseState?.appearance.physicalConditions ?? []);
     }
   }
   function updateCondition(id: string, patch: Partial<PhysicalConditionState>) {
@@ -189,6 +193,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
     if (chapterNumber.trim() && (!Number.isInteger(Number(chapterNumber)) || Number(chapterNumber) < 0)) { setMessage("Chapter number must be a non-negative whole number."); return; }
     if (sceneNumber.trim() && (!Number.isInteger(Number(sceneNumber)) || Number(sceneNumber) < 0)) { setMessage("Scene number must be a non-negative whole number."); return; }
     if (revealAtStoryOrder.trim() && (!Number.isFinite(Number(revealAtStoryOrder)) || Number(revealAtStoryOrder) < 0)) { setMessage("Reveal gate must be a non-negative story order."); return; }
+    if (ageAtIncarnation.trim() && (!Number.isFinite(Number(ageAtIncarnation)) || Number(ageAtIncarnation) < 0 || Number(ageAtIncarnation) > 10000)) { setMessage("Age of the new body must be between 0 and 10000."); return; }
     if (approvedConflict) { setMessage("An approved snapshot already exists at this exact story order. Use the existing snapshot or choose a new order; ambiguous canon is never overwritten silently."); return; }
     if (conflictingApproved) { setMessage("More than one approved prior snapshot exists at the same story order. Resolve that conflict before creating later states."); return; }
     const oldRevealGates = [...new Set(records.filter(item => item.characterId === characterId && item.timelineId === timelineId && item.status === "approved")
@@ -259,7 +264,7 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
       relationshipStateRefs: previousState?.relationshipStateRefs ?? [],
       assetRefs: previousState?.assetRefs ?? [],
       sourceMessageIds: previousState?.sourceMessageIds ?? [],
-      changeSummary: "Character state at story order " + order + (chapterNumber.trim() ? " (chapter " + chapterNumber + ")" : ""),
+      changeSummary: changeSummary.trim() || "Character state at story order " + order + (chapterNumber.trim() ? " (chapter " + chapterNumber + ")" : ""),
       createdAt: new Date().toISOString(),
     };
     const errors = validateCharacterEvolutionState(record, universeId);
@@ -405,12 +410,12 @@ export default function CharacterTimelineStudio({ projectId, universeId }: Props
             <button type="button" onClick={addCondition}><Plus size={13}/> Add condition</button>
           </div>
           <div className="timeline-condition-options">
-            <label className="timeline-unknown"><input type="checkbox" checked={clearConditions} onChange={event=>{setClearConditions(event.target.checked);setConditionsTouched(true);setConditions([]);setUnknownFields(current=>current.filter(field=>field!=="physicalConditions"));}}/> Explicitly none at this story point</label>
+            <label className="timeline-unknown"><input type="checkbox" checked={clearConditions} onChange={event=>{setClearConditions(event.target.checked);setConditionsTouched(true);setConditions(event.target.checked?[]:(baseState?.appearance.physicalConditions??[]));setUnknownFields(current=>current.filter(field=>field!=="physicalConditions"));}}/> Explicitly none at this story point</label>
             <label className="timeline-unknown"><input type="checkbox" checked={unknownFields.includes("physicalConditions")} onChange={event=>{toggleUnknown("physicalConditions",event.target.checked);if(event.target.checked)setConditions([]);}}/> Injury state explicitly unknown</label>
           </div>
         </div>
         <div className="timeline-fieldset"><h3>Canon review</h3><p>New snapshots begin as proposals. Approving one makes it eligible for continuity retrieval, but the reveal gate and story order still apply.</p>
-          <label>Summary of change<textarea rows={2} value={visualNotes.includes("Change summary:") ? "" : undefined} readOnly hidden/></label>
+          <label>What changed in this snapshot?<textarea rows={2} value={changeSummary} onChange={event=>setChangeSummary(event.target.value)} placeholder="e.g. Reincarnated into a 15-year-old body; nose bruise is fading; left arm remains splinted."/></label>
           <button type="submit" className="timeline-primary" disabled={busy || !characterId}><Plus size={14}/> Save temporal snapshot as proposal</button>
         </div>
       </form>

@@ -79,31 +79,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
     return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
       const modelName = item.id!;
-      const isQwen38Vision = /qwen3\.8-27b/i.test(modelName);
-      const roles = isQwen38Vision
-        ? ["reasoning", "planning", "vision", "coding", "story-writing", "continuity", "research", "fast-helper"] as const
-        : ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
-      const capabilities = isQwen38Vision
-        ? ["chat", "vision", "structured-output"] as const
-        : ["chat"] as const;
-      const lowerName = modelName.toLowerCase();
-      let downloadBytes: number | undefined;
-      let memoryBytes: number | undefined;
-      if (isQwen38Vision) {
-        if (lowerName.includes("nvfp4")) {
-          downloadBytes = 26_381_249_312;
-          memoryBytes = 32 * 1024 ** 3;
-        } else if (lowerName.includes("fp8")) {
-          downloadBytes = 30_866_866_928;
-          memoryBytes = 38 * 1024 ** 3;
-        } else if (lowerName.includes("int4")) {
-          downloadBytes = 19_500_000_000;
-          memoryBytes = 24 * 1024 ** 3;
-        } else {
-          downloadBytes = 55_563_006_776;
-          memoryBytes = 67 * 1024 ** 3;
-        }
-      }
+      const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
+      const capabilities = ["chat"] as const;
       const hostname = new URL(this.baseUrl).hostname;
       return {
         id: this.id + ":" + modelName,
@@ -112,9 +89,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
         location: ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ? "local" as const : "remote" as const,
         roles: [...roles],
         capabilities: [...capabilities],
-        ...(downloadBytes !== undefined ? { downloadBytes } : {}),
-        ...(memoryBytes !== undefined ? { memoryBytes } : {}),
-        ...(isQwen38Vision ? { license: "Apache-2.0" } : {}),
         modelUri: modelName,
         installed: true,
         enabled: true,

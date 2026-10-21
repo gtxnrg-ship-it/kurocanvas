@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Link2, Plus, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { Check, Link2, Plus, ShieldAlert } from "lucide-react";
 import { styleBibleStorage } from "../core/storage";
 import { createEmptyStyleBible, findStyleConflicts, type CharacterVisualState, type InspirationAspect, type ProjectStyleBible, type StyleInspiration, type StyleRule } from "./styleBible";
 

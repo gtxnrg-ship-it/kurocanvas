@@ -28,7 +28,7 @@ export function parseAIStrokePlan(raw: string, bounds: DrawingDocumentBounds = D
   try {
     value = parseModelJson(raw, AI_MAX_PLAN_CHARS);
   } catch {
-    throw new Error("Kuro did not return valid structured JSON for the drawing plan.");
+    throw new Error("Kuro did not return valid JSON for the drawing plan (after structured-output recovery).");
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("The drawing plan must be a JSON object.");

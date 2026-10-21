@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { artDirectionStorage, canonStorage, characterModelStorage, chatMessageStorage, characterEvolutionStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, saveImportedProjectBundle, type LocalDrawingDocument } from '../core/storage';
+import { artDirectionStorage, canonStorage, characterModelStorage, chatMessageStorage, characterEvolutionStorage, conversationStorage, drawingRevisionStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, saveImportedProjectBundle, type DrawingRevision, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
 import { validateArtDirection, type ArtDirectionBible } from '../canon/artDirection';
@@ -89,11 +89,19 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         throw new Error('Export cancelled to protect project completeness. These Story Vault drawings are missing: ' + details + '. Recover or remove the broken references, then export again.');
       }
       let exportedDrawings = 0;
+      let exportedRevisions = 0;
       for (const drawingId of drawingIds) {
         const drawing = await drawingStorage.load(drawingId, id);
         if (!drawing) throw new Error('Export cancelled because drawing "' + drawingId + '" disappeared during packaging. Nothing was downloaded; retry after checking local storage.');
         assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
         exportedDrawings++;
+        const revisionMetas = await drawingRevisionStorage.list(drawingId);
+        for (const meta of revisionMetas) {
+          const revision = await drawingRevisionStorage.load(meta.id, drawingId);
+          if (!revision) throw new Error('Export cancelled because revision "' + meta.id + '" of drawing "' + drawingId + '" disappeared during packaging. Nothing was downloaded; retry after checking local storage.');
+          assets['kuro/drawing-revisions/' + drawingId + '/' + revision.id + '.json'] = JSON.stringify(revision);
+          exportedRevisions++;
+        }
       }
       const content = serializeKuroPackage(createKuroPackage(project, assets));
       const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+json' }));
@@ -102,7 +110,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + exportedDrawings + ' saved drawings, ' + universes.length + ' universes, ' + conversations.length + ' conversations, ' + messages.length + ' chat messages, ' + relationships.length + ' relationship records, and ' + characterStates.length + ' character timeline states.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + exportedDrawings + ' saved drawings and ' + exportedRevisions + ' revision checkpoints, ' + universes.length + ' universes, ' + conversations.length + ' conversations, ' + messages.length + ' chat messages, ' + relationships.length + ' relationship records, and ' + characterStates.length + ' character timeline states.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }
@@ -127,6 +135,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       const now = new Date().toISOString();
       const drawingIdMap = new Map<string, string>();
       const drawings: LocalDrawingDocument[] = [];
+      const drawingRevisions: DrawingRevision[] = [];
       for (const [key, raw] of Object.entries(importedAssets)) {
         if (!key.startsWith('kuro/drawings/') || !key.endsWith('.json')) continue;
         let value: unknown;
@@ -139,6 +148,41 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         const nextId = crypto.randomUUID();
         drawingIdMap.set(drawing.id, nextId);
         drawings.push({ ...drawing, id: nextId, projectId: project.id, name: drawing.name || 'Imported drawing', version: 1, width: drawing.width!, height: drawing.height!, background: drawing.background || '#fffdfb', strokes: drawing.strokes, updatedAt: now } as LocalDrawingDocument);
+      }
+      const seenRevisionIds = new Set<string>();
+      for (const [key, raw] of Object.entries(importedAssets)) {
+        if (!key.startsWith('kuro/drawing-revisions/') || !key.endsWith('.json')) continue;
+        let value: unknown;
+        try { value = JSON.parse(raw); } catch { throw new Error('A bundled drawing revision is not valid JSON: ' + key); }
+        if (!value || typeof value !== 'object') throw new Error('A bundled drawing revision is invalid: ' + key);
+        const revision = value as Partial<DrawingRevision>;
+        if (typeof revision.id !== 'string' || !revision.id.trim() || typeof revision.drawingId !== 'string'
+          || !revision.document || typeof revision.document !== 'object' || revision.document.version !== 1
+          || revision.document.id !== revision.drawingId || !Array.isArray(revision.document.strokes)
+          || !Number.isFinite(revision.document.width) || !Number.isFinite(revision.document.height)) {
+          throw new Error('A bundled drawing revision has an unsupported format: ' + key);
+        }
+        if (seenRevisionIds.has(revision.id)) throw new Error('The package contains duplicate drawing revision IDs.');
+        seenRevisionIds.add(revision.id);
+        const nextDrawingId = drawingIdMap.get(revision.drawingId);
+        if (!nextDrawingId) throw new Error('A drawing revision references a drawing missing from the package: ' + revision.drawingId);
+        drawingRevisions.push({
+          id: crypto.randomUUID(),
+          drawingId: nextDrawingId,
+          title: typeof revision.title === 'string' && revision.title.trim() ? revision.title : 'Imported checkpoint',
+          createdAt: typeof revision.createdAt === 'string' ? revision.createdAt : now,
+          document: {
+            ...revision.document,
+            id: nextDrawingId,
+            projectId: project.id,
+            version: 1,
+            width: revision.document.width!,
+            height: revision.document.height!,
+            background: revision.document.background || '#fffdfb',
+            strokes: revision.document.strokes,
+            updatedAt: now,
+          } as LocalDrawingDocument,
+        });
       }
       const universePackage = rehomeUniversePackage(importedAssets, project.id, drawingIdMap);
 
@@ -250,11 +294,11 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       }
 
       await saveImportedProjectBundle({
-        project, canon, artDirection, styleBible, references, characterModels, drawings, memories,
+        project, canon, artDirection, styleBible, references, characterModels, drawings, drawingRevisions, memories,
         ...universePackage,
       });
       await refresh();
-      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + drawings.length + ' drawings, ' + universePackage.universes.length + ' universes, ' + universePackage.conversations.length + ' conversations, ' + universePackage.messages.length + ' chat messages, ' + universePackage.relationships.length + ' relationship records, and ' + universePackage.characterStates.length + ' character timeline states.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + drawings.length + ' drawings and ' + drawingRevisions.length + ' revision checkpoints, ' + universePackage.universes.length + ' universes, ' + universePackage.conversations.length + ' conversations, ' + universePackage.messages.length + ' chat messages, ' + universePackage.relationships.length + ' relationship records, and ' + universePackage.characterStates.length + ' character timeline states.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {

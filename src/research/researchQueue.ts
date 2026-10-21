@@ -34,6 +34,15 @@ export const RESEARCH_QUEUE_CHANGED = "kuro-research-queue-changed";
 const SEARCH_LIMIT: Record<ResearchDepth, number> = { quick: 3, balanced: 5, deep: 8, exhaustive: 12 };
 const EXTRACT_CHARS: Record<ResearchDepth, number> = { quick: 1000, balanced: 1700, deep: 2300, exhaustive: 3000 };
 
+/**
+ * Recognize source-dependent follow-ups so a chat response cannot silently
+ * fall back to unsupported memory when a queued research task is still running.
+ */
+export function isResearchFollowUpRequest(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  return /\b(?:those|these) (?:findings|sources|results)\b|\bthe (?:findings|research results)\b|\b(?:the|your|this|that) research (?:results|findings|notes|task)\b|\b(?:summari[sz]e|explain|compare|cite|use|quote|list|analy[sz]e) (?:those|these|the|your) (?:findings|results|sources|research)\b|\b(?:based on|according to|from) (?:the |your )?research\b|\bwhat did (?:the research|your research|the sources|your sources) find\b|\bwhat did (?:the research|your research) discover\b|\bwhat have (?:the sources|your sources) found\b|\bwhat do (?:the sources|these sources|those sources) say\b|\baccording to (?:the |your )?sources\b/i.test(text);
+}
+
 export interface ResearchTaskIntent {
   query: string;
   depth: ResearchDepth;
@@ -570,7 +579,7 @@ export async function buildResearchContext(
   if (!completed.length) return "";
   const tokens = [...new Set(userMessage.normalize("NFKC").toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
     .filter(token => token.length >= 3 && !["the","and","for","with","that","this","about","using","research","source","sources","please","from","into","what","when","where","would","could","should","kuro","help"].includes(token)))];
-  const researchFollowUp = /\b(?:those findings|these findings|the findings|those sources|these sources|the sources|the research|this research|that research|research results|the research results|summari[sz]e (?:those|these|the) (?:findings|results)|based on (?:the )?research)\b/i.test(userMessage);
+  const researchFollowUp = isResearchFollowUpRequest(userMessage);
   const ranked = completed.map(task => {
     const haystack = (task.query + " " + task.sources.map(source => source.title + " " + source.extract).join(" "))
       .normalize("NFKC").toLocaleLowerCase();

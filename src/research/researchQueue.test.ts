@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, extractResearchTaskIntent, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, createResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
 
@@ -32,6 +32,17 @@ describe("portable research task history", () => {
 });
 
 describe("Kuro research queue records", () => {
+  it("detects source-dependent follow-ups without classifying ordinary story questions as research", () => {
+    expect(isResearchFollowUpRequest("Summarize those findings with citations.")).toBe(true);
+    expect(isResearchFollowUpRequest("Based on your research, what should the manga creator know?")).toBe(true);
+    expect(isResearchFollowUpRequest("What did the sources find about panel pacing?")).toBe(true);
+    expect(isResearchFollowUpRequest("What did you discover about the temple in this scene?")).toBe(false);
+    expect(isResearchFollowUpRequest("Write a scene where the detective finds a clue.")).toBe(false);
+    expect(isResearchFollowUpRequest("The research student finds a clue in chapter two.")).toBe(false);
+    expect(isResearchFollowUpRequest("The sources of magic are six ancient clans.")).toBe(false);
+    expect(isResearchFollowUpRequest("Cite the sources when you summarize the findings.")).toBe(true);
+  });
+
   it("routes explicit research commands into scoped tasks and preserves source/depth choices", () => {
     expect(extractResearchTaskIntent("Please research the history of manga censorship and cite sources")).toEqual({
       query: "the history of manga censorship",

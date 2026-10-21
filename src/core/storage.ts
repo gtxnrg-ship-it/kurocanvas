@@ -6,6 +6,7 @@ import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible"
 import { validateReferenceSource, type ReferenceSourceRecord } from "../canon/referenceScout";
 import { validateCharacterModel, type CharacterModelRecord } from "../canon/characterModels";
 import { validateRelationshipRecord, type RelationshipRecord } from "../canon/relationshipMemory";
+import { validateCharacterEvolutionState, type CharacterEvolutionState } from "../canon/characterEvolution";
 import {
   validateUniverseRecord,
   validateConversationRecord,
@@ -17,7 +18,7 @@ import {
 } from "./universe";
 
 const DB_NAME = "kuro-canvas-local";
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 const PROJECTS = "projects";
 const TEMPLATES = "templates";
 const AUTOSAVE = "autosave";
@@ -33,6 +34,7 @@ const UNIVERSES = "universes";
 const CONVERSATIONS = "conversations";
 const CHAT_MESSAGES = "chatMessages";
 const RELATIONSHIPS = "relationships";
+const CHARACTER_EVOLUTION = "characterEvolution";
 const DB_UNAVAILABLE = "Local project storage is unavailable in this browser context.";
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -72,6 +74,11 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(RELATIONSHIPS)) {
         const relationships = db.createObjectStore(RELATIONSHIPS, { keyPath: "id" });
         relationships.createIndex("byUniverseId", "universeId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(CHARACTER_EVOLUTION)) {
+        const evolution = db.createObjectStore(CHARACTER_EVOLUTION, { keyPath: "id" });
+        evolution.createIndex("byUniverseId", "universeId", { unique: false });
+        evolution.createIndex("byCharacterTimelineOrder", ["characterId", "timelineId", "storyOrder"], { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -667,6 +674,31 @@ export const chatMessageStorage = {
   },
 };
 
+
+/** Durable, temporal character states. Every read/write is scoped to the owning universe. */
+export const characterEvolutionStorage = {
+  async save(record: CharacterEvolutionState): Promise<void> {
+    const errors = validateCharacterEvolutionState(record);
+    if (errors.length) throw new Error("Refusing to save an invalid character evolution state: " + errors.join(" "));
+    const universe = await universeStorage.load(record.universeId);
+    if (!universe) throw new Error("Cannot save character evolution without its owning universe.");
+    await requestValue<IDBValidKey>(CHARACTER_EVOLUTION, "readwrite", store => store.put(record));
+  },
+  async load(id: string, universeId: string): Promise<CharacterEvolutionState | undefined> {
+    if (!universeId.trim()) throw new Error("Choose a universe before loading character evolution.");
+    const record = await requestValue<CharacterEvolutionState | undefined>(CHARACTER_EVOLUTION, "readonly", store => store.get(id));
+    if (record && record.universeId !== universeId) throw new Error("Universe isolation violation: character evolution belongs to another universe.");
+    if (record && validateCharacterEvolutionState(record, universeId).length) throw new Error("Saved character evolution state is invalid.");
+    return record;
+  },
+  async list(universeId: string, characterId?: string, timelineId?: string): Promise<CharacterEvolutionState[]> {
+    if (!universeId.trim()) throw new Error("Choose a universe before listing character evolution.");
+    const records = await requestValue<CharacterEvolutionState[]>(CHARACTER_EVOLUTION, "readonly", store => store.index("byUniverseId").getAll(universeId));
+    if (records.some(record => validateCharacterEvolutionState(record, universeId).length)) throw new Error("Saved character evolution contains invalid or cross-universe records.");
+    return records.filter(record => (!characterId || record.characterId === characterId) && (!timelineId || record.timelineId === timelineId))
+      .sort((a, b) => a.timelineId.localeCompare(b.timelineId) || a.characterId.localeCompare(b.characterId) || a.storyOrder - b.storyOrder);
+  },
+};
 
 /** Durable relationship canon, indexed and validated within one universe. */
 export const relationshipStorage = {

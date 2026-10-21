@@ -22,6 +22,17 @@ describe("SVG artwork export", () => {
     expect(svg).not.toContain('fill="#fffdfb"');
   });
 
+  it("preserves per-stroke opacity for vectors and embedded references", () => {
+    const svg = buildSvgDocument({
+      width: 100, height: 100, background: "#ffffff", layers: [layer], strokes: [
+        { id: "faded-shape", layerId: "ink", tool: "brush", shape: "ellipse", color: "#112233", size: 4, opacity: 0.25, points: [{ x: 10, y: 10 }, { x: 60, y: 60 }] },
+        { id: "hidden-note", layerId: "ink", tool: "brush", shape: "text", color: "#112233", size: 12, opacity: 0, text: "hidden", points: [{ x: 8, y: 8 }] },
+      ],
+    });
+    expect(svg).toContain('<g opacity="0.25"><ellipse');
+    expect(svg).toContain('<g opacity="0"><text');
+  });
+
   it("uses an SVG mask for eraser strokes and includes paper when requested", () => {
     const svg = buildSvgDocument({
       width: 100, height: 100, background: "#fefefe", layers: [layer], strokes: [

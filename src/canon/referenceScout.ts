@@ -152,7 +152,7 @@ export function buildReferenceContext(records: ReferenceSourceRecord[], projectI
   if (!relevant.length) return "";
   const lines = [
     "PROJECT REFERENCE LIBRARY — USER-APPROVED SOURCE METADATA",
-    "These are approved reference records. Use their descriptions and notes as source metadata only; the actual image pixels are not attached to this text prompt, so never claim to have visually inspected them.",
+    "These are approved reference records. Use their descriptions and notes as source metadata only; visual inspection is grounded only when an approved image URL is separately attached as an image part to the current request; source metadata alone is never evidence that pixels were inspected.",
     "Respect each source's license and attribution terms. A saved reference is visual inspiration, not permission to copy protected characters, panels, or signature designs.",
   ];
   for (const record of relevant) lines.push("- " + record.title + " | " + record.notes + " | Source: " + record.sourceUrl + " | License: " + record.license + (record.creator ? " | Creator: " + record.creator : ""));

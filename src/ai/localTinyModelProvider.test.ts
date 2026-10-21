@@ -12,7 +12,7 @@ describe("LocalTinyModelProvider", () => {
       location: "local",
       downloadBytes: 137_000_000,
       license: "Apache-2.0",
-      capabilities: ["chat", "structured-output"],
+      capabilities: ["chat"],
       metadata: { modelId: KURO_TINY_MODEL_ID, vision: false },
     });
     expect(KURO_TINY_MODEL_DOWNLOAD_BYTES).toBe(137_000_000);

@@ -156,3 +156,6 @@
 
 .panel-layout-control{display:flex;align-items:center;gap:6px;color:#bfb3ce;font-size:11px;white-space:nowrap}
 .panel-layout-control select{max-width:132px;border:1px solid #443951;border-radius:7px;background:#17131f;color:#f1eafa;padding:7px 8px;font-size:11px}
+
+.transparent-export-control{display:inline-flex;align-items:center;gap:5px;color:#bfb3ce;font-size:10px;white-space:nowrap}
+.transparent-export-control input{accent-color:#b69aff}

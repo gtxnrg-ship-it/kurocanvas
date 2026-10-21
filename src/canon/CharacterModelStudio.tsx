@@ -5,7 +5,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Box, Plus, RefreshCw, RotateCcw, ShieldAlert, Trash2, Upload } from "lucide-react";
 import { characterModelStorage, styleBibleStorage } from "../core/storage";
 import { resolveCharacterVisualState, type CharacterVisualState, type ProjectStyleBible } from "./styleBible";
-import { type CharacterModelRecord, type ScarOverlay } from "./characterModels";
+import { selectCharacterModelVariant, type CharacterModelRecord, type ScarOverlay } from "./characterModels";
 import "./characterModelStudio.css";
 
 type ProjectChoice = { id: string; name: string };
@@ -106,13 +106,7 @@ export default function CharacterModelStudio({ projectId, projects }: { projectI
   const selectedState = useMemo(() => statesForCharacter.find(state => state.id === stateId) ?? statesForCharacter[statesForCharacter.length-1], [statesForCharacter,stateId]);
   const selectedModel = useMemo(() => {
     if (!selectedProfile) return undefined;
-    const variants = models.filter(model => normalizeName(model.characterName) === normalizeName(selectedProfile.characterName));
-    if (selectedState) {
-      const eligible = variants.filter(model => (model.storyOrder ?? 0) <= selectedState.storyOrder)
-        .sort((a,b)=>(a.storyOrder ?? 0)-(b.storyOrder ?? 0));
-      return eligible[eligible.length-1];
-    }
-    return variants.find(model => !model.characterStateId) ?? selectedProfile;
+    return selectCharacterModelVariant(models, selectedProfile.characterName, selectedState?.storyOrder);
   }, [models, selectedProfile, selectedState]);
   const resolved = selectedProfile && selectedState && styleBible
     ? resolveCharacterVisualState(styleBible.characterStates, selectedProfile.characterName, selectedState.storyOrder) : undefined;

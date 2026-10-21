@@ -20,8 +20,8 @@ describe("Kuro request-aware response quality", () => {
   });
 
   it("bounds the experimental local model's requested output budget", () => {
-    expect(getKuroResponseTokenBudget("Write an exhaustive story bible.", "kuro-local-browser")).toBe(1200);
-    expect(getKuroResponseTokenBudget("Hello", "kuro-local-browser")).toBe(700);
+    expect(getKuroResponseTokenBudget("Write an exhaustive story bible.", "kuro-local-browser")).toBe(1024);
+    expect(getKuroResponseTokenBudget("Hello", "kuro-local-browser")).toBe(256);
   });
 
   it("encourages readable Markdown without over-formatting simple replies", () => {

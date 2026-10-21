@@ -84,6 +84,21 @@ export function validateStoryMemoryRecord(record: StoryMemoryRecord, projectId: 
   if (!Array.isArray(record.entityIds) || !Array.isArray(record.tags) || !Array.isArray(record.assetRefs) || !Array.isArray(record.supersedes)) errors.push("Memory links and tags must be arrays.");
   return errors;
 }
+/**
+ * Approval requires an explicit timeline for chronology-bearing notes.
+ * Legacy records can still be loaded and edited, but must be scoped before
+ * a proposal becomes canon. Retrieval remains independently fail-closed.
+ */
+export function validateStoryMemoryForApproval(record: StoryMemoryRecord, projectId: string): string[] {
+  const errors = validateStoryMemoryRecord(record, projectId);
+  const timeBound = record.chapterNumber !== undefined || record.sceneNumber !== undefined
+    || record.storyOrder !== undefined || record.timelineId !== undefined;
+  if (timeBound && !record.timelineId?.trim()) {
+    errors.push("Time-bound memories need a timeline ID before approval.");
+  }
+  return errors;
+}
+
 export function retrieveStoryMemory(records: readonly StoryMemoryRecord[], query: StoryMemoryQuery): StoryMemoryResult {
   if (!query.projectId.trim()) throw new Error("Choose a project before searching story memory.");
   const tokens = new Set(tokenize(query.text ?? ""));

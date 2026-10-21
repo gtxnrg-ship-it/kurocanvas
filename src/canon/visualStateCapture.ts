@@ -1,3 +1,4 @@
+import { parseStoryChapterNumber } from "./storyCoordinates";
 import type { CharacterVisualState } from "./styleBible";
 
 export interface VisualStateCandidate {
@@ -33,9 +34,9 @@ export function proposeVisualStatesFromEvidence(
     const evidence = typeof item.evidence === "string" ? item.evidence.trim() : "";
     const characterName = typeof item.characterName === "string" ? item.characterName.trim() : "";
     const chapterNumber = Number(item.chapterNumber);
-    const chapterMatch = evidence.match(/\b(?:chapter|ch\.?)\s*#?\s*(\d+)\b/i);
+    const evidencedChapter = parseStoryChapterNumber(evidence);
     if (!evidence || !userMessage.includes(evidence) || !characterName || !evidence.includes(characterName) ||
-        !chapterMatch || Number(chapterMatch[1]) !== chapterNumber || !Number.isFinite(chapterNumber) || chapterNumber < 0) continue;
+        evidencedChapter === undefined || evidencedChapter !== chapterNumber || !Number.isFinite(chapterNumber) || chapterNumber < 0) continue;
 
     const visual: Record<string, string> = {};
     for (const field of fields) {

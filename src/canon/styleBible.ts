@@ -51,7 +51,6 @@ export interface StyleConflict {
   severity: "warning" | "error";
 }
 const normalize = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
-const idSet = (records: Array<{id:string}>) => new Set(records.map(record=>record.id));
 
 export function createEmptyStyleBible(projectId: string): ProjectStyleBible {
   if (!projectId.trim()) throw new Error("A project ID is required to create a style bible.");

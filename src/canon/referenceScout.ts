@@ -72,8 +72,9 @@ export function normalizeReferenceSearchResults(value: unknown): ReferenceSearch
     const sourceUrl = safeWikimediaUrl(item.sourceUrl, "commons.wikimedia.org");
     const imageUrl = safeWikimediaUrl(item.imageUrl, "upload.wikimedia.org");
     const thumbnailUrl = safeWikimediaUrl(item.thumbnailUrl, "upload.wikimedia.org");
-    const licenseUrl = item.licenseUrl === "" ? "" : safeHttps(item.licenseUrl);
-    if (!sourceUrl || !imageUrl || !thumbnailUrl || !licenseUrl
+    const rawLicenseUrl = typeof item.licenseUrl === "string" ? item.licenseUrl.trim() : "";
+    const licenseUrl = rawLicenseUrl ? safeHttps(rawLicenseUrl) : "";
+    if (!sourceUrl || !imageUrl || !thumbnailUrl || (rawLicenseUrl && !licenseUrl)
       || typeof item.title !== "string" || !item.title.trim()
       || typeof item.description !== "string" || typeof item.query !== "string"
       || typeof item.creator !== "string" || typeof item.license !== "string"

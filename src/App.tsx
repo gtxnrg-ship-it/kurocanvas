@@ -47,7 +47,8 @@ export default function App(){
    const bundle=createChatUniverse('My first universe',project.id);await universeStorage.create(bundle);
    universe=bundle.universe;universes=[...universes,universe];
  }
- const recent:RecentUniverse[]=universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));\n const conversationGroups=await Promise.all(universes.map(async item=>({universe:item,conversations:await conversationStorage.list(item.id)})));
+ const recent:RecentUniverse[]=universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+ const conversationGroups=await Promise.all(universes.map(async item=>({universe:item,conversations:await conversationStorage.list(item.id)})));
  const chosen=recent.find(item=>item.id===universe!.id)!;
  let conversationId='';try{conversationId=localStorage.getItem('kuro-active-conversation')||'';}catch{}
  let savedConversation; if(conversationId){try{savedConversation=await conversationStorage.load(conversationId,universe.id);}catch{savedConversation=undefined;}}

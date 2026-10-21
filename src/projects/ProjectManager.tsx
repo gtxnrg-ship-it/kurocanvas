@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
 import { parseKuroPackage, serializeKuroPackage, createKuroPackage } from '../core/package';
-import { projectStorage } from '../core/storage';
+import { canonStorage, drawingStorage, projectStorage, storyMemoryStorage, type LocalDrawingDocument } from '../core/storage';
+import { validateCanon, type CanonBundle } from '../canon/universe';
+import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
 import WorldStudio from '../canon/WorldStudio';
 
 type ProjectSummary = Pick<KuroProject, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
@@ -39,14 +41,28 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
     try {
       const project = await projectStorage.load(id);
       if (!project) throw new Error('This project no longer exists in local storage.');
-      const content = serializeKuroPackage(createKuroPackage(project));
+      const assets: Record<string, string> = {};
+      const memories = await storyMemoryStorage.list(id);
+      assets['kuro/story-memory.v1.json'] = JSON.stringify(memories);
+      const canon = await canonStorage.load(id);
+      if (canon) assets['kuro/canon.v1.json'] = JSON.stringify(canon);
+      const drawingIds = [...new Set(memories.flatMap(record => record.assetRefs)
+        .filter(ref => ref.startsWith('drawing:')).map(ref => ref.slice('drawing:'.length)))];
+      let linkedDrawings = 0;
+      for (const drawingId of drawingIds) {
+        const drawing = await drawingStorage.load(drawingId);
+        if (!drawing) continue;
+        assets['kuro/drawings/' + drawingId + '.json'] = JSON.stringify(drawing);
+        linkedDrawings++;
+      }
+      const content = serializeKuroPackage(createKuroPackage(project, assets));
       const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+json' }));
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro.json';
       anchor.click();
       globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMessage('Exported “' + project.name + '”. Artwork files are not embedded yet.');
+      setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', and ' + linkedDrawings + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
     } finally { setBusy(false); }
@@ -67,9 +83,80 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await projectStorage.save(project);
+      const importedAssets = imported.assets;
+      const now = new Date().toISOString();
+      const drawingIdMap = new Map<string, string>();
+      const drawings: LocalDrawingDocument[] = [];
+      for (const [key, raw] of Object.entries(importedAssets)) {
+        if (!key.startsWith('kuro/drawings/') || !key.endsWith('.json')) continue;
+        let value: unknown;
+        try { value = JSON.parse(raw); } catch { throw new Error('A bundled drawing is not valid JSON: ' + key); }
+        if (!value || typeof value !== 'object') throw new Error('A bundled drawing is invalid: ' + key);
+        const drawing = value as Partial<LocalDrawingDocument>;
+        if (drawing.version !== 1 || typeof drawing.id !== 'string' || !Number.isFinite(drawing.width) || !Number.isFinite(drawing.height) || !Array.isArray(drawing.strokes)) {
+          throw new Error('A bundled drawing has an unsupported format: ' + key);
+        }
+        const nextId = crypto.randomUUID();
+        drawingIdMap.set(drawing.id, nextId);
+        drawings.push({ ...drawing, id: nextId, name: drawing.name || 'Imported drawing', version: 1, width: drawing.width!, height: drawing.height!, background: drawing.background || '#fffdfb', strokes: drawing.strokes, updatedAt: now } as LocalDrawingDocument);
+      }
+
+      let canon: CanonBundle | undefined;
+      if (importedAssets['kuro/canon.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/canon.v1.json']); } catch { throw new Error('The bundled World Bible is not valid JSON.'); }
+        if (!raw || typeof raw !== 'object') throw new Error('The bundled World Bible is invalid.');
+        const value = raw as Partial<CanonBundle>;
+        if (value.schemaVersion !== 1 || !Array.isArray(value.entities) || !Array.isArray(value.facts)) throw new Error('The bundled World Bible has an unsupported format.');
+        canon = {
+          schemaVersion: 1, projectId: project.id,
+          entities: value.entities.map(entity => ({ ...entity, projectId: project.id })),
+          facts: value.facts.map(fact => ({ ...fact, projectId: project.id })),
+        };
+        const issues = validateCanon(canon).filter(issue => issue.severity === 'error');
+        if (issues.length) throw new Error('The bundled World Bible failed validation: ' + issues.map(issue => issue.message).join(' '));
+      }
+
+      let oldMemories: StoryMemoryRecord[] = [];
+      if (importedAssets['kuro/story-memory.v1.json']) {
+        let raw: unknown;
+        try { raw = JSON.parse(importedAssets['kuro/story-memory.v1.json']); } catch { throw new Error('The bundled story memory is not valid JSON.'); }
+        if (!Array.isArray(raw)) throw new Error('The bundled story memory must be a list.');
+        oldMemories = raw as StoryMemoryRecord[];
+      }
+      const memoryIdMap = new Map(oldMemories.map(record => [record.id, crypto.randomUUID()]));
+      const memories: StoryMemoryRecord[] = oldMemories.map(record => ({
+        ...record,
+        id: memoryIdMap.get(record.id) || crypto.randomUUID(),
+        projectId: project.id,
+        assetRefs: record.assetRefs.map(ref => {
+          if (!ref.startsWith('drawing:')) return ref;
+          const oldDrawingId = ref.slice('drawing:'.length);
+          const nextDrawingId = drawingIdMap.get(oldDrawingId);
+          return nextDrawingId ? 'drawing:' + nextDrawingId : 'unavailable-drawing:' + oldDrawingId;
+        }),
+        supersedes: record.supersedes.map(oldId => memoryIdMap.get(oldId) || oldId),
+        createdAt: record.createdAt || now, updatedAt: now,
+      }));
+      for (const memory of memories) {
+        const errors = validateStoryMemoryRecord(memory, project.id);
+        if (errors.length) throw new Error('Bundled story memory failed validation: ' + errors.join(' '));
+      }
+
+      const savedDrawingIds: string[] = [];
+      let projectSaved = false;
+      try {
+        await projectStorage.save(project); projectSaved = true;
+        if (canon) await canonStorage.save(canon);
+        for (const drawing of drawings) { await drawingStorage.save(drawing); savedDrawingIds.push(drawing.id); }
+        for (const memory of memories) await storyMemoryStorage.save(memory);
+      } catch (error) {
+        await Promise.allSettled(savedDrawingIds.map(id => drawingStorage.remove(id)));
+        if (projectSaved) await projectStorage.remove(project.id);
+        throw error;
+      }
       await refresh();
-      setMessage('Imported “' + project.name + '”. Review it in your local project list.');
+      setMessage('Imported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible') + ', and ' + drawings.length + ' linked drawings.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project import failed.');
     } finally {
@@ -94,7 +181,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <span className="project-manager-name"><b>{project.name}</b><small>Updated {new Date(project.updatedAt).toLocaleString()}</small></span>
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
       </article>)}</div>}
-    <p className="project-manager-note">Current package format is <code>.kuro.json</code>. It includes project metadata, templates, and asset records; it does not yet bundle drawing pixels or binary reference images into a ZIP archive.</p>
+    <p className="project-manager-note">The <code>.kuro.json</code> package now carries project data, World Bible facts, approved and proposed story memories, and drawings explicitly linked from the Story Vault. Linked drawings are stored as editable vector data; unlinked canvases and binary reference images are not included.</p>
     <WorldStudio />
   </section>;
 }

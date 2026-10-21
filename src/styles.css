@@ -458,3 +458,7 @@
 .pressure-control input[type=range]{width:76px;accent-color:var(--purple);cursor:pointer}
 .pressure-control output{min-width:30px;color:#f3edff;font-variant-numeric:tabular-nums}
 @media(max-width:520px){.pressure-control{gap:4px;padding:5px 6px}.pressure-control input[type=range]{width:58px}}
+
+.research-task-link{display:inline-flex;align-items:center;gap:6px;margin:9px 0 0 2px;border:1px solid #554372;border-radius:8px;padding:7px 9px;background:#20162f;color:#e7d9ff;font-size:10px}
+.research-task-link:hover{background:#2a1e3c;border-color:#8065aa}
+.research-task-link svg{color:#c5aaff}

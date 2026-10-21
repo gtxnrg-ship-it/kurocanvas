@@ -3,7 +3,7 @@ import type {
   ModelProvider,
   ModelRequest,
   ModelResponse,
-  type ModelCapability,
+  ModelCapability,
 } from "./modelRegistry";
 
 export interface OpenAICompatibleProviderOptions {

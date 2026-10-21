@@ -8,6 +8,7 @@ import { createDrawingAction, transitionDrawingAction, type DrawingActionRecord 
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble';
 type BrushPreset = 'ink' | 'pencil' | 'marker' | 'airbrush';
+type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
 type Layer = { id: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: BlendMode };
@@ -17,6 +18,13 @@ type PlanSnapshot = { planId: string; strokes: Stroke[]; layers: Layer[]; backgr
 type SelectionDrag = { pointerX: number; pointerY: number; strokeId: string; startPoints: Point[]; moved: boolean; mode: 'move' | 'resize' | 'rotate'; bounds: { x: number; y: number; width: number; height: number }; center: Point; startAngle: number; startRotation: number };
 
 const COLORS = ['#f7f2ff', '#191522', '#b69aff', '#ff8fb3', '#78e5c6', '#ffca78', '#7ab7ff'];
+const PANEL_LAYOUTS: Record<PanelLayoutPreset, Array<[number, number, number, number]>> = {
+  'two-rows': [[80, 80, 1520, 580], [80, 620, 1520, 1120]],
+  'three-columns': [[80, 80, 540, 1120], [570, 80, 1030, 1120], [1060, 80, 1520, 1120]],
+  'grid-2x2': [[80, 80, 780, 580], [820, 80, 1520, 580], [80, 620, 780, 1120], [820, 620, 1520, 1120]],
+  'hero-sidebar': [[80, 80, 1040, 1120], [1080, 80, 1520, 540], [1080, 580, 1520, 1120]],
+  'webtoon-stack': [[100, 80, 1500, 400], [100, 440, 1500, 760], [100, 800, 1500, 1120]],
+};
 const imageCache = new Map<string, HTMLImageElement>();
 function readImageFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -178,6 +186,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [letteringFont, setLetteringFont] = useState<'comic'|'sans'|'serif'>('comic');
   const [brushPreset, setBrushPreset] = useState<BrushPreset>('ink');
   const [stabilizer, setStabilizer] = useState(0);
+  const [panelLayout, setPanelLayout] = useState<PanelLayoutPreset>('two-rows');
   const [fillShapes, setFillShapes] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
@@ -658,6 +667,19 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setNotice('PNG exported at 1600 × 1200 · hidden layers excluded');
   };
 
+  const applyPanelLayout = () => {
+    const layer = layers.find(item => item.id === activeLayerId);
+    if (!layer || layer.locked) { setNotice('Unlock or select an unlocked layer before creating panel frames.'); return; }
+    const frames: Stroke[] = PANEL_LAYOUTS[panelLayout].map(([x1,y1,x2,y2]) => ({
+      id: crypto.randomUUID(), layerId: layer.id, tool: 'brush', shape: 'panel', color, size: 6,
+      points: [{ x: x1, y: y1, pressure: 0.5 }, { x: x2, y: y2, pressure: 0.5 }],
+    }));
+    const before = strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }));
+    setEditUndoStack(old => [...old, before]); setEditRedoStack([]); setHistoryOrder(old => [...old, 'edit']); setRedoOrder([]); setRedoStack([]); setPlanRedoStack([]);
+    setStrokes(old => [...old, ...frames]); setSelectedStrokeId(null); setTool('select');
+    setNotice('Created ' + frames.length + ' editable comic panel frames as one undoable layout.');
+  };
+
   const addLayer = () => {
     const name = globalThis.prompt('Layer name', 'New layer');
     if (!name?.trim()) return;
@@ -741,6 +763,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         <button className={tool==='rectangle'?'chosen':''} onClick={() => setTool('rectangle')} title="Rectangle"><Square size={16}/><span>Rectangle</span></button>
         <button className={tool==='panel'?'chosen':''} onClick={() => setTool('panel')} title="Draw a comic panel frame"><Square size={16}/><span>Panel</span></button>
         <button className={tool==='bubble'?'chosen':''} onClick={() => setTool('bubble')} title="Draw a speech balloon with a tail"><MessageCircle size={16}/><span>Bubble</span></button>
+        <label className="panel-layout-control">Layout <select aria-label="Comic panel layout" value={panelLayout} onChange={e => setPanelLayout(e.target.value as PanelLayoutPreset)}><option value="two-rows">Two rows</option><option value="three-columns">Three columns</option><option value="grid-2x2">2 × 2 grid</option><option value="hero-sidebar">Hero + sidebar</option><option value="webtoon-stack">Webtoon stack</option></select></label><button onClick={applyPanelLayout} title="Create editable frames for the selected panel layout">Create panels</button>
         <button className={tool==='ellipse'?'chosen':''} onClick={() => setTool('ellipse')} title="Ellipse"><Circle size={16}/><span>Ellipse</span></button>
         <button className={tool==='text'?'chosen':''} onClick={() => setTool('text')} title="Comic lettering"><Type size={16}/><span>Text</span></button>
       </div>

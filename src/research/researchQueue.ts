@@ -168,6 +168,48 @@ export const researchTaskStorage = {
     if (validateResearchTask(task).length) throw new Error("Stored research task failed validation.");
     return task;
   },
+  /** Write a validated group of project tasks in one IndexedDB transaction. */
+  async saveMany(tasks: readonly ResearchTaskRecord[], expectedProjectId: string): Promise<void> {
+    if (!expectedProjectId.trim()) throw new Error("Choose a project before importing research tasks.");
+    const seen = new Set<string>();
+    for (const task of tasks) {
+      const errors = validateResearchTask(task, expectedProjectId);
+      if (errors.length) throw new Error("Refusing invalid imported research task: " + errors.join(" "));
+      if (seen.has(task.id)) throw new Error("Imported research tasks contain duplicate IDs.");
+      seen.add(task.id);
+    }
+    if (!tasks.length) return;
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        const store = tx.objectStore(STORE);
+        for (const task of tasks) store.put(structuredClone(task));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not import research tasks."));
+        tx.onabort = () => reject(tx.error ?? new Error("Research-task import was aborted."));
+      });
+    } finally { db.close(); }
+    announce();
+  },
+  /** Remove every task owned by one project, including completed source excerpts. */
+  async removeProject(projectId: string): Promise<void> {
+    if (!projectId.trim()) throw new Error("Choose a project before removing research tasks.");
+    const tasks = await this.list(projectId);
+    if (!tasks.length) return;
+    const db = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        const store = tx.objectStore(STORE);
+        for (const task of tasks) store.delete(task.id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error("Could not remove project research tasks."));
+        tx.onabort = () => reject(tx.error ?? new Error("Research-task removal was aborted."));
+      });
+    } finally { db.close(); }
+    announce();
+  },
   async list(projectId: string): Promise<ResearchTaskRecord[]> {
     if (!projectId.trim()) return [];
     const all = await transact<ResearchTaskRecord[]>("readonly", store => store.getAll());

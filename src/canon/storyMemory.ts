@@ -30,12 +30,15 @@ export interface StoryMemoryTemporalTarget {
   chapterNumber?: number;
   storyOrder?: number;
   timelineId?: string;
+  /** The author explicitly requested a future clue/cameo and needs its planned payoff as context. */
+  allowAuthorDirectedForeshadowing?: boolean;
 }
 
 /**
- * Hard filter for story-writing retrieval. A lexical match never overrides chronology.
- * If the target point is unknown, chronology-bearing records are withheld rather than
- * assuming that unnumbered or future material belongs in the current scene.
+ * Sequential production normally limits memory to the target story point.
+ * An explicit author request for an Easter egg/cameo may use future memory as
+ * planning knowledge, but only within the selected timeline. This is not a ban
+ * on writing future material; it is context selection for the requested scene.
  */
 export function filterStoryMemoryAtPoint(
   records: readonly StoryMemoryRecord[],
@@ -54,6 +57,17 @@ export function filterStoryMemoryAtPoint(
     throw new Error("Target story order must be non-negative and finite.");
   }
   if (target.timelineId !== undefined && !target.timelineId.trim()) throw new Error("Target timeline ID cannot be empty.");
+  if (target.allowAuthorDirectedForeshadowing) {
+    // Future events can inform an intentional early clue, but facts from a parallel
+    // timeline and unscoped time-bound records must not silently contaminate it.
+    return owned.filter(record => {
+      const timeless = record.chapterNumber === undefined && record.sceneNumber === undefined
+        && record.storyOrder === undefined && record.timelineId === undefined;
+      if (timeless) return true;
+      if (!target.timelineId) return false;
+      return record.timelineId === target.timelineId;
+    });
+  }
   return owned.filter(record => {
     const temporal = record.chapterNumber !== undefined || record.sceneNumber !== undefined || record.storyOrder !== undefined || record.timelineId !== undefined;
     // If the target timeline is ambiguous, only genuinely timeless global notes survive.

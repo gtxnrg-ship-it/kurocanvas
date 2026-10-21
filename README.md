@@ -90,9 +90,6 @@ This is a practical smoke test, not a substitute for the full release test suite
 
 ## Android APK download
 
-<details>
-<summary><strong>APK status and download link</strong></summary>
-
 **There is no verified, installable Kuro Canvas APK published yet.** The current project is a web application built with React, TypeScript and Vite. A web app running in an Android browser is not the same thing as a packaged Android application, and we should not label an unverified build as an APK.
 
 - **[Check official Kuro Canvas releases](https://github.com/gtxnrg-ship-it/kurocanvas/releases/latest)** — if a release later includes an APK, download it only from the official release assets.
@@ -102,7 +99,6 @@ This is a practical smoke test, not a substitute for the full release test suite
 
 Before an APK can be advertised as downloadable, the project needs a verified Android packaging path, a reproducible build, application ID/versioning, appropriate permissions and storage behavior, installation testing on real devices, and a release artifact attached to an official GitHub release. Signing and update/distribution instructions must also be documented. **The links above are release destinations, not a claim that an APK is currently available.**
 
-</details>
 
 ## What Kuro is designed to become
 

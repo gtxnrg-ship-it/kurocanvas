@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LocalTinyModelProvider, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, type ModelWorker, type WorkerRequest, type WorkerResponse } from "./localTinyModelProvider";
+import { boundMessages, KURO_LOCAL_MAX_OUTPUT_TOKENS, LocalTinyModelProvider, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, type ModelWorker, type WorkerRequest, type WorkerResponse } from "./localTinyModelProvider";
 
 describe("LocalTinyModelProvider", () => {
   it("advertises Qwen3-0.6B as a text-only local model without pretending it has vision", async () => {
@@ -66,6 +66,48 @@ describe("LocalTinyModelProvider", () => {
     expect(sent.some(request => request.type === "generate")).toBe(true);
     expect(sent.find(request => request.type === "generate")).toMatchObject({ temperature: 0, maxOutputTokens: 64 });
     expect(result).toMatchObject({ text: "Kuro worker response", finishReason: "stop", providerId: provider.id, usage: { outputTokens: 5 } });
+  });
+
+
+  it("caps long creative plans at the declared local output budget", async () => {
+    const { worker, sent } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
+    const model = (await provider.listModels())[0];
+    await provider.generate({
+      role: "planning",
+      messages: [{ role: "user", content: "Plan a multi-panel page with editable native strokes." }],
+      maxOutputTokens: 6000,
+    }, model);
+    expect(KURO_LOCAL_MAX_OUTPUT_TOKENS).toBe(1024);
+    expect(sent.find(request => request.type === "generate")).toMatchObject({ maxOutputTokens: 1024 });
+  });
+
+  it("clamps out-of-range temperatures and preserves the requested sampling value", async () => {
+    const { worker, sent } = fakeWorker(true);
+    const provider = new LocalTinyModelProvider(() => worker);
+    const model = (await provider.listModels())[0];
+    await provider.generate({
+      role: "story-writing",
+      messages: [{ role: "user", content: "Continue." }],
+      temperature: -2,
+    }, model);
+    expect(sent.find(request => request.type === "generate")).toMatchObject({ temperature: 0 });
+  });
+
+  it("preserves the live task and the system rules when clipping long context", () => {
+    const system = "SYSTEM-OPEN " + "creative rules ".repeat(900) + " SYSTEM-TAIL";
+    const current = "CURRENT USER TASK: continue chapter 14 and preserve the character's scar. " + "specific detail ".repeat(160) + " TASK-END";
+    const bounded = boundMessages([
+      { role: "system", content: system },
+      { role: "assistant", content: "History " + "old context ".repeat(100) },
+      { role: "user", content: current },
+    ], 1200);
+    expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1200);
+    expect(bounded[0]?.content).toContain("SYSTEM-OPEN");
+    expect(bounded[0]?.content).toContain("SYSTEM-TAIL");
+    expect(bounded[bounded.length - 1]?.role).toBe("user");
+    expect(bounded[bounded.length - 1]?.content).toContain("CURRENT USER TASK");
+    expect(bounded[bounded.length - 1]?.content).toContain("TASK-END");
   });
 
   it("actually terminates the worker when inference is cancelled", async () => {

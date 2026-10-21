@@ -73,6 +73,16 @@ describe("LocalTinyModelProvider", () => {
     expect(await pending).toMatchObject({ text: "", finishReason: "cancelled" });
     expect(state.terminated).toBe(true);
   });
+
+  it("terminates the worker when the user cancels model download or preparation", async () => {
+    const { worker, state } = fakeWorker(false);
+    const provider = new LocalTinyModelProvider(() => worker);
+    const controller = new AbortController();
+    const pending = provider.prepare(controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toThrow(/cancelled/i);
+    expect(state.terminated).toBe(true);
+  });
 });
 
 function fakeWorker(autoRespond: boolean): { worker: ModelWorker; sent: WorkerRequest[]; state: { terminated: boolean } } {

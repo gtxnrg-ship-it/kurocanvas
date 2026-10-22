@@ -758,7 +758,10 @@ export async function prioritizeResearchTask(id: string, projectId: string): Pro
           reject(failure ?? new Error("Research priority update completed without a result."));
           return;
         }
-        if (!result.alreadyHighest) announce();
+        if (!result.alreadyHighest) {
+          announce();
+          void pumpQueue();
+        }
         resolve(result);
       };
       transaction.onerror = () => reject(failure ?? transaction.error ?? new Error("Could not prioritize this research task."));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, compareQueuedResearchTasks, createResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
 
@@ -75,6 +75,25 @@ describe("Kuro research queue records", () => {
     expect(task.progress).toBe(0);
     expect(validateResearchTask(task, "brotherhood")).toEqual([]);
     expect(validateResearchTask(task, "another-series")).toContain("Research task belongs to another project.");
+  });
+
+  it("defaults new and legacy tasks to normal priority and validates explicit priority values", () => {
+    const task = createResearchTask({ projectId: "series-a", query: "old city maps", depth: "balanced" }, () => "task-priority");
+    expect(task.priority).toBe(0);
+    const legacy = { ...task, priority: undefined };
+    expect(validateResearchTask(legacy, "series-a")).toEqual([]);
+    expect(normalizeImportedResearchTasks([legacy], "series-a", "series-b", () => "imported", "2026-10-22T00:00:00.000Z")[0].priority).toBe(0);
+    expect(validateResearchTask({ ...task, priority: -1 }, "series-a")).toContain("Research task priority must be a non-negative safe integer.");
+    expect(validateResearchTask({ ...task, priority: 1.5 }, "series-a")).toContain("Research task priority must be a non-negative safe integer.");
+    expect(validateResearchTask({ ...task, priority: Number.MAX_SAFE_INTEGER + 1 }, "series-a")).toContain("Research task priority must be a non-negative safe integer.");
+  });
+
+  it("orders higher-priority queued work first, then uses FIFO and ID as a deterministic tie-breaker", () => {
+    const low = { id: "b", priority: 0, createdAt: "2026-10-21T01:00:00.000Z" };
+    const early = { id: "a", priority: 4, createdAt: "2026-10-21T01:00:00.000Z" };
+    const later = { id: "z", priority: 4, createdAt: "2026-10-21T02:00:00.000Z" };
+    expect([low, later, early].sort(compareQueuedResearchTasks).map(task => task.id)).toEqual(["a", "z", "b"]);
+    expect(compareQueuedResearchTasks({ id: "a", priority: undefined, createdAt: low.createdAt }, low)).toBeLessThan(0);
   });
 
   it("rejects empty queries and unsupported depth values", () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_KURO_SPEECH_PREFERENCES,
+  kuroFishPerformanceDirection,
   KURO_FISH_AUDIO_MODEL,
   KURO_FISH_VOICES,
   KURO_SPEECH_VOICES,
@@ -82,5 +83,22 @@ describe("Kuro speech preferences", () => {
     });
     installMemoryStorage(JSON.stringify({ engine: "remote-untrusted", voice: "unknown", rate: 1, apiKey: "" }));
     expect(readKuroSpeechPreferences().engine).toBe("kokoro");
+  });
+});
+ 
+describe("Kuro Fish Audio delivery direction", () => {
+  it("keeps a gentle, sincere delivery for distress without dropping the accent guidance", () => {
+    const direction = kuroFishPerformanceDirection("I'm sorry this has been such a hard day for you.");
+    expect(direction).toContain("subtle Japanese-influenced accent");
+    expect(direction).toContain("gentle, sincere and calm");
+  });
+
+  it("uses a lively but restrained delivery for excitement", () => {
+    expect(kuroFishPerformanceDirection("Hell yeah, we did it!")).toContain("bright, lively");
+  });
+
+  it("sounds curious for questions and conversational by default", () => {
+    expect(kuroFishPerformanceDirection("What do you think?")).toContain("curious, attentive");
+    expect(kuroFishPerformanceDirection("Let's work through this together.")).toContain("natural, warm and conversational");
   });
 });

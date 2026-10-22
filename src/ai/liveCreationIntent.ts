@@ -8,7 +8,7 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
 
   // Respect a clear request to defer visual work, but do not let a negated clause
   // cancel a separate positive instruction such as "don't change her outfit, just shorten her hair".
-  const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show)\b/i;
+  const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put|depict|redesign|revise)\b/i;
   const negatedMatch = negatedVisualAction.exec(text);
   if (negatedMatch) {
     const remainder = text.slice((negatedMatch.index ?? 0) + negatedMatch[0].length);

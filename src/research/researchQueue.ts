@@ -407,7 +407,7 @@ export const researchTaskStorage = {
         const request = store.get(id);
         request.onsuccess = () => {
           const current = request.result as ResearchTaskRecord | undefined;
-          if (!ownsResearchLease(current, id, projectId, leaseOwnerId)) return;
+          if (!current || !ownsResearchLease(current, id, projectId, leaseOwnerId)) return;
           updated = {
             ...current,
             ...patch,

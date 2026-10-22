@@ -34,10 +34,12 @@ describe("live creation session recovery", () => {
       const restored = restoreLiveCreationSession(JSON.stringify({
         ...session,
         status,
+        batches: status === "drawing" ? 2 : 1,
         log: [{ id: "active", kind: "batch", label: "Batch 2", status: "working" }],
       }), "project-1");
       expect(restored?.status).toBe("paused");
       expect(restored?.lastError).toContain("interrupted");
+      expect(restored?.batches).toBe(1);
       expect(restored?.log.some(entry => entry.status === "working")).toBe(false);
       expect(restored?.log.some(entry => entry.status === "paused")).toBe(true);
     }

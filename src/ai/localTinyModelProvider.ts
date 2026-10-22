@@ -228,6 +228,7 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   // sections. The durable project records are untouched; this only selects the model's
   // bounded working window.
   const clipSystem = (content: string, budget: number, query: string): string => {
+    const marker = "\n[…context section omitted…]\n";
     if (content.length <= budget) return content;
     if (budget <= marker.length + 80) return clip(content, budget);
 

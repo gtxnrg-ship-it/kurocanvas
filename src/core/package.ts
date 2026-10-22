@@ -81,6 +81,28 @@ export function downloadKuroPackage(project: KuroProject, assets: Record<string,
 }
 
 export const KURO_ARCHIVE_EXTENSION = ".kuro";
+
+/**
+ * Start a native project-archive download using a DOM-attached link.
+ * Attaching the anchor is important for browser/WebView implementations that
+ * ignore clicks on detached download links.
+ */
+export function downloadKuroArchive(content: Uint8Array, projectName: string): void {
+  const safeName = projectName.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "kuro-project";
+  const blob = new Blob([content], { type: "application/vnd.kuro-canvas+zip" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = safeName + KURO_ARCHIVE_EXTENSION;
+  document.body.appendChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
 const ARCHIVE_MANIFEST = "manifest.json";
 
 /** Package into a portable ZIP with a manifest and independently checksummed asset files. */

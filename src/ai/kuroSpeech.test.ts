@@ -10,17 +10,21 @@ import {
 } from "./kuroSpeech";
 
 const STORAGE_KEY = "kuro-speech-preferences";
+const API_KEY_STORAGE_KEY = "kuro-fish-audio-api-key-session";
 
-function installMemoryStorage(initial?: string) {
+function installMemoryStorage(initial?: string, initialSessionKey?: string) {
   const values = new Map<string, string>();
+  const sessionValues = new Map<string, string>();
   if (initial !== undefined) values.set(STORAGE_KEY, initial);
-  const store = {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => { values.set(key, value); },
-    removeItem: (key: string) => { values.delete(key); },
-  };
-  vi.stubGlobal("localStorage", store);
-  return { store, values };
+  if (initialSessionKey !== undefined) sessionValues.set(API_KEY_STORAGE_KEY, initialSessionKey);
+  const createStore = (map: Map<string, string>) => ({
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => { map.set(key, value); },
+    removeItem: (key: string) => { map.delete(key); },
+  });
+  vi.stubGlobal("localStorage", createStore(values));
+  vi.stubGlobal("sessionStorage", createStore(sessionValues));
+  return { values, sessionValues };
 }
 
 afterEach(() => {
@@ -42,8 +46,8 @@ describe("Kuro speech preferences", () => {
     ]);
   });
 
-  it("persists a chosen Fish Audio profile, clamps the rate, and trims the API key", () => {
-    installMemoryStorage();
+  it("persists voice preferences but keeps the API key in session storage only", () => {
+    const { values, sessionValues } = installMemoryStorage();
     saveKuroSpeechPreferences({
       engine: "fish",
       voice: KURO_FISH_VOICES[1].id,
@@ -56,6 +60,17 @@ describe("Kuro speech preferences", () => {
       rate: 1.2,
       apiKey: "example-key",
     });
+    expect(values.get(STORAGE_KEY)).not.toContain("example-key");
+    expect(values.get(STORAGE_KEY)).not.toContain("apiKey");
+    expect(sessionValues.get(API_KEY_STORAGE_KEY)).toBe("example-key");
+  });
+
+  it("migrates old API keys out of persistent local storage", () => {
+    const legacy = JSON.stringify({ engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "legacy-key" });
+    const { values } = installMemoryStorage(legacy);
+    expect(readKuroSpeechPreferences().apiKey).toBe("");
+    expect(values.get(STORAGE_KEY)).not.toContain("legacy-key");
+    expect(values.get(STORAGE_KEY)).not.toContain("apiKey");
   });
 
   it("preserves older local Kokoro preferences and uses a valid local fallback voice", () => {

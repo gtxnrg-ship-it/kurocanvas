@@ -4,21 +4,24 @@ import type { ProjectStyleBible } from "./styleBible";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import type { RelationshipRecord } from "./relationshipMemory";
 import type { ResearchTaskRecord } from "../research/researchQueue";
-import { evaluateSeriesPlan, type SeriesPlanFields } from "./seriesPlan";
+import { evaluateSeriesPlan, evaluateSeriesProductionRequest, type SeriesPlanFields } from "./seriesPlan";
 
 export interface ChapterReadinessInput {
   hasUniverse: boolean;
   canon?: Pick<CanonBundle, "entities" | "facts">;
-  artDirection?: Pick<ArtDirectionBible, "title" | "premise" | "genres" | "visualStyle"> & Partial<Pick<ArtDirectionBible, "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature">>;
+  artDirection?: Pick<ArtDirectionBible, "title" | "premise" | "genres" | "visualStyle"> & Partial<Pick<ArtDirectionBible, "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature" | "seriesChapterProgress">>;
   styleBible?: Pick<ProjectStyleBible, "characterStates">;
   characterTimelines?: Array<Pick<CharacterEvolutionState, "characterId" | "timelineId" | "storyOrder" | "status">>;
   relationships?: Array<Pick<RelationshipRecord, "characterAId" | "characterBId">>;
   researchTasks?: Array<Pick<ResearchTaskRecord, "status" | "sources">>;
   requiresHistoricalResearch?: boolean;
+  requestedChapterNumber?: number;
+  allowChapterRevision?: boolean;
+  pendingReviewChapterNumber?: number;
 }
 
 export interface ChapterReadinessGap {
-  id: "universe" | "world" | "cast" | "art-direction" | "series-plan" | "character-design" | "timeline" | "relationships" | "research" | "verification";
+  id: "universe" | "world" | "cast" | "art-direction" | "series-plan" | "series-sequence" | "character-design" | "timeline" | "relationships" | "research" | "verification";
   message: string;
 }
 
@@ -27,6 +30,9 @@ export interface ChapterReadinessReport {
   approvedCharacterCount: number;
   approvedWorldFactCount: number;
   approvedRelationshipCount: number;
+  targetSeriesChapterNumber?: number;
+  seriesRevision?: boolean;
+  seriesComplete?: boolean;
   gaps: ChapterReadinessGap[];
 }
 
@@ -83,7 +89,11 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
   if (!clean(artDirection?.title) || !clean(artDirection?.premise) || !clean(artDirection?.genres) || !clean(artDirection?.visualStyle)) {
     gaps.push({ id: "art-direction", message: "Complete the project's title, premise, genres, and unified visual style in Art Direction." });
   }
-  const seriesPlan = evaluateSeriesPlan((artDirection ?? {}) as SeriesPlanFields);
+  const seriesFields = (artDirection ?? {}) as SeriesPlanFields;
+  const seriesPlan = evaluateSeriesPlan(seriesFields);
+  let targetSeriesChapterNumber: number | undefined;
+  let seriesRevision = false;
+  let seriesComplete = false;
   if (!seriesPlan.approved) {
     const missing = seriesPlan.issues.filter(issue => issue.id !== "approval").map(issue => issue.message);
     const guidance = seriesPlan.valid
@@ -94,6 +104,22 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
       message: "Complete and explicitly approve the entire series plan in Art Direction before chapter production. " +
         (guidance || "The plan changed after approval, so it must be reviewed and approved again."),
     });
+  } else {
+    const production = evaluateSeriesProductionRequest(
+      seriesFields,
+      input.requestedChapterNumber,
+      input.allowChapterRevision === true,
+      input.pendingReviewChapterNumber,
+    );
+    targetSeriesChapterNumber = production.targetChapterNumber;
+    seriesRevision = production.revision;
+    seriesComplete = production.complete;
+    if (!production.allowed) {
+      gaps.push({
+        id: "series-sequence",
+        message: production.message ?? "Follow the approved chapter sequence and review each saved chapter before continuing.",
+      });
+    }
   }
 
 
@@ -147,6 +173,9 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
     approvedCharacterCount: approvedCharacters.length,
     approvedWorldFactCount: approvedWorldFacts.length,
     approvedRelationshipCount: approvedRelationships.length,
+    ...(targetSeriesChapterNumber === undefined ? {} : { targetSeriesChapterNumber }),
+    seriesRevision,
+    seriesComplete,
     gaps,
   };
 }

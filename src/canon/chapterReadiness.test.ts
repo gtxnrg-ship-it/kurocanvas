@@ -70,11 +70,11 @@ describe("chapter readiness gate", () => {
     const report = evaluateChapterReadiness({
       ...base,
       canon: {
-        entities: base.canon!.entities.map(entity => entity.id === "city" ? { ...entity, status: "proposed" } : entity)
+        entities: base.canon!.entities.map(entity => entity.id === "city" ? { ...entity, status: "proposed" as const } : entity)
           .map(entity => entity.id === "protagonist" ? { ...entity, status: "proposed" } : entity),
-        facts: base.canon!.facts.filter(fact => fact.id !== "proposed-fact").map(fact => ({ ...fact, status: "proposed" })),
+        facts: base.canon!.facts.filter(fact => fact.id !== "proposed-fact").map(fact => ({ ...fact, status: "proposed" as const })),
       },
-      styleBible: { characterStates: base.styleBible!.characterStates.map(state => ({ ...state, status: "proposed" })) },
+      styleBible: { characterStates: base.styleBible!.characterStates.map(state => ({ ...state, status: "proposed" as const })) },
     });
     expect(report.ready).toBe(false);
     expect(report.approvedCharacterCount).toBe(1);

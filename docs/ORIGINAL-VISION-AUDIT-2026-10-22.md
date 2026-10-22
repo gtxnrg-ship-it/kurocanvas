@@ -92,3 +92,25 @@ Do not declare the original vision complete until these exact-user-flow checks p
 8. **Final provenance:** record the final commit SHA, passing typecheck/test/build runs, APK workflow/release checksum, and remaining limitations.
 
 Any failure above is a real release blocker, not a future-polish item. Keep the UI simple: one primary conversation, visible progress when Kuro works, plain-language review/approval, and specialist tools only when needed.
+
+## Additional source-review findings from PR #153
+
+### P1 — First-run model preparation can overwrite edits made while downloading
+
+In the new first-run path in `src/App.tsx`, `send()` captures the submitted text before awaiting `prepareLocalTinyModel()`. The composer remains editable during that await. On success the handler calls `send(text, ...)`, and the normal send path clears the composer. If a user edits the draft while the model downloads, the app sends the older captured text and can clear the newer edits. Either lock the composer during preparation with explicit status, or preserve edits and clear only the exact draft that was submitted. Add a regression test.
+
+### P2 — The “one-time-per-session” consent description does not match the implementation
+
+The current code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. Align the behavior and copy: either say confirmation occurs before each attempt, or implement a clear session policy that never starts a download after a decline without a new user action.
+
+### P1 — “New chat” semantics conflict with the architecture document
+
+The existing `docs/UNIVERSE-ARCHITECTURE-AND-UI.md` says a new chat creates a new isolated universe by default, while continuing a universe in another conversation is an explicit secondary action. PR #153 changes the sidebar's “New chat” to create a conversation inside the active universe. This may be a preferable product decision, but it changes the documented contract and risks surprising users about canon/assets sharing. Resolve the labels and specification together (for example, clearly separate “New story/world” from “New conversation”) before accepting the behavior.
+
+### Required regression coverage
+
+- First-run consent accepted, declined, cancelled, failed, and retried.
+- Editing the composer during model preparation does not silently discard the edit.
+- The submitted message is retried exactly once after preparation succeeds.
+- “New story/world” and “New conversation” have distinct, tested data-scope behavior.
+- A natural-language character design request results in an actual supported native drawing plan, not only intent-regex success or navigation to a workspace.

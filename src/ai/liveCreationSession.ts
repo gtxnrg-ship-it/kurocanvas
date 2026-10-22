@@ -11,6 +11,8 @@ export type LiveCreationSession = {
   originalPrompt: string;
   /** Exact saved canvas bound to this production run, retained across reloads. */
   drawingId?: string;
+  /** The approved series-outline chapter being produced in this live session. */
+  plannedChapterNumber?: number;
   batches: number;
   maxBatches: number;
   autoContinue: boolean;
@@ -43,6 +45,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       || typeof record.id !== "string" || !record.id || record.id.length > 128
       || typeof record.originalPrompt !== "string" || record.originalPrompt.length > 12000
       || (record.drawingId !== undefined && (typeof record.drawingId !== "string" || !record.drawingId || record.drawingId.length > 128))
+      || (record.plannedChapterNumber !== undefined && (!Number.isSafeInteger(record.plannedChapterNumber) || (record.plannedChapterNumber as number) < 1 || (record.plannedChapterNumber as number) > 500))
       || !Number.isInteger(record.batches) || (record.batches as number) < 0 || (record.batches as number) > 1000
       || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > MAX_LIVE_CREATION_BATCHES
       || typeof record.autoContinue !== "boolean"
@@ -72,6 +75,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       id: record.id,
       originalPrompt: record.originalPrompt,
       ...(typeof record.drawingId === "string" ? { drawingId: record.drawingId } : {}),
+      ...(typeof record.plannedChapterNumber === "number" ? { plannedChapterNumber: record.plannedChapterNumber } : {}),
       batches: record.batches as number,
       maxBatches: record.maxBatches as number,
       autoContinue: record.autoContinue,

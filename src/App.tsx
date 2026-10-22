@@ -10,7 +10,7 @@ import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAu
 import CharacterDesignHandoff from './canon/CharacterDesignHandoff';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
-import { liveCreationSessionStorageKey, restoreLiveCreationSession, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
+import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, pauseLiveCreationBeforeApply, restoreLiveCreationSession, settleLiveCreationBatch, settleLiveCreationPlanning, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from './ai/responseQuality';
 import { generateCompleteLocalReply } from './ai/completeGeneration';
@@ -309,7 +309,7 @@ useEffect(()=>{
   // Keep an in-progress, paused, failed, or completed session when the user returns
   // from chat/vault. A new task after a completed run gets its own fresh session.
   if(!liveSessionRef.current||liveSessionRef.current.projectId!==sessionProjectId){
-   const fresh:LiveCreationSession={projectId:sessionProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
+   const fresh:LiveCreationSession={projectId:sessionProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
    liveSessionRef.current=fresh;
    setLiveSession(fresh);
    setRequestedDrawingId('');
@@ -572,7 +572,7 @@ async function renameCurrentConversation(){
    setHistoryNotice('Renamed this conversation to “'+title+'”.');
   }catch(error){setHistoryNotice(error instanceof Error?error.message:'Could not rename the conversation.');}
 }
-function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;if(!controller)return;controller.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);setPreparingModel(false);setWorkingLabel('');setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I stopped the current request. Any already completed and approved work remains; an unapproved drawing plan was not applied. Check the model status before the next AI request; cancelling local inference may mean Qwen needs to be prepared again in Preferences.'}]);}
+function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;if(!controller)return;controller.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;const current=liveSessionRef.current;if(current?.status==='planning'){const settled=settleLiveCreationPlanning(current,'cancelled','The creator cancelled inference before any native drawing batch began.',modeRef.current==='live');liveSessionRef.current=settled;setLiveSession(settled);}setWorking(false);setPreparingModel(false);setWorkingLabel('');setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I stopped the current request. Any already completed and approved work remains; an unapproved drawing plan was not applied. Check the model status before the next AI request; cancelling local inference may mean Qwen needs to be prepared again in Preferences.'}]);}
  async function send(messageOverride?:string, continuationSourceOverride?:string){
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
@@ -685,7 +685,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   if(modeRef.current!=='live')setMode('live');
   const previous=liveSessionRef.current;
   const current=!previous||previous.projectId!==activeProjectId||previous.status==='complete'
-   ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
+   ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
    : previous;
   const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
   liveSessionRef.current=next;setLiveSession(next);
@@ -790,7 +790,17 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
     setMessages(m=>[...m,{role:'kuro',text:'I withheld that drawing proposal because it names a character who is not available at the approved story point. Update the reveal timing in the Vault or choose a later chapter/timeline before generating this material.'}]);
     return;
   }
- if(!plan.commands.length){
+ 
+ if(requestIsLive && modeRef.current!=='live' && plan.commands.length>0){
+  const current=liveSessionRef.current;
+  if(current){
+   const paused=pauseLiveCreationBeforeApply(current);
+   liveSessionRef.current=paused;setLiveSession(paused);
+  }
+  setMessages(m=>[...m,{role:'kuro',text:'I prepared a drawing plan, but you left Live Creation before it could be applied. The plan was discarded and the canvas was not changed. Return to Live Creation and ask me to continue; I’ll re-check the saved drawing before proposing the next batch.'}]);
+  return;
+ }
+if(!plan.commands.length){
   const notice=plan.summary+' I did not change the canvas because no validated native drawing actions were returned.';
   setMessages(m=>[...m,{role:'kuro',text:notice}]);
   if(requestIsLive){const current=liveSessionRef.current;if(current){const failed:LiveCreationSession={...current,status:'error',lastError:'No editable drawing actions were produced for this batch.',log:current.log.map((item,index)=>index===current.log.length-1&&item.status==='working'?{...item,status:'error'}:item)};liveSessionRef.current=failed;setLiveSession(failed);}}
@@ -803,7 +813,7 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
   const next:LiveCreationSession={
    projectId:activeProjectId,
    id:current?.id||crypto.randomUUID(),originalPrompt:current?.originalPrompt||text,
-   batches:batchNumber,maxBatches:current?.maxBatches||4,autoContinue:current?.autoContinue??true,
+   batches:batchNumber,maxBatches:current?.maxBatches||DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:current?.autoContinue??true,
    status:'drawing',activeSummary:summary,lastError:'',
    log:[...(current?.log||[]).map(item=>item.status==='working'&&item.kind==='request'?{...item,status:'done' as const}:item),
     {id:planId,kind:'batch' as const,label:'Batch '+batchNumber+': '+summary.replace(/^(CONTINUE|COMPLETE):\s*/i,''),status:'working' as const}].slice(-24)
@@ -904,32 +914,30 @@ if(activeProjectId && captureStory){
     if(requestIsCurrent())setMessages(m=>[...m,{role:'kuro',text:'I could not complete the automatic continuity-capture pass: '+(error instanceof Error?error.message:'unknown extraction error')+'. Nothing from this pass was approved; you can record details directly in Creative Vault.'}]);
   }
 }
-}}catch(e){if(requestIsCurrent()){setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
+}}catch(e){if(requestIsCurrent()){const failureMessage=e instanceof Error?e.message:'Unknown provider error';const current=liveSessionRef.current;if(requestIsLive&&current?.status==='planning'){const settled=settleLiveCreationPlanning(current,'error',failureMessage,modeRef.current==='live');liveSessionRef.current=settled;setLiveSession(settled);}setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+failureMessage+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
  sendRef.current=send;
  const handleDrawingPlanResult=useCallback((id:string,result:'success'|'error'|'cancelled',message:string)=>{
   setCanvasRequest(current=>current?.id===id?null:current);setPlanNotice(message);
-  if(modeRef.current!=='live'){
-   setMessages(items=>[...items,{role:'kuro',text:result==='success'?'Kuro completed the native drawing actions and the editable canvas was saved and verified.':result==='cancelled'?'Kuro stopped drawing because you cancelled the action. The original canvas was restored and verified.':'Kuro could not complete the native drawing actions: '+message}]);return;
+  const current=liveSessionRef.current;
+  const settled=current?settleLiveCreationBatch(current,id,result,message,modeRef.current==='live'):null;
+  if(!settled){
+   setMessages(items=>[...items,{role:'kuro',text:result==='success'?'Kuro completed the native drawing actions and the editable canvas was saved and verified.':result==='cancelled'?'Kuro stopped drawing because you cancelled the action. The original canvas was restored and verified.':'Kuro could not complete the native drawing actions: '+message}]);
+   return;
   }
-  const current=liveSessionRef.current;if(!current)return;
-  const nextLog=current.log.map(item=>item.kind==='batch'&&item.id===id?{...item,status:result==='success'?'done' as const:result==='cancelled'?'paused' as const:'error' as const,label:item.label+' · '+(result==='success'?'saved and verified':result==='cancelled'?'cancelled and rolled back':'failed')}:item);
-  const wantsMore=result==='success'&&/^CONTINUE:/i.test(current.activeSummary.trim());
-  const canContinue=wantsMore&&current.autoContinue&&current.batches<current.maxBatches;
-  const hitLimit=wantsMore&&current.autoContinue&&current.batches>=current.maxBatches;
-  const finalStatus:LiveCreationSession['status']=result!=='success'?'error':canContinue?'planning':hitLimit||wantsMore?'paused':'complete';
-  const updated:LiveCreationSession={...current,status:finalStatus,lastError:result==='error'?message:'',log:[...nextLog,{id:crypto.randomUUID(),kind:'status' as const,label:result==='success'?'Batch '+current.batches+' saved and verified · '+message:result==='cancelled'?'Drawing cancelled · '+message:'Drawing stopped · '+message,status:(result==='success'?'done':result==='cancelled'?'paused':'error') as LiveCreationLogEntry['status']}].slice(-24)};
+  const {session:updated,canContinue,hitLimit,wantsMore}=settled;
   liveSessionRef.current=updated;setLiveSession(updated);
-  if(result==='success')setMessages(items=>[...items,{role:'kuro',text:'Batch '+current.batches+' is saved and verified in the editable canvas. '+(canContinue?'I’m continuing with the next missing chunk now.':hitLimit?'I paused at the safety limit so you can review the work before continuing.':wantsMore?'I paused because automatic continuation is off. You can resume when ready.':'This live creation pass is complete for now.')}]);
-  else setMessages(items=>[...items,{role:'kuro',text:result==='cancelled'?'The live drawing was cancelled, and the original canvas was restored and verified.':'The live drawing batch failed: '+message}]);
+  if(result==='success')setMessages(items=>[...items,{role:'kuro',text:'Batch '+updated.batches+' is saved and verified in the editable canvas. '+(canContinue?'I’m continuing with the next missing chunk now.':hitLimit?'I paused at the safety limit so you can review the work before continuing.':wantsMore?'I paused because automatic continuation is off or the Live Creation workspace was left. You can resume when ready.':'This live creation pass is complete for now.')}]);
+  else setMessages(items=>[...items,{role:'kuro',text:result==='cancelled'?'The live drawing was cancelled, and the original canvas was restored and verified. The unfinished batch was not counted as complete.':'The live drawing batch failed: '+message+' The unfinished batch was not counted as complete.'}]);
   if(canContinue){
-   const progressLine='Continue the next live creation batch. Previous completed batch: '+current.activeSummary+'. Add only the next missing pieces; do not redraw what is already on canvas.';
+   const progressLine='Continue the next live creation batch. Previous completed batch: '+updated.activeSummary+'. Add only the next missing pieces; do not redraw what is already on canvas.';
    if(liveVoiceEnabledRef.current)void speakKuroVoice('That batch is saved. I’m moving on to the next part now.',readKuroSpeechPreferences(),p=>setLiveVoiceStatus(p.status),level=>liveAudioVisualizerRef.current?.setOutputLevel(level));
-   window.setTimeout(()=>{void sendRef.current(progressLine,current.originalPrompt);},0);
+   window.setTimeout(()=>{void sendRef.current(progressLine,updated.originalPrompt);},0);
   }else if(liveVoiceEnabledRef.current&&result==='success'){
    const spoken=hitLimit?'I’ve saved this batch. I’ve paused so you can inspect the work before I continue.':wantsMore?'This batch is saved. Automatic continuation is paused; you can resume from the next missing part.':'This creation pass is saved. Take a look at the canvas.';
    void (async()=>{try{setLiveVoiceStatus('Kuro is speaking…');await speakKuroVoice(spoken,readKuroSpeechPreferences(),undefined,level=>liveAudioVisualizerRef.current?.setOutputLevel(level));}catch(error){setLiveVoiceStatus(error instanceof Error?error.message:'Voice playback failed.');}finally{if(liveVoiceEnabledRef.current&&modeRef.current==='live')window.setTimeout(()=>beginLiveVoiceRecognition(),250);}})();
   }
  },[]);
+
  return <div className={'app'+(compactMobile?' mobile-companion':'')}><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New universe</button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Talk to Kuro'],['vault',Library,'World & Vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}<button type="button" className={'sidebar-tools-toggle '+(workspaceToolsOpen||(['live','canvas','read','research'] as Mode[]).includes(mode)?'active':'')} onClick={()=>setWorkspaceToolsOpen(value=>!value)} aria-expanded={workspaceToolsOpen}><WandSparkles size={17}/> Creative tools <ChevronDown size={14} className={workspaceToolsOpen?'tools-chevron is-open':'tools-chevron'}/></button>{workspaceToolsOpen&&([['live',WandSparkles,'Live Creation'],['canvas',PenTool,'Drawing canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse']] as const).map(([id,Icon,title])=><button key={id} className={'sidebar-tool-item '+(mode===id?'active':'')} onClick={()=>{setWorkspaceToolsOpen(true);if(id==='live')void openLiveCreation();else setMode(id);}}><Icon size={16}/>{title}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
  <Suspense fallback={<main className="workspace-loading" role="status" aria-live="polite">Loading workspace…</main>}><main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='live'?'Live Creation Studio':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className={'saved save-state-'+localSaveStatus} role="status" aria-live="polite"><i/>{historyLoading?'Restoring locally…':localSaveStatus==='saving'?'Saving locally…':localSaveStatus==='error'?'Local save failed':'Saved locally'}</span>{localSaveStatus==='error'&&<button className="save-retry" onClick={retryLocalMessageSave} aria-label="Retry saving conversation">Retry save</button>}<button aria-label="Help" title="How to use Kuro" onClick={()=>setHelpOpen(true)}><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
  {providerSettingsOpen&&<div className="provider-overlay-backdrop" role="presentation" onClick={()=>setProviderSettingsOpen(false)}><div className="provider-overlay-dialog" role="dialog" aria-modal="true" aria-label="Kuro settings" onClick={event=>event.stopPropagation()}><ProviderSettings initialBaseUrl={providerConfig.baseUrl} initialModelUri={providerConfig.modelUri} initialSupportsVision={providerConfig.supportsVision} onSave={connectProvider} onClose={()=>{setProviderSettingsOpen(false);setProviderNotice(localModelReadinessLabel());}}/></div></div>}
@@ -954,7 +962,8 @@ if(activeProjectId && captureStory){
     <DrawingCanvas projectId={activeProjectId} requestedDrawingId={requestedDrawingId} initialDimensions={initialDrawingDimensions} onDrawingOpened={id=>{setRequestedDrawingId('');setActiveDrawingId(id);}} pendingPlan={canvasRequest} onPlanResult={handleDrawingPlanResult}/>
    </div>
    <aside className="live-session-panel">
-    <div className="live-session-status"><span className={'live-session-dot status-'+(liveSession?.status||'ready')}/><div><b>{liveSession?.status==='planning'?'Planning next batch':liveSession?.status==='drawing'?'Drawing and verifying':liveSession?.status==='complete'?'Creation pass complete':liveSession?.status==='paused'?'Paused for review':liveSession?.status==='error'?'Needs attention':'Ready to create'}</b><small>{liveSession?.batches||0} verified batch{liveSession?.batches===1?'':'es'} · max {liveSession?.maxBatches||4} per run</small></div></div>
+    <div className="live-session-status"><span className={'live-session-dot status-'+(liveSession?.status||'ready')}/><div><b>{liveSession?.status==='planning'?'Planning next batch':liveSession?.status==='drawing'?'Drawing and verifying':liveSession?.status==='complete'?'Creation pass complete':liveSession?.status==='paused'?'Paused for review':liveSession?.status==='error'?'Needs attention':'Ready to create'}</b><small>{liveSession?.batches||0} verified batch{liveSession?.batches===1?'':'es'} · max {liveSession?.maxBatches||DEFAULT_LIVE_CREATION_MAX_BATCHES} per run</small></div></div>
+    <label className="live-batch-budget"><span>Run limit</span><select aria-label="Live creation batch limit" value={liveSession?.maxBatches??DEFAULT_LIVE_CREATION_MAX_BATCHES} onChange={event=>{const current=liveSessionRef.current;const maxBatches=Number(event.target.value);if(!current||!Number.isInteger(maxBatches)||maxBatches<1||maxBatches>MAX_LIVE_CREATION_BATCHES)return;const next={...current,maxBatches};liveSessionRef.current=next;setLiveSession(next);}}><option value={4}>4 batches</option><option value={8}>8 batches</option><option value={12}>12 batches</option><option value={16}>16 batches</option><option value={20}>20 batches</option></select></label>
     <label className="live-autocontinue"><input type="checkbox" checked={liveSession?.autoContinue??true} onChange={event=>setLiveSession(current=>{if(!current)return current;const next={...current,autoContinue:event.target.checked};liveSessionRef.current=next;return next;})}/> Continue automatically after each verified batch</label>
     <div className="live-session-hint">Work is saved as native editable strokes/layers. If more pieces remain, Kuro proposes the next missing chunk after reading back the current result.</div>
     <div className="live-timeline-heading"><b>Creation timeline</b><span>{liveSession?.log.length||0}</span></div>

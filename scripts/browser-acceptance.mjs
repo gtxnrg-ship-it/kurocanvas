@@ -139,6 +139,13 @@ try {
     await page.locator('.live-studio').waitFor({ state: 'visible', timeout: 20000 });
     await page.getByRole('button', { name: 'Back to chat' }).waitFor({ state: 'visible' });
     await page.locator('.live-composer textarea').waitFor({ state: 'visible' });
+    const batchLimit = page.getByRole('combobox', { name: 'Live creation batch limit' });
+    await batchLimit.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await batchLimit.inputValue(), '12', 'New live creation sessions should default to a useful but bounded long-form run.');
+    await batchLimit.selectOption('20');
+    assert.equal(await batchLimit.inputValue(), '20', 'Creators can extend the verified-run limit up to the documented safety maximum.');
+    await batchLimit.selectOption('12');
+
     for (const width of [320, 360, 390, 430, 600, 601, 768, 900, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(80);

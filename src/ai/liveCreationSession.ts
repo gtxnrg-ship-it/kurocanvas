@@ -18,7 +18,10 @@ export type LiveCreationSession = {
   log: LiveCreationLogEntry[];
 };
 
-const PREFIX = "kuro-live-creation:v1:";
+export const DEFAULT_LIVE_CREATION_MAX_BATCHES = 12;
+export const MAX_LIVE_CREATION_BATCHES = 20;
+
+const PREFIX = "kuro-live-creation:v1:"
 const SESSION_STATUSES = new Set(["ready", "planning", "drawing", "complete", "paused", "error"]);
 const LOG_KINDS = new Set(["request", "batch", "status"]);
 const LOG_STATUSES = new Set(["working", "done", "paused", "error"]);
@@ -38,7 +41,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       || typeof record.id !== "string" || !record.id || record.id.length > 128
       || typeof record.originalPrompt !== "string" || record.originalPrompt.length > 12000
       || !Number.isInteger(record.batches) || (record.batches as number) < 0 || (record.batches as number) > 1000
-      || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > 20
+      || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > MAX_LIVE_CREATION_BATCHES
       || typeof record.autoContinue !== "boolean"
       || typeof record.status !== "string" || !SESSION_STATUSES.has(record.status)
       || typeof record.activeSummary !== "string" || record.activeSummary.length > 6000
@@ -75,6 +78,9 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
     };
 
     if (restored.status === "planning" || restored.status === "drawing") {
+      // The counter is incremented when a plan begins. An interrupted drawing batch
+      // was never fully read back, so it must not remain in the verified-batch count.
+      if (restored.status === "drawing") restored.batches = Math.max(0, restored.batches - 1);
       restored.status = "paused";
       restored.lastError = "Kuro was interrupted by a reload or app restart. Inspect the saved canvas before continuing; unfinished work was not assumed complete.";
       restored.log = [
@@ -93,4 +99,125 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
   } catch {
     return null;
   }
+}
+
+
+export type LiveCreationBatchResult = "success" | "error" | "cancelled";
+
+export interface SettledLiveCreationBatch {
+  session: LiveCreationSession;
+  canContinue: boolean;
+  hitLimit: boolean;
+  wantsMore: boolean;
+}
+
+/**
+ * Settle only a batch owned by this session. A failed/cancelled attempt is not counted
+ * as a verified batch, and leaving the live workspace suppresses automatic continuation.
+ */
+export function settleLiveCreationBatch(
+  current: LiveCreationSession,
+  batchId: string,
+  result: LiveCreationBatchResult,
+  message: string,
+  allowAutomaticContinuation: boolean,
+): SettledLiveCreationBatch | null {
+  const matchingBatch = current.log.find(entry => entry.kind === "batch" && entry.id === batchId);
+  if (!matchingBatch || matchingBatch.status !== "working") return null;
+
+  const nextLog = current.log.map(entry => entry.kind === "batch" && entry.id === batchId
+    ? {
+        ...entry,
+        status: result === "success" ? "done" as const : result === "cancelled" ? "paused" as const : "error" as const,
+        label: entry.label + " · " + (result === "success" ? "saved and verified" : result === "cancelled" ? "cancelled and rolled back" : "failed"),
+      }
+    : entry);
+
+  const wantsMore = result === "success" && /^CONTINUE:/i.test(current.activeSummary.trim());
+  const canContinue = wantsMore && current.autoContinue && allowAutomaticContinuation && current.batches < current.maxBatches;
+  const hitLimit = wantsMore && current.autoContinue && current.batches >= current.maxBatches;
+  const status: LiveCreationSession["status"] = result === "error"
+    ? "error"
+    : result === "cancelled"
+      ? "paused"
+      : canContinue
+        ? "planning"
+        : hitLimit || wantsMore
+          ? "paused"
+          : "complete";
+  const batchNumber = current.batches;
+  const resultLabel = result === "success"
+    ? "Batch " + batchNumber + " saved and verified · " + message
+    : result === "cancelled"
+      ? "Batch " + batchNumber + " cancelled · " + message
+      : "Batch " + batchNumber + " failed · " + message;
+  const nextSession: LiveCreationSession = {
+    ...current,
+    batches: result === "success" ? current.batches : Math.max(0, current.batches - 1),
+    status,
+    lastError: result === "error" ? message : "",
+    log: [...nextLog, {
+      id: "settled-" + batchId,
+      kind: "status" as const,
+      label: resultLabel,
+      status: (result === "success" ? "done" : result === "cancelled" ? "paused" : "error") as LiveCreationLogEntry["status"],
+    }].slice(-24),
+  };
+  return { session: nextSession, canContinue, hitLimit, wantsMore };
+}
+
+
+/** Keep a validated-but-unapplied plan from appearing active after the creator leaves Live Creation. */
+export function pauseLiveCreationBeforeApply(
+  current: LiveCreationSession,
+  message = "The creator left Live Creation before the proposed drawing batch was applied. No canvas changes were made; review the saved canvas and re-plan before continuing.",
+): LiveCreationSession {
+  const log = current.log.map(entry => entry.kind === "request" && entry.status === "working"
+    ? { ...entry, status: "paused" as const, label: entry.label + " · paused before drawing; canvas unchanged" }
+    : entry);
+  return {
+    ...current,
+    status: "paused",
+    lastError: message,
+    log: [...log, {
+      id: "paused-before-drawing-" + current.id + "-" + current.batches,
+      kind: "status" as const,
+      label: "Live Creation paused before drawing. The proposed plan was not applied.",
+      status: "paused" as const,
+    }].slice(-24),
+  };
+}
+
+
+export type LiveCreationPlanningOutcome = "cancelled" | "error";
+
+/**
+ * Settle inference that ended before any native canvas batch began. Never increment
+ * the verified batch counter for a plan the executor did not apply and read back.
+ */
+export function settleLiveCreationPlanning(
+  current: LiveCreationSession,
+  outcome: LiveCreationPlanningOutcome,
+  message: string,
+  studioStillActive: boolean,
+): LiveCreationSession {
+  if (current.status !== "planning") return current;
+  const paused = outcome === "cancelled" || !studioStillActive;
+  const status: LiveCreationSession["status"] = paused ? "paused" : "error";
+  const logStatus: LiveCreationLogEntry["status"] = paused ? "paused" : "error";
+  const action = paused ? "paused" : "failed";
+  const log = current.log.map(entry => entry.kind === "request" && entry.status === "working"
+    ? { ...entry, status: logStatus, label: entry.label + " · planning " + action }
+    : entry);
+  return {
+    ...current,
+    status,
+    lastError: message,
+    log: [...log, {
+      id: "planning-settled-" + current.id + "-" + current.batches,
+      kind: "status" as const,
+      label: "Live Creation " + action + " before drawing. No native actions were applied.",
+      status: logStatus,
+    }].slice(-24),
+  };
 }

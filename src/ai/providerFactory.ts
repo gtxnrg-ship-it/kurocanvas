@@ -1,16 +1,19 @@
 import { getKuroModelAdapter } from "./kuroModelAdapter";
+import { OpenAICompatibleProvider } from "./openAICompatibleProvider";
 import { KURO_TINY_MODEL_URI } from "./localTinyModelProvider";
 
 export const LOCAL_TINY_BASE_URL = "local://kuro-tiny";
 export const LOCAL_TINY_MODEL_URI = KURO_TINY_MODEL_URI;
 
 export interface ProviderFactoryConfig {
-  /** Retained for migration compatibility; Kuro's production adapter is local-only. */
+  /** local://kuro-tiny or a deliberately configured OpenAI-compatible endpoint. */
   baseUrl: string;
   modelUri: string;
-  /** Accepted only for compatibility with previously saved settings; never sent or stored. */
+  /** Used in memory for requests and not persisted by this factory. */
   apiKey?: string;
   allowInsecureLocalhost: boolean;
+  supportsVision?: boolean;
+  supportsStructuredOutput?: boolean;
 }
 
 export function isLocalTinyConfig(config: Pick<ProviderFactoryConfig, "baseUrl">): boolean {
@@ -33,22 +36,36 @@ export function localModelReadinessLabel(): string {
 }
 
 /**
- * Resolve the single model adapter used by every Kuro harness.
- * Legacy remote-provider settings intentionally fail closed rather than silently
- * routing user prompts, project canon, or creator work to a hosted endpoint.
+ * Resolve the model adapter for Kuro's shared orchestration harnesses.
+ * Local Qwen remains the default. Hosted-compatible endpoints are used only when
+ * the creator explicitly configures one in Preferences; credentials stay in memory.
  */
 export function createConfiguredProvider(
   config: ProviderFactoryConfig,
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
 ) {
-  if (!isLocalTinyConfig(config) || config.modelUri !== LOCAL_TINY_MODEL_URI) {
-    throw new Error("Kuro currently uses only on-device Qwen3-0.6B. Reopen Preferences to migrate the saved model settings.");
+  if (isLocalTinyConfig(config)) {
+    if (config.modelUri !== LOCAL_TINY_MODEL_URI) {
+      throw new Error("The selected local model URI is not the supported Qwen3-0.6B runtime.");
+    }
+    const provider = getKuroModelAdapter();
+    if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
+      provider.setProgressListener(onProgress);
+    }
+    return provider;
   }
-  const provider = getKuroModelAdapter();
-  if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
-    provider.setProgressListener(onProgress);
+  if (typeof config.modelUri !== "string" || !config.modelUri.trim() || config.modelUri.length > 512) {
+    throw new Error("Choose a model ID returned by the configured endpoint before using it.");
   }
-  return provider;
+  return new OpenAICompatibleProvider({
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    allowInsecureLocalhost: config.allowInsecureLocalhost,
+    supportsVision: config.supportsVision === true,
+    supportsStructuredOutput: config.supportsStructuredOutput === true,
+    providerId: "kuro-configured-compatible",
+    displayName: "Configured compatible model endpoint",
+  });
 }
 
 export async function prepareLocalTinyModel(

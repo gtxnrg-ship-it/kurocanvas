@@ -34,7 +34,7 @@ export function readRemoteModelCredential(baseUrl: string): string {
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== "object" || Array.isArray(value)) return "";
     const record = value as Record<string, unknown>;
-    if (record.baseUrl !== endpoint || typeof record.apiKey !== "string") return "";
+    if (record.baseUrl !== endpoint || record.consented !== true || typeof record.apiKey !== "string") return "";
     return record.apiKey.trim().slice(0, MAX_API_KEY_LENGTH);
   } catch {
     return "";

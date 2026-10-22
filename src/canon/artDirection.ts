@@ -1,5 +1,5 @@
 import { parseModelJson } from "../ai/structuredOutput";
-import { isSeriesPlanApproved, resolveApprovedSeriesChapter, type SeriesPlanFields } from "./seriesPlan";
+import { isSeriesPlanApproved, resolveApprovedSeriesChapter, type SeriesChapterProgress, type SeriesPlanFields } from "./seriesPlan";
 
 export interface ArtDirectionInfluence {
   id: string;
@@ -36,11 +36,12 @@ export interface ArtDirectionBible {
   seriesEnding?: string;
   seriesPlanApproved?: boolean;
   seriesPlanApprovalSignature?: string;
+  seriesChapterProgress?: SeriesChapterProgress;
   influences: ArtDirectionInfluence[];
   updatedAt: string;
 }
 
-export type ArtDirectionField = Exclude<keyof ArtDirectionBible, "schemaVersion" | "projectId" | "updatedAt" | "influences" | "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature">;
+export type ArtDirectionField = Exclude<keyof ArtDirectionBible, "schemaVersion" | "projectId" | "updatedAt" | "influences" | "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature" | "seriesChapterProgress">;
 
 const cleanText = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 
@@ -97,6 +98,37 @@ export function validateArtDirection(value: unknown, projectId?: string): string
     if (bible[key] !== undefined && typeof bible[key] !== "string") errors.push("Series-plan field " + key + " must be text.");
   }
   if (bible.seriesPlanApproved !== undefined && typeof bible.seriesPlanApproved !== "boolean") errors.push("Series-plan approval must be a boolean.");
+  if (bible.seriesChapterProgress !== undefined) {
+    const progress = bible.seriesChapterProgress as unknown;
+    if (!progress || typeof progress !== "object" || Array.isArray(progress)) {
+      errors.push("Series chapter progress must be an object.");
+    } else {
+      const record = progress as Record<string, unknown>;
+      if (typeof record.planSignature !== "string" || record.planSignature.length > 4000) {
+        errors.push("Series chapter progress needs a valid plan signature.");
+      }
+      if (!Array.isArray(record.approvedChapters) || record.approvedChapters.length > 500) {
+        errors.push("Series chapter approvals must be a list of at most 500 entries.");
+      } else {
+        const seen = new Set<number>();
+        for (const item of record.approvedChapters) {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            errors.push("Every approved chapter needs a valid approval record.");
+            break;
+          }
+          const approval = item as Record<string, unknown>;
+          if (!Number.isSafeInteger(approval.chapterNumber) || (approval.chapterNumber as number) < 1 || (approval.chapterNumber as number) > 500
+            || seen.has(approval.chapterNumber as number)
+            || typeof approval.drawingId !== "string" || !approval.drawingId.trim() || approval.drawingId.length > 128
+            || typeof approval.approvedAt !== "string" || !approval.approvedAt.trim() || approval.approvedAt.length > 80) {
+            errors.push("Series chapter approval entries need unique chapter numbers, drawing IDs, and approval timestamps.");
+            break;
+          }
+          seen.add(approval.chapterNumber as number);
+        }
+      }
+    }
+  }
   if (typeof bible.updatedAt !== "string") errors.push("Art direction needs an update timestamp.");
   return errors;
 }
@@ -125,6 +157,7 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     seriesChapterPlan: bible.seriesChapterPlan ?? "", seriesEnding: bible.seriesEnding ?? "",
     seriesPlanApproved: bible.seriesPlanApproved ?? false,
     seriesPlanApprovalSignature: bible.seriesPlanApprovalSignature ?? "",
+    seriesChapterProgress: bible.seriesChapterProgress,
   };
   const hasSeriesPlan = [seriesPlan.seriesScope, seriesPlan.seriesArcPlan, seriesPlan.seriesChapterPlan, seriesPlan.seriesEnding]
     .some(value => cleanText(value));

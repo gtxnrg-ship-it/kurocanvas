@@ -3,6 +3,7 @@ import {
   liveCreationSessionStorageKey,
   restoreLiveCreationSession,
   DEFAULT_LIVE_CREATION_MAX_BATCHES,
+  settleLiveCreationBatch,
   type LiveCreationSession,
 } from "./liveCreationSession";
 
@@ -55,6 +56,45 @@ describe("live creation session recovery", () => {
     expect(DEFAULT_LIVE_CREATION_MAX_BATCHES).toBe(12);
     expect(restoreLiveCreationSession(JSON.stringify({ ...session, maxBatches: 20 }), "project-1")?.maxBatches).toBe(20);
     expect(restoreLiveCreationSession(JSON.stringify({ ...session, maxBatches: 21 }), "project-1")).toBeNull();
+  });
+
+  it("settles a cancelled batch as paused without counting it as verified", () => {
+    const inFlight: LiveCreationSession = {
+      ...session,
+      batches: 2,
+      status: "drawing",
+      activeSummary: "CONTINUE: Add the next missing part.",
+      log: [
+        { id: "batch-2", kind: "batch", label: "Batch 2: Add the next part.", status: "working" },
+      ],
+    };
+    const settled = settleLiveCreationBatch(inFlight, "batch-2", "cancelled", "original canvas restored", false);
+    expect(settled?.session.status).toBe("paused");
+    expect(settled?.session.batches).toBe(1);
+    expect(settled?.canContinue).toBe(false);
+    expect(settled?.session.log.some(entry => entry.status === "working")).toBe(false);
+  });
+
+  it("only auto-continues a successful batch while Live Creation remains active", () => {
+    const inFlight: LiveCreationSession = {
+      ...session,
+      batches: 2,
+      status: "drawing",
+      autoContinue: true,
+      maxBatches: 12,
+      activeSummary: "CONTINUE: Draw the next missing panel.",
+      log: [{ id: "batch-2", kind: "batch", label: "Batch 2", status: "working" }],
+    };
+    const inLiveMode = settleLiveCreationBatch(inFlight, "batch-2", "success", "read back verified", true);
+    expect(inLiveMode?.canContinue).toBe(true);
+    expect(inLiveMode?.session.status).toBe("planning");
+    const awayFromStudio = settleLiveCreationBatch(inFlight, "batch-2", "success", "read back verified", false);
+    expect(awayFromStudio?.canContinue).toBe(false);
+    expect(awayFromStudio?.session.status).toBe("paused");
+  });
+
+  it("does not settle a drawing result that is not in this session's timeline", () => {
+    expect(settleLiveCreationBatch(session, "unrelated-plan", "success", "saved", true)).toBeNull();
   });
 
 });

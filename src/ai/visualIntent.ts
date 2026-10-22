@@ -4,7 +4,7 @@ const DRAWING_INTENT = /\b(draw|sketch|illustrate|rough out|create (?:a )?(?:dra
 // even when the user does not know to say "draw" or "canvas".
 const CHARACTER_VISUAL_CREATION_INTENT = /\b(?:design|create|make|develop|visuali[sz]e|concept)\b(?:(?!\b(?:story|plot|backstory|worldbuilding)\b).){0,55}\b(?:characters?(?:[’']s?)?(?:\s+(?:overall\s+)?(?:look|appearance|design|sheet|concept|portrait|outfit|turnaround|expressions?|visual\s+design))?|character\s+sheets?|character\s+designs?|cast\s+(?:looks?|designs?|sheets?)|overall\s+looks?|visual\s+designs?|appearances?|costumes?|outfits?)\b/i;
 
-const DEFERRED_VISUAL_ACTION = /\b(?:don't|do\s+not|never|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|rough\s+out|create|make|put|design|develop|visuali[sz]e|concept|inspect|review|critique|analy[sz]e|look\s+at|look\s+over|describe|compare|show)\b/i;
+const DEFERRED_VISUAL_ACTION = /\b(?:please\s+)?(?:don't|do\s+not|never|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|rough\s+out|create|make|put|design|develop|visuali[sz]e|concept|inspect|review|critique|analy[sz]e|look\s+at|look\s+over|describe|compare|show)\b/i;
 const POSITIVE_VISUAL_ACTION = /\b(?:draw|sketch|illustrate|rough\s+out|create|make|put|design|develop|visuali[sz]e|concept|inspect|review|critique|analy[sz]e|look\s+at|look\s+over|describe|compare|show)\b/i;
 
 function explicitlyDefersVisualAction(text: string): boolean {

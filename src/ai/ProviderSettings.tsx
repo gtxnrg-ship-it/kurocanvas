@@ -197,7 +197,7 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
       const preview=response.text.trim();
       setVoicePreview(preview || "The model returned an empty reply. Try again after checking model preparation.");
       if(preview){
-        setSpeechStatus(speechPreferences.engine==="kokoro"?"Preparing Kuro's local Kokoro voice…":"Using the device's speech voice…");
+        setSpeechStatus(speechPreferences.engine==="kokoro"?"Preparing Kuro's local Kokoro voice…":speechPreferences.engine==="fish"?"Generating Kuro's voice with Fish Audio Drama 3…":"Speaking with the device's speech voice…");
         try{
           await speakKuroVoice(preview,speechPreferences,progress=>{
             setSpeechProgress(progress.percent);

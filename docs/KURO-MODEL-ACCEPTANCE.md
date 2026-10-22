@@ -33,6 +33,7 @@ Run tasks against the exact model revision, quantization, Transformers.js/ONNX R
 | Persona and conversation | Sustain a natural creative conversation without claiming unavailable abilities | Tone adapts to the situation; no fabricated capabilities or actions |
 | Imperfect brief | Understand typos, fragments, slang and a multi-part creative ask | Key constraints are preserved without demanding a rewritten prompt |
 | Story planning | Produce a coherent chapter outline with motivations and consequences | User constraints remain intact; contradictions and unknowns are surfaced |
+| Doujin/page script | Move from a creator-approved premise to a page-by-page, numbered panel script in the requested format | Character voice and supplied canon stay consistent; panel action, framing, dialogue/SFX, page turns, and requested page count survive revisions |
 | Canon discipline | Separate approved facts, proposals, inference and unknowns | No proposal silently becomes canon |
 | Temporal continuity | Describe a character at a specific timeline/story order | No future-state leakage; genuine ambiguity fails closed |
 | Text-only limitation | Ask Kuro to inspect a supplied image or visualize an existing canvas | It admits the limit and works only from editable document data or textual reference metadata |

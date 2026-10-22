@@ -47,6 +47,16 @@ describe("Kuro request-aware response quality", () => {
     expect(guidance).toMatch(/without defending the previous answer/i);
   });
 
+  it("provides a manga and doujin production contract without forcing every reply into a panel script", () => {
+    const guidance = getKuroResponseQualityGuidance("Help me draft a doujin page-by-page.");
+    expect(guidance).toMatch(/MANGA\/DOUJIN PRODUCTION/i);
+    expect(guidance).toMatch(/number pages and panels/i);
+    expect(guidance).toMatch(/framing\/camera/i);
+    expect(guidance).toMatch(/dialogue, captions, SFX/i);
+    expect(guidance).toMatch(/alternate universe/i);
+    expect(guidance).toMatch(/requested stage/i);
+  });
+
   it("asks Kuro to understand imperfect English and distinguish author intent from reader-facing reveals", () => {
     const guidance = getKuroResponseQualityGuidance("Write a story with an Easter egg cameo.");
     expect(guidance).toMatch(/grammatically imperfect/i);

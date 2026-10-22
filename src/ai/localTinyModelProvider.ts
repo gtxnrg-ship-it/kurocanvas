@@ -1,10 +1,10 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
-import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+import { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+export { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-/** Upper bound for mobile-friendly native-tool plans and longer creative responses. */
-export const KURO_LOCAL_MAX_OUTPUT_TOKENS = 1024;
+/** Backward-compatible alias for one memory-bounded inference pass, not a whole chat reply. */
+export const KURO_LOCAL_MAX_OUTPUT_TOKENS = KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS;
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
@@ -202,23 +202,102 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   const clip = (content: string, budget: number): string => {
     if (content.length <= budget) return content;
     if (budget <= 1) return content.slice(0, budget);
-    const marker = "\n[…context clipped…]\n";
-    if (budget <= marker.length) return content.slice(-budget);
-    const usable = budget - marker.length;
-    const head = Math.ceil(usable * 0.64);
-    const tail = usable - head;
-    return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
+    const marker = "\n[…context section omitted…]\n";
+    if (budget <= marker.length * 2 + 1) return content.slice(-budget);
+
+    // Preserve the prompt's beginning, a central slice, and its ending. The
+    // system prompt combines persona, canon, memory, research and canvas state;
+    // head/tail-only clipping silently erased every middle section.
+    const usable = budget - marker.length * 2;
+    const head = Math.ceil(usable * 0.4);
+    const middle = Math.ceil(usable * 0.2);
+    const tail = usable - head - middle;
+    const latestMiddleStart = Math.max(head, content.length - tail - middle);
+    const middleStart = Math.max(head, Math.min(Math.floor((content.length - middle) / 2), latestMiddleStart));
+    return content.slice(0, head)
+      + marker
+      + content.slice(middleStart, middleStart + middle)
+      + marker
+      + (tail ? content.slice(-tail) : "");
+  };
+  
+  // System prompts can include the persona, the response contract, and multiple
+  // project-context sections. Uniform head/middle/tail clipping often keeps
+  // unrelated lore while deleting the exact character or scene the user asked about.
+  // Preserve the opening contract, then spend the remaining budget on query-relevant
+  // sections. The durable project records are untouched; this only selects the model's
+  // bounded working window.
+  const clipSystem = (content: string, budget: number, query: string): string => {
+    const marker = "\n[…context section omitted…]\n";
+    if (content.length <= budget) return content;
+    if (budget <= marker.length + 80) return clip(content, budget);
+
+    const prefixLength = Math.min(content.length, Math.max(80, Math.floor(budget * 0.42)));
+    const prefix = content.slice(0, prefixLength);
+    const sections = content.slice(prefixLength).split(/\n{2,}/)
+      .map((text, index) => ({ text: text.trim(), index }))
+      .filter(section => section.text.length > 0);
+    if (sections.length < 2) return clip(content, budget);
+
+    const stopWords = new Set([
+      "the", "and", "for", "with", "that", "this", "then", "from", "into", "your",
+      "you", "are", "was", "were", "have", "has", "had", "will", "would", "could",
+      "should", "can", "not", "but", "all", "any", "how", "what", "when", "where",
+      "who", "why", "which", "their", "they", "them", "she", "her", "him", "his",
+      "its", "about", "please", "make", "want", "need", "just", "like", "also",
+      "there", "here", "because", "really", "very", "more", "some", "thing", "things",
+      "does", "did", "doing", "been", "being", "get", "got", "from", "continue",
+    ]);
+    const tokenize = (value: string) => {
+      // Keep a bounded sample from both ends: users often put a critical constraint
+      // after a long brief, and canon summaries may put the decisive detail last.
+      const sample = value.length > 24_000
+        ? value.slice(0, 12_000) + " " + value.slice(-12_000)
+        : value;
+      const unique = [...new Set(sample.normalize("NFKC").toLocaleLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter(token => token.length >= 3 && !stopWords.has(token)))];
+      return new Set(unique.length <= 160 ? unique : [...unique.slice(0, 100), ...unique.slice(-60)]);
+    };
+    const queryTokens = tokenize(query);
+    const ranked = sections.map(section => {
+      const words = tokenize(section.text);
+      let overlap = 0;
+      for (const token of queryTokens) if (words.has(token)) overlap++;
+      const durableContext = /\b(?:approved canon|world bible|story memory|character state|style bible|art direction|current editable canvas|research notes)\b/i.test(section.text) ? 1 : 0;
+      return { ...section, score: overlap * 4 + durableContext };
+    }).filter(section => section.score > 0)
+      .sort((a, b) => b.score - a.score || a.index - b.index);
+
+    // When the query doesn't overlap any labeled project context, retain the first
+    // remaining section instead of silently discarding every project-specific rule.
+    if (!ranked.length && sections[0]) ranked.push({ ...sections[0], score: 0 });
+
+    const selected: Array<{ text: string; index: number }> = [];
+    let used = prefix.length + marker.length;
+    for (const section of ranked) {
+      const separatorCost = selected.length ? marker.length : 0;
+      const available = budget - used - separatorCost;
+      if (available < 80) continue;
+      const text = section.text.length <= available ? section.text : clip(section.text, available);
+      selected.push({ text, index: section.index });
+      used += separatorCost + text.length;
+      if (text.length < section.text.length) break;
+    }
+    if (!selected.length) return clip(content, budget);
+    selected.sort((a, b) => a.index - b.index);
+    return prefix + marker + selected.map(section => section.text).join(marker);
   };
 
-  // The first system block contains the persona and execution rules. Preserve both
-  // its beginning and its tail, where project context is commonly appended.
+  // The first system block contains persona, execution rules and appended project context.
+  // Preserve its beginning, central slice and ending to reduce silent context loss.
   const hasHistory = messages.some((message, index) =>
     index !== systemIndex && index !== latestUserIndex && Boolean(message.content),
   );
   const systemBudget = system && latestUser
     ? Math.floor(limit * (hasHistory ? 0.48 : 0.58))
     : system ? limit : 0;
-  const boundedSystem = system ? { role: "system", content: clip(system.content, systemBudget) } : undefined;
+  const boundedSystem = system ? { role: "system", content: clipSystem(system.content, systemBudget, latestUser?.content ?? "") } : undefined;
   let used = boundedSystem?.content.length ?? 0;
 
   // Protect the newest user ask; leave room for recent history rather than letting

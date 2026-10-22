@@ -4,7 +4,7 @@ import { boundMessages } from "./localTinyModelProvider";
 describe("local model context budget", () => {
   it("keeps the newest user request when a long system prompt would otherwise consume the whole budget", () => {
     const messages = [
-      { role: "system", content: "SYSTEM-BEGIN " + "persona and rules ".repeat(900) + " SYSTEM-TAIL-MARKER" },
+      { role: "system", content: "SYSTEM-BEGIN " + "persona and rules ".repeat(450) + " SYSTEM-MIDDLE-MARKER " + "persona and rules ".repeat(450) + " SYSTEM-TAIL-MARKER" },
       { role: "assistant", content: "Older useful context " + "world detail ".repeat(100) },
       { role: "user", content: "CURRENT USER REQUEST: continue chapter 14. " + "required detail ".repeat(200) + " FINAL-REQUEST-MARKER" },
     ];
@@ -12,10 +12,52 @@ describe("local model context budget", () => {
     expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_200);
     expect(bounded[0].role).toBe("system");
     expect(bounded[0].content).toContain("SYSTEM-BEGIN");
+    expect(bounded[0].content).toContain("SYSTEM-MIDDLE-MARKER");
     expect(bounded[0].content).toContain("SYSTEM-TAIL-MARKER");
     expect(bounded[bounded.length - 1].role).toBe("user");
     expect(bounded[bounded.length - 1].content).toContain("CURRENT USER REQUEST");
     expect(bounded[bounded.length - 1].content).toContain("FINAL-REQUEST-MARKER");
+  });
+
+  it("prioritizes project-context sections that match the active request", () => {
+    const system = [
+      "KURO CORE CONTRACT: Keep the creator's actual request and approved facts intact.",
+      "UNRELATED SETTING NOTES: " + "ancient harbor details and distant provinces. ".repeat(18),
+      "UNRELATED HISTORICAL NOTES: " + "old treaties, ships, and weather patterns. ".repeat(18),
+      "APPROVED CHARACTER CONTINUITY: Aiko wears the crimson scarf in this chapter; preserve the crimson scarf continuity anchor across the page.",
+      "UNRELATED EQUIPMENT NOTES: " + "spare tools, metal parts, and workshop inventory. ".repeat(18),
+    ].join("\n\n");
+    const bounded = boundMessages([
+      { role: "system", content: system },
+      { role: "assistant", content: "Earlier unrelated discussion." },
+      { role: "user", content: "For Aiko, preserve the crimson scarf continuity anchor." },
+    ], 1_800);
+
+    expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_800);
+    expect(bounded[0]?.content).toContain("KURO CORE CONTRACT");
+    expect(bounded[0]?.content).toContain("Aiko wears the crimson scarf");
+    expect(bounded[bounded.length - 1]?.content).toContain("crimson scarf continuity anchor");
+  });
+
+  it("uses constraints near the end of a long brief when ranking project context", () => {
+    const system = [
+      "KURO CORE CONTRACT: Preserve the creator's actual request and approved facts.",
+      "UNRELATED SETTING NOTES: " + "ancient harbor architecture coastal province calendar. ".repeat(20),
+      "UNRELATED HISTORY NOTES: " + "old treaties royal succession shipping records. ".repeat(20),
+      "APPROVED CHARACTER CONTINUITY: Aiko wears the crimson scarf; preserve this exact design in the current chapter.",
+      "UNRELATED EQUIPMENT NOTES: " + "spare tools workshop materials inventory lists. ".repeat(20),
+    ].join("\n\n");
+    const filler = Array.from({ length: 180 }, (_, index) => "distinctterm" + index).join(" ");
+    const longRequest = "Build the page while honoring every instruction. " + filler
+      + " FINAL CONSTRAINT: Aiko wears the crimson scarf. Preserve crimson scarf continuity exactly.";
+    const bounded = boundMessages([
+      { role: "system", content: system },
+      { role: "user", content: longRequest },
+    ], 1_800);
+
+    expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_800);
+    expect(bounded[0]?.content).toContain("Aiko wears the crimson scarf");
+    expect(bounded[bounded.length - 1]?.content).toContain("FINAL CONSTRAINT");
   });
 
   it("gives a single-turn request the unused space when there is no transcript to preserve", () => {

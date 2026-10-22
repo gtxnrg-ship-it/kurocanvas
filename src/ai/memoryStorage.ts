@@ -1,5 +1,5 @@
 import {
-  canShareMemory,
+  canPersistMemory,
   validateMemory,
   type EvolutionPolicy,
   type KuroMemory,
@@ -65,8 +65,8 @@ export interface MemoryQuery {
 export const kuroMemoryStorage = {
   async save(memory: KuroMemory, policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY): Promise<void> {
     if (!validateMemory(memory)) throw new Error("Refusing to save invalid Kuro memory.");
-    if (memory.scope === "shared" && !canShareMemory(memory, policy)) {
-      throw new Error("Shared memory is disabled or has not passed approval and privacy review.");
+    if (!canPersistMemory(memory, policy)) {
+      throw new Error("Shared-memory persistence is disabled or the record lacks required privacy review/provenance.");
     }
     const snapshot: KuroMemory = { ...memory, provenance: [...memory.provenance], updatedAt: new Date().toISOString() };
     await runRequest<IDBValidKey>("readwrite", store => store.put(snapshot));
@@ -93,15 +93,18 @@ export const kuroMemoryStorage = {
     await runRequest<undefined>("readwrite", store => store.delete(id));
   },
 
-  async updateStatus(id: string, status: KuroMemory["status"]): Promise<KuroMemory> {
+  async updateStatus(
+    id: string,
+    status: KuroMemory["status"],
+    policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY,
+  ): Promise<KuroMemory> {
     const existing = await this.get(id);
     if (!existing) throw new Error("Unknown Kuro memory: " + id);
     const updated: KuroMemory = { ...existing, status, updatedAt: new Date().toISOString() };
-    await this.save(updated, {
-      ...DEFAULT_EVOLUTION_POLICY,
-      // Status changes to existing shared memories still require the caller to supply the shared policy explicitly via save().
-      sharedLearningEnabled: updated.scope === "shared" ? false : DEFAULT_EVOLUTION_POLICY.sharedLearningEnabled,
-    });
+    // Shared-memory changes require the caller to explicitly enable that policy.
+    // A shared proposal may be stored locally after privacy review, but canShareMemory
+    // still prevents distribution until it is approved and has provenance.
+    await this.save(updated, policy);
     return updated;
   },
 };

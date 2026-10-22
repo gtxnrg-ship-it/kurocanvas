@@ -66,23 +66,48 @@ export const DEFAULT_EVOLUTION_POLICY: EvolutionPolicy = {
   requireEvaluationBeforeActivation: true,
 };
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && Number.isFinite(Date.parse(value));
+}
+
+function isValidProvenance(value: unknown): value is KnowledgeProvenance {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const source = value as Partial<KnowledgeProvenance>;
+  return ["user-confirmation", "project-file", "tool-result", "external-source", "evaluation"].includes(String(source.sourceType))
+    && isValidTimestamp(source.observedAt)
+    && (source.sourceId === undefined || typeof source.sourceId === "string")
+    && (source.citation === undefined || typeof source.citation === "string");
+}
+
+/** Validate the full persisted record shape, not just fields most prompts happen to use. */
 export function validateMemory(value: unknown): value is KuroMemory {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Partial<KuroMemory>;
-  return typeof item.id === "string"
-    && item.id.trim().length > 0
-    && ["project", "personal", "shared"].includes(String(item.scope))
-    && ["preference", "canon-fact", "workflow", "lesson", "reference"].includes(String(item.kind))
-    && typeof item.title === "string"
-    && item.title.trim().length > 0
-    && typeof item.content === "string"
-    && item.content.trim().length > 0
-    && typeof item.confidence === "number"
-    && Number.isFinite(item.confidence)
-    && item.confidence >= 0
-    && item.confidence <= 1
-    && Array.isArray(item.provenance)
-    && (item.scope !== "project" || typeof item.projectId === "string");
+  if (!isNonEmptyString(item.id)
+    || !["project", "personal", "shared"].includes(String(item.scope))
+    || !["preference", "canon-fact", "workflow", "lesson", "reference"].includes(String(item.kind))
+    || !["proposed", "approved", "rejected", "superseded"].includes(String(item.status))
+    || !isNonEmptyString(item.title)
+    || !isNonEmptyString(item.content)
+    || typeof item.confidence !== "number"
+    || !Number.isFinite(item.confidence)
+    || item.confidence < 0
+    || item.confidence > 1
+    || !Array.isArray(item.provenance)
+    || !item.provenance.every(isValidProvenance)
+    || !isValidTimestamp(item.createdAt)
+    || !isValidTimestamp(item.updatedAt)
+    || typeof item.privacyReviewed !== "boolean") return false;
+
+  if (item.scope === "project" && !isNonEmptyString(item.projectId)) return false;
+  // Globally shared records cannot be labelled as belonging to one private project.
+  if (item.scope === "shared" && item.projectId !== undefined) return false;
+  if (item.scope !== "project" && item.projectId !== undefined && !isNonEmptyString(item.projectId)) return false;
+  return true;
 }
 
 export function canPromoteSkill(
@@ -99,9 +124,20 @@ export function canPromoteSkill(
   return { allowed: reasons.length === 0, reasons };
 }
 
+/** Persistence is local storage; sharing is a separate, stricter eligibility decision. */
+export function canPersistMemory(memory: KuroMemory, policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY): boolean {
+  return validateMemory(memory)
+    && (memory.scope !== "shared"
+      || (policy.sharedLearningEnabled
+        && (!policy.requirePrivacyReviewForShared || memory.privacyReviewed)
+        && memory.provenance.length > 0));
+}
+
 export function canShareMemory(memory: KuroMemory, policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY): boolean {
-  return policy.sharedLearningEnabled
+  return validateMemory(memory)
+    && policy.sharedLearningEnabled
     && memory.scope === "shared"
+    && memory.projectId === undefined
     && memory.privacyReviewed
     && memory.status === "approved"
     && memory.provenance.length > 0;

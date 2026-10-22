@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, getCreativeFormatSpec, describeCreativeFormats } from "./creativeFormats";
+import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, getCreativeFormatSpec, describeCreativeFormats, resolveCreativeFormatChoice, buildCreativeProductionPrompt } from "./creativeFormats";
 
 describe("creative format routing", () => {
   it("recognizes comic and visual-story forms with format-appropriate canvases", () => {
@@ -52,6 +52,33 @@ describe("creative format routing", () => {
       id: "custom-storyboard", width: 1600, height: 1200,
     });
     expect(detectCreativeProductionRequest("Create a Webtoon using historical references.")).toMatchObject({ id: "webtoon" });
+  });
+
+  it("resolves explicit picker choices without forcing a format in Auto", () => {
+    expect(resolveCreativeFormatChoice("auto")).toBeUndefined();
+    expect(resolveCreativeFormatChoice("webtoon")).toMatchObject({
+      id: "webtoon", layout: "vertical-strip", width: 900, height: 6000,
+    });
+    expect(resolveCreativeFormatChoice("one-shot")).toMatchObject({
+      id: "one-shot", label: "Short one-shot", foundationGate: true,
+    });
+    expect(resolveCreativeFormatChoice("visual-novel")).toMatchObject({
+      id: "visual-novel", layout: "wide-scene", width: 1600, height: 900,
+    });
+  });
+
+  it("keeps a picked format explicit in prompts saved for later creation batches", () => {
+    const webtoonPrompt = buildCreativeProductionPrompt("webtoon", "Let's write the first chapter.");
+    expect(webtoonPrompt).toContain("Create a Webtoon.");
+    expect(detectCreativeProductionRequest(webtoonPrompt)).toMatchObject({ id: "webtoon" });
+
+    const pictureBookPrompt = buildCreativeProductionPrompt("picture-book", "Let's make the first story.");
+    expect(detectCreativeProductionRequest(pictureBookPrompt)).toMatchObject({ id: "picture-book" });
+
+    const customPrompt = buildCreativeProductionPrompt("custom-storyboard", "Create a new scene.");
+    expect(detectCreativeProductionRequest(customPrompt)).toMatchObject({ id: "custom-storyboard" });
+
+    expect(buildCreativeProductionPrompt("auto", "  Continue this scene.  ")).toBe("Continue this scene.");
   });
 
   it("exposes available formats and guardrails", () => {

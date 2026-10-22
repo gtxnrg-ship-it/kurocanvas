@@ -131,6 +131,40 @@ export function getCreativeFormatSpec(id: CreativeFormatId): CreativeProductionS
   return FORMAT_SPECS[id];
 }
 
+export type CreativeFormatChoice = "auto" | CreativeFormatId;
+
+/** An explicit picker choice affects production only; Auto leaves routing to the user's request. */
+export function resolveCreativeFormatChoice(choice: CreativeFormatChoice): CreativeProductionSpec | undefined {
+  return choice === "auto" ? undefined : FORMAT_SPECS[choice];
+}
+
+const FORMAT_PROMPT_STARTERS: Record<CreativeFormatId, string> = {
+  webtoon: "Create a Webtoon",
+  manga: "Create a manga page",
+  doujin: "Create a doujin comic page",
+  "one-shot": "Create a standalone one-shot",
+  "comic-strip": "Create a comic strip",
+  "graphic-novel": "Create a graphic novel page",
+  "comic-page": "Create a comic page",
+  zine: "Create a zine",
+  "visual-novel": "Create a visual novel scene board",
+  storyboard: "Create a storyboard",
+  "picture-book": "Create an illustrated picture book spread",
+  "custom-storyboard": "Create a custom hybrid visual story format",
+  "illustrated-story": "Create a flexible illustrated story",
+};
+
+/**
+ * Keep an explicit format inside the saved session prompt so later batches retain
+ * the original medium even after the user says only "continue".
+ */
+export function buildCreativeProductionPrompt(choice: CreativeFormatChoice, request: string): string {
+  const starter = choice === "auto" ? undefined : FORMAT_PROMPT_STARTERS[choice];
+  const trimmed = request.trim();
+  if (!starter || !trimmed) return trimmed;
+  return starter + ". User request: " + trimmed;
+}
+
 export function describeCreativeFormats(): string {
   return [
     "Webtoon / vertical-scroll comic",

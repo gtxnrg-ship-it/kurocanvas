@@ -4,6 +4,7 @@ import {
   restoreLiveCreationSession,
   DEFAULT_LIVE_CREATION_MAX_BATCHES,
   settleLiveCreationBatch,
+  pauseLiveCreationBeforeApply,
   type LiveCreationSession,
 } from "./liveCreationSession";
 
@@ -98,6 +99,22 @@ describe("live creation session recovery", () => {
 
   it("does not settle a drawing result that is not in this session's timeline", () => {
     expect(settleLiveCreationBatch(session, "unrelated-plan", "success", "saved", true)).toBeNull();
+  });
+
+  it("pauses a plan when the creator leaves before any native action is applied", () => {
+    const planning: LiveCreationSession = {
+      ...session,
+      batches: 2,
+      status: "planning",
+      lastError: "",
+      log: [{ id: "request-3", kind: "request", label: "Continue creation", status: "working" }],
+    };
+    const paused = pauseLiveCreationBeforeApply(planning);
+    expect(paused.status).toBe("paused");
+    expect(paused.batches).toBe(2);
+    expect(paused.lastError).toContain("No canvas changes were made");
+    expect(paused.log.some(entry => entry.status === "working")).toBe(false);
+    expect(paused.log.some(entry => entry.label.includes("canvas unchanged"))).toBe(true);
   });
 
 });

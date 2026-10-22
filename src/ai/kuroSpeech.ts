@@ -49,6 +49,7 @@ export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(safe)); } catch { /* storage may be disabled */ }
 }
 type WorkerRequest = { id: number; type: "prepare" } | { id: number; type: "generate"; text: string; voice: string };
+type WorkerRequestInput<T = WorkerRequest> = T extends { id: number } ? Omit<T, "id"> : never;
 type WorkerReply =
   | { id: number; type: "progress"; progress: number; status: string; file?: string }
   | { id: number; type: "ready" }
@@ -100,7 +101,7 @@ function ensureWorker(): Worker {
   };
   return speechWorker;
 }
-function requestWorker(request: Omit<WorkerRequest, "id">, onProgress?: (value: KuroSpeechProgress) => void): Promise<WorkerReply> {
+function requestWorker(request: WorkerRequestInput, onProgress?: (value: KuroSpeechProgress) => void): Promise<WorkerReply> {
   const id = nextRequestId++;
   const instance = ensureWorker();
   return new Promise((resolve, reject) => {

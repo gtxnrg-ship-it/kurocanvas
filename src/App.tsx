@@ -34,6 +34,7 @@ import { resolveTemporalCharacterContext } from './canon/temporalCharacterContex
 import { buildSvgDocument } from './drawing/svgExport';
 import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
 import { isMangaChapterProductionRequest, shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
+import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
@@ -573,6 +574,46 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  async function send(messageOverride?:string, continuationSourceOverride?:string){
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
+ // A chapter request is the point where planning becomes production. Require the
+ // project-owned foundations to be approved before switching out of chat and drawing.
+ // The explicit provisional override is only for non-canon experiments.
+ if(isMangaChapterProductionRequest(text)&&!requestsProvisionalChapterOverride(text)){
+  let readiness;
+  try{
+   if(!activeProjectId||!activeUniverseId){
+    readiness=evaluateChapterReadiness({hasUniverse:false,requiresHistoricalResearch:requiresHistoricalResearchForChapter(text)});
+   }else{
+    const [canon,artDirection,styleBible,characterTimelines,relationships,researchTasks]=await Promise.all([
+     canonStorage.load(activeProjectId),
+     artDirectionStorage.load(activeProjectId),
+     styleBibleStorage.load(activeProjectId),
+     characterEvolutionStorage.list(activeUniverseId),
+     relationshipStorage.list(activeUniverseId),
+     researchTaskStorage.list(activeProjectId),
+    ]);
+    readiness=evaluateChapterReadiness({
+     hasUniverse:true,
+     canon,
+     artDirection,
+     styleBible,
+     characterTimelines,
+     relationships,
+     researchTasks,
+     requiresHistoricalResearch:requiresHistoricalResearchForChapter(text),
+    });
+   }
+  }catch{
+   readiness={ready:false,approvedCharacterCount:0,approvedWorldFactCount:0,approvedRelationshipCount:0,gaps:[{
+    id:'verification' as const,
+    message:'I could not verify the project’s local canon and research records safely. Reopen the project and try again.',
+   }]};
+  }
+  if(!readiness.ready){
+   setDraft('');
+   setMessages(items=>[...items,{role:'user',text},{role:'kuro',text:formatChapterReadinessMessage(readiness)}]);
+   return;
+  }
+ }
  const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
  const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){

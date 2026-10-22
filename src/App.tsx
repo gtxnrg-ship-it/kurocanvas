@@ -9,6 +9,7 @@ import { startKuroMicrophoneMeter } from './ai/audioMeter';
 import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAudioVisualizer';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
+import { liveCreationSessionStorageKey, restoreLiveCreationSession, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from './ai/responseQuality';
 import { generateCompleteLocalReply } from './ai/completeGeneration';
@@ -60,8 +61,7 @@ type ProposedDrawingPlan={id:string;drawingId:string;width:number;height:number;
 type PendingCharacterModelAction={id:string;projectId:string;summary:string;commands:CharacterModelAgentCommand[]};
 type LocalProjectChoice={id:string;name:string};
 type RecentUniverse={id:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
-type LiveCreationLogEntry={id:string;kind:'request'|'batch'|'status';label:string;status:'working'|'done'|'paused'|'error'};
-type LiveCreationSession={id:string;originalPrompt:string;batches:number;maxBatches:number;autoContinue:boolean;status:'ready'|'planning'|'drawing'|'complete'|'paused'|'error';activeSummary:string;lastError:string;log:LiveCreationLogEntry[]};
+
 function readProviderConfig(): SafeProviderConfig { const canonical={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false};try{const raw=localStorage.getItem('kuro-model-provider');if(raw!==JSON.stringify(canonical))localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));}catch{}return canonical; }
 function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function TinyMark(){return <div className="tiny-mark" aria-label="Kuro"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
@@ -100,6 +100,18 @@ export default function App(){
  useEffect(()=>{const viewport=messagesViewportRef.current;if(!viewport||!scrollSticksToBottomRef.current)return;viewport.scrollTop=viewport.scrollHeight;},[messages,working,proposedPlan,planNotice]);
  useEffect(()=>()=>{liveVoiceEnabledRef.current=false;try{stopKuroVoice();}catch{};try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;},[]);
  useEffect(()=>{if(mode!=='live'&&liveVoiceEnabledRef.current)endLiveVoiceSession('Voice session stopped when leaving Live Creation.');},[mode]);
+ useEffect(()=>{
+  if(!activeProjectId)return;
+  let restored:LiveCreationSession|null=null;
+  try{restored=restoreLiveCreationSession(localStorage.getItem(liveCreationSessionStorageKey(activeProjectId)),activeProjectId);}catch{}
+  liveSessionRef.current=restored;
+  setLiveSession(restored);
+ },[activeProjectId]);
+ useEffect(()=>{
+  if(!activeProjectId||!liveSession||liveSession.projectId!==activeProjectId)return;
+  try{localStorage.setItem(liveCreationSessionStorageKey(activeProjectId),JSON.stringify(liveSession));}
+  catch{setHistoryNotice('Live creation progress could not be saved locally. Keep the app open until the current batch is verified.');}
+ },[activeProjectId,liveSession]);
  useEffect(()=>{const media=window.matchMedia('(max-width: 600px)');const update=()=>setCompactMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  useEffect(()=>{if((['live','canvas','read','research'] as Mode[]).includes(mode))setWorkspaceToolsOpen(true);},[mode]);
  useEffect(()=>startResearchQueueRunner(),[]);
@@ -250,7 +262,8 @@ useEffect(()=>{
    persistedMessageCount.current=0;setMessages([]);setActiveUniverseId(bundle.universe.id);setActiveConversationId(bundle.homeConversation.id);setUniverseConversations([{id:bundle.homeConversation.id,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt}]);setActiveProjectId(bundle.universe.projectId);setDraft('');setMode('chat');
    try{localStorage.setItem('kuro-active-universe',bundle.universe.id);localStorage.setItem('kuro-active-conversation',bundle.homeConversation.id);localStorage.setItem('kuro-active-project',bundle.universe.projectId);}catch{}
    setCanonNotice('New isolated universe created. It cannot see other universes unless you explicitly connect them.');
-  }catch(error){setHistoryNotice('Could not create a new universe: '+(error instanceof Error?error.message:'storage error'));}
+   return bundle.universe.projectId;
+  }catch(error){setHistoryNotice('Could not create a new universe: '+(error instanceof Error?error.message:'storage error'));return undefined;}
   finally{setHistoryLoading(false);}
  }
  async function resumeUniverse(item:RecentUniverse,conversationId?:string){
@@ -274,12 +287,13 @@ useEffect(()=>{
  }
  async function openCanvas(){if(!activeProjectId){await startNewUniverse();}setRequestedDrawingId(activeDrawingId);setMode('canvas');}
  async function openLiveCreation(){
-  if(!activeProjectId){await startNewUniverse();}
+  const sessionProjectId=activeProjectId||await startNewUniverse();
+  if(!sessionProjectId)return;
   stopVoiceInputForWorkspaceSwitch();
   // Keep an in-progress, paused, failed, or completed session when the user returns
   // from chat/vault. A new task after a completed run gets its own fresh session.
-  if(!liveSessionRef.current){
-   const fresh:LiveCreationSession={id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
+  if(!liveSessionRef.current||liveSessionRef.current.projectId!==sessionProjectId){
+   const fresh:LiveCreationSession={projectId:sessionProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
    liveSessionRef.current=fresh;
    setLiveSession(fresh);
    setRequestedDrawingId('');
@@ -592,8 +606,8 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  }
  if(requestIsLive){
   const previous=liveSessionRef.current;
-  const current=!previous||previous.status==='complete'
-   ? {id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
+  const current=!previous||previous.projectId!==activeProjectId||previous.status==='complete'
+   ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
    : previous;
   const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
   liveSessionRef.current=next;setLiveSession(next);
@@ -694,6 +708,7 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
   const planId=crypto.randomUUID();
   const summary=plan.summary.trim();
   const next:LiveCreationSession={
+   projectId:activeProjectId,
    id:current?.id||crypto.randomUUID(),originalPrompt:current?.originalPrompt||text,
    batches:batchNumber,maxBatches:current?.maxBatches||4,autoContinue:current?.autoContinue??true,
    status:'drawing',activeSummary:summary,lastError:'',

@@ -29,7 +29,8 @@ export async function generateValidatedStructuredResponse<T>(
   validate: (text: string) => T,
   options: StructuredGenerationOptions = {},
 ): Promise<ValidatedStructuredResponse<T>> {
-  const maxAttempts = Math.max(1, Math.min(3, Math.floor(options.maxAttempts ?? 2)));
+  const configuredAttempts = options.maxAttempts ?? 2;
+  const maxAttempts = Number.isFinite(configuredAttempts) ? Math.max(1, Math.min(3, Math.floor(configuredAttempts))) : 2;
   let lastValidationError = "No structured response was produced.";
   let lastOutput = "";
 
@@ -69,12 +70,9 @@ export async function generateValidatedStructuredResponse<T>(
       if (request.signal?.aborted || (error instanceof Error && /cancel/i.test(error.message))) {
         throw new Error("Structured generation was cancelled.");
       }
-      if (attempt === maxAttempts) {
-        throw new Error("Kuro could not generate the structured result after " + attempt + " attempt(s): " + validationMessage(error));
-      }
-      lastValidationError = validationMessage(error);
-      lastOutput = "";
-      continue;
+      // A provider/runtime failure is not a schema failure. Retrying it can
+      // hide useful readiness/network errors and wastes time without changing input.
+      throw new Error("Kuro's structured model request failed before validation: " + validationMessage(error));
     }
 
     if (request.signal?.aborted || response.finishReason === "cancelled") {

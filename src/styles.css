@@ -532,3 +532,70 @@
 .topbar section button.save-retry:hover{background:#48212c;border-color:#a85c69}
 
 .workspace-loading{display:grid;place-items:center;min-height:55vh;color:var(--muted);font-size:13px}
+
+
+/* Adaptive studio: mobile is a companion surface, not a shrunken desktop toolbar. */
+@media(max-width:780px){
+  .mobilenav{
+    height:76px;
+    padding:7px 18px max(8px,env(safe-area-inset-bottom));
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:rgba(12,10,20,.94);
+    border-top:1px solid rgba(183,151,255,.16);
+    box-shadow:0 -12px 40px rgba(0,0,0,.28);
+    backdrop-filter:blur(24px) saturate(140%);
+  }
+  .mobilenav button{
+    flex:1;
+    min-width:0;
+    height:52px;
+    gap:5px;
+    font-size:10px;
+    letter-spacing:.1px;
+    color:#9288a8;
+    transition:color .18s ease, transform .18s ease;
+  }
+  .mobilenav button.active{color:#d5c2ff}
+  .mobilenav button:active{transform:scale(.96)}
+  .mobilenav .mobile-orb-nav{position:relative;top:-12px;gap:4px;color:#d9c7ff}
+  .mobile-orb-core{
+    width:52px;height:52px;display:grid;place-items:center;
+    border-radius:50%;
+    border:1px solid rgba(214,190,255,.78);
+    background:radial-gradient(circle at 35% 25%,#f2e8ff 0,#b79aff 18%,#7550c7 45%,#241638 76%);
+    box-shadow:0 0 0 5px rgba(163,126,242,.09),0 0 25px rgba(159,117,255,.38),inset 0 0 15px rgba(255,255,255,.25);
+    animation:kuro-orb-breathe 3.8s ease-in-out infinite;
+  }
+  .mobile-orb-core .mark{width:29px;height:29px;border-radius:50%;box-shadow:none;background:transparent}
+  .mobile-orb-core .mark img{width:100%;height:100%;object-fit:contain}
+  .mobile-orb-nav.active .mobile-orb-core{box-shadow:0 0 0 6px rgba(163,126,242,.13),0 0 34px rgba(159,117,255,.58),inset 0 0 18px rgba(255,255,255,.3)}
+  .app main{padding-bottom:76px}
+  .conversation{min-height:calc(100dvh - 133px);padding-inline:16px}
+  .composewrap{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .topbar{padding-inline:16px}
+  .topbar>div{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar section .user{display:none}
+  .home-hero{grid-template-columns:minmax(0,1fr)}
+  .home-hero-art{display:none}
+  .home-hero-copy h1{font-size:clamp(32px,9vw,48px)}
+  .home-hero-actions{display:grid;grid-template-columns:1fr}
+  .home-hero-actions button{justify-content:center;min-height:44px}
+  .home-section-heading{gap:10px}
+  .home-section-heading h2{font-size:20px}
+  .universe-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .universe-cover{min-height:112px}
+  .recent-conversation-date{display:none}
+  .home-bottom-grid{grid-template-columns:1fr}
+  .alt{padding:20px 14px}
+  .alt .althead h1{font-size:25px}
+}
+@keyframes kuro-orb-breathe{
+  0%,100%{transform:translateY(0) scale(1);filter:saturate(1)}
+  50%{transform:translateY(-2px) scale(1.035);filter:saturate(1.14)}
+}
+@media(prefers-reduced-motion:reduce){
+  .mobile-orb-core{animation:none}
+  .mobilenav button{transition:none}
+}

@@ -80,4 +80,16 @@ describe("chat-to-live-creation intent", () => {
   it("does not activate on an empty request", () => {
     expect(shouldStartLiveCreationFromChat("  ")).toBe(false);
   });
+  it("routes varied creative formats into Live Creation without hijacking research", () => {
+    expect(shouldStartLiveCreationFromChat("Let's create a Webtoon about a haunted train.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Write a doujin one-shot about two original rivals.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Make me a 4-panel comic strip.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Storyboard a visual novel scene with two characters.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Create a graphic novel page.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Make an illustrated picture book spread.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Let's brainstorm ideas for a Webtoon.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Research doujin history and conventions.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't start the one-shot yet; let's finish the cast.")).toBe(false);
+  });
+
 });

@@ -1000,3 +1000,10 @@ a:focus-visible,
     max-width: 100%;
   }
 }
+
+
+/* Keep the drawing route constrained by the app column at every desktop breakpoint. */
+.drawing-alt{width:100%;min-width:0;max-width:1400px}
+.drawing-alt .draw-toolbar{width:100%;min-width:0;max-width:100%}
+.drawing-alt .draw-toolgroup,.drawing-alt .draw-colors,.drawing-alt .draw-actions{min-width:0;max-width:100%;flex-wrap:wrap}
+.drawing-alt .althead>div{min-width:0;max-width:100%}

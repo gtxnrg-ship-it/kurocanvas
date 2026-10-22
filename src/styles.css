@@ -340,6 +340,37 @@
 .reader-page-meta time{grid-column:2;margin-top:4px;color:#83768f;font-size:9px}
 .reader-page-meta>button{grid-column:2;justify-self:start;display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:8px 11px;border:1px solid #604977;border-radius:8px;background:#292036;color:#e6d4fa;font-size:10px;cursor:pointer}.reader-page-meta>button:hover{background:#362746;border-color:#9474b3}.reader-page-meta>button:focus-visible{outline:2px solid #c5a4f2;outline-offset:2px}
 .reader-page-art{display:flex;justify-content:center;padding:clamp(12px,3vw,28px);background:#17131e}
+
+/* Keep long Reader strips cheap to paint and reserve space for pages outside the viewport. */
+.reader-page {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 620px;
+}
+.reader-page-art {
+  min-height: 190px;
+}
+.reader-preview-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 170px;
+  width: 100%;
+  margin: 0;
+  padding: 18px;
+  color: #a99bb7;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.reader-preview-error {
+  color: #ffb6c2;
+  border: 1px solid rgba(255, 124, 153, .25);
+  border-radius: 8px;
+  background: rgba(80, 24, 43, .18);
+}
+
 .reader-page-art img{display:block;width:min(100%,820px);height:auto;max-height:78vh;object-fit:contain;border:1px solid #342b3e;border-radius:4px;background:#fff}
 @media(max-width:620px){.reader-workspace{padding:20px 13px 32px}.reader-workspace-head{flex-direction:column}.reader-workspace-head>button{width:100%}.reader-page-meta{padding:12px;column-gap:8px}.reader-page-art{padding:8px}}
 

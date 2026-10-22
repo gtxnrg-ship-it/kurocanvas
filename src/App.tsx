@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import MessageRenderer from './chat/MessageRenderer';
 import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, prepareLocalTinyModel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
+import { clearRemoteModelCredential, readRemoteModelCredential, saveRemoteModelCredential } from './ai/providerCredentials';
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
 import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, shouldEndLiveSpeechSession, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
@@ -63,13 +64,38 @@ import { extractCreativeInfluenceResearch } from './research/inspirationResearch
 const RelationshipMemoryStudio = lazy(() => import('./canon/RelationshipMemoryStudio'));
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Search, Layers3, Library, MessageCircle, Mic, MicOff, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';
 type Mode='home'|'chat'|'canvas'|'live'|'read'|'research'|'vault'; type Msg={role:'user'|'kuro';text:string;tool?:string;references?:ReferenceSearchResult[];referenceProjectId?:string;researchTaskId?:string;researchProjectId?:string}; type RecentConversation={id:string;universeId:string;universeTitle:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
-type SafeProviderConfig={baseUrl:string;modelUri:string;allowInsecureLocalhost:boolean;supportsVision:boolean};
+type SafeProviderConfig={baseUrl:string;modelUri:string;allowInsecureLocalhost:boolean;supportsVision:boolean;supportsStructuredOutput:boolean};
 type ProposedDrawingPlan={id:string;drawingId:string;width:number;height:number;summary:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean};
 type PendingCharacterModelAction={id:string;projectId:string;summary:string;commands:CharacterModelAgentCommand[]};
 type LocalProjectChoice={id:string;name:string};
 type RecentUniverse={id:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
 
-function readProviderConfig(): SafeProviderConfig { const canonical={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false};try{const raw=localStorage.getItem('kuro-model-provider');if(raw!==JSON.stringify(canonical))localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));}catch{}return canonical; }
+function readProviderConfig(): SafeProviderConfig {
+ const canonical:SafeProviderConfig={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false,supportsStructuredOutput:false};
+ try {
+  const raw=localStorage.getItem('kuro-model-provider');
+  if(!raw){localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));return canonical;}
+  const parsed=JSON.parse(raw) as Record<string,unknown>;
+  if(parsed.baseUrl===LOCAL_TINY_BASE_URL&&parsed.modelUri===LOCAL_TINY_MODEL_URI){
+   localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));
+   return canonical;
+  }
+  if(typeof parsed.baseUrl==='string'&&parsed.baseUrl.trim().length>0&&parsed.baseUrl.length<=2048
+   &&typeof parsed.modelUri==='string'&&parsed.modelUri.trim().length>0&&parsed.modelUri.length<=512){
+   const safe:SafeProviderConfig={
+    baseUrl:parsed.baseUrl.trim().replace(/\\/+$/,''),
+    modelUri:parsed.modelUri.trim(),
+    allowInsecureLocalhost:parsed.allowInsecureLocalhost===true,
+    supportsVision:parsed.supportsVision===true,
+    supportsStructuredOutput:parsed.supportsStructuredOutput===true,
+   };
+   // Migrate away any legacy credential-like keys before saving the safe config.
+   localStorage.setItem('kuro-model-provider',JSON.stringify(safe));
+   return safe;
+  }
+ }catch{}
+ return canonical;
+}
 function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function TinyMark(){return <div className="tiny-mark" aria-label="Kuro"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function restoreChatMessage(record:{role:string;content:string;metadata?:Record<string,unknown>},projectId:string):Msg{

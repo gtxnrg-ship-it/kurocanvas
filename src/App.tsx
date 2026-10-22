@@ -208,18 +208,21 @@ function toggleVoiceInput(){
   recognition.continuous=false;
   recognition.interimResults=true;
   recognition.onresult=event=>{
+   if(speechRecognitionRef.current!==recognition)return;
    const transcript=transcriptFromSpeechEvent(event);
    if(!transcript)return;
    const base=speechDraftBaseRef.current;
-   setDraft([base,transcript].filter(Boolean).join(base?'\\n':''));
+   setDraft([base,transcript].filter(Boolean).join(base?'\n':''));
   };
   recognition.onerror=event=>{
+   if(speechRecognitionRef.current!==recognition)return;
    const message=describeSpeechRecognitionError(event.error);
    speechStatusRef.current=message;
    setProviderNotice(message);
   };
   recognition.onend=()=>{
-   if(speechRecognitionRef.current===recognition)speechRecognitionRef.current=null;
+   if(speechRecognitionRef.current!==recognition)return;
+   speechRecognitionRef.current=null;
    setVoiceInputActive(false);
    setProviderNotice(speechStatusRef.current||'Voice input finished. Review the transcript before sending. Browser speech recognition may use an external service; it is separate from Qwen.');
   };

@@ -1,0 +1,133 @@
+import type { CanonBundle } from "./universe";
+import type { ArtDirectionBible } from "./artDirection";
+import type { ProjectStyleBible } from "./styleBible";
+import type { CharacterEvolutionState } from "./characterEvolution";
+import type { RelationshipRecord } from "./relationshipMemory";
+import type { ResearchTaskRecord } from "../research/researchQueue";
+
+export interface ChapterReadinessInput {
+  hasUniverse: boolean;
+  canon?: Pick<CanonBundle, "entities" | "facts">;
+  artDirection?: Pick<ArtDirectionBible, "title" | "premise" | "genres" | "visualStyle">;
+  styleBible?: Pick<ProjectStyleBible, "characterStates">;
+  characterTimelines?: Array<Pick<CharacterEvolutionState, "characterId" | "timelineId" | "storyOrder" | "status">>;
+  relationships?: Array<Pick<RelationshipRecord, "characterAId" | "characterBId">>;
+  researchTasks?: Array<Pick<ResearchTaskRecord, "status" | "sources">>;
+  requiresHistoricalResearch?: boolean;
+}
+
+export interface ChapterReadinessGap {
+  id: "universe" | "world" | "cast" | "art-direction" | "character-design" | "timeline" | "relationships" | "research" | "verification";
+  message: string;
+}
+
+export interface ChapterReadinessReport {
+  ready: boolean;
+  approvedCharacterCount: number;
+  approvedWorldFactCount: number;
+  approvedRelationshipCount: number;
+  gaps: ChapterReadinessGap[];
+}
+
+const clean = (value: unknown): string => typeof value === "string" ? value.trim() : "";
+const normalize = (value: string): string => value.normalize("NFKC").toLocaleLowerCase().trim();
+const WORLD_FACT_PREDICATE = /world|setting|rule|location|history|timeline|culture|power|faction|geograph|technolog|conflict|government|magic|religion|school|nation|era|city|kingdom|country|economy|language|politic|climate|calendar|species|system|tradition|law|custom/i;
+const VISUAL_TRAITS = ["age", "hair", "eyes", "scars", "outfit", "body", "accessories", "injuries", "other"] as const;
+
+/**
+ * Deterministic preflight for sequential chapter production. Discussion remains open at every
+ * stage, but auto-drawing is held until approved world, cast, timeline, and visual foundations
+ * exist. This is a minimum completeness gate, not an AI judgement about artistic quality.
+ */
+export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterReadinessReport {
+  const gaps: ChapterReadinessGap[] = [];
+  if (!input.hasUniverse) {
+    gaps.push({ id: "universe", message: "Create or select the universe that owns this chapter, so its canon and reveal rules stay isolated." });
+  }
+
+  const canon = input.canon;
+  const entities = canon?.entities ?? [];
+  const approvedCharacters = entities.filter(entity => entity.status === "approved" && normalize(entity.kind) === "character");
+  const approvedCharacterIds = new Set(approvedCharacters.map(entity => entity.id));
+  const approvedCharacterNames = new Set(approvedCharacters.flatMap(entity => [entity.name, ...(entity.aliases ?? [])].map(normalize)));
+  const approvedWorldEntities = entities.filter(entity => entity.status === "approved" && normalize(entity.kind) !== "character");
+  const worldEntityIds = new Set(approvedWorldEntities.map(entity => entity.id));
+  const approvedWorldFacts = (canon?.facts ?? []).filter(fact =>
+    fact.status === "approved" && (worldEntityIds.has(fact.subjectId) || WORLD_FACT_PREDICATE.test(clean(fact.predicate)))
+  );
+
+  if (!canon || approvedWorldEntities.length === 0 || approvedWorldFacts.length < 3) {
+    gaps.push({
+      id: "world",
+      message: "Approve the world's core setting/rules and at least three source-grounded or explicitly fictional world facts in World Bible.",
+    });
+  }
+  if (approvedCharacters.length === 0) {
+    gaps.push({ id: "cast", message: "Approve at least one character in World Bible; proposed names alone are not stable canon." });
+  }
+
+  const artDirection = input.artDirection;
+  if (!clean(artDirection?.title) || !clean(artDirection?.premise) || !clean(artDirection?.genres) || !clean(artDirection?.visualStyle)) {
+    gaps.push({ id: "art-direction", message: "Complete the project's title, premise, genres, and unified visual style in Art Direction." });
+  }
+
+  const approvedVisualState = (input.styleBible?.characterStates ?? []).some(state => {
+    if (state.status !== "approved" || !approvedCharacterNames.has(normalize(state.characterName))) return false;
+    const describedTraits = VISUAL_TRAITS.filter(key => clean(state[key])).length;
+    return describedTraits >= 3;
+  });
+  if (!approvedVisualState) {
+    gaps.push({ id: "character-design", message: "Approve a character visual state in Style Bible with at least three established traits (such as hair, eyes, outfit, age, or silhouette)." });
+  }
+
+  const approvedTimeline = (input.characterTimelines ?? []).some(state =>
+    state.status === "approved" && approvedCharacterIds.has(state.characterId) &&
+    clean(state.timelineId).length > 0 && Number.isFinite(state.storyOrder) && state.storyOrder >= 0
+  );
+  if (!approvedTimeline) {
+    gaps.push({ id: "timeline", message: "Approve at least one character state with a timeline and story order in Character Timeline." });
+  }
+
+  const approvedRelationships = (input.relationships ?? []).filter(record =>
+    approvedCharacterIds.has(record.characterAId) && approvedCharacterIds.has(record.characterBId)
+  );
+  if (approvedCharacters.length >= 2 && approvedRelationships.length === 0) {
+    gaps.push({ id: "relationships", message: "Record at least one relationship between approved cast members so the first scene does not invent their dynamic." });
+  }
+
+  if (input.requiresHistoricalResearch) {
+    const hasSourceBackedResearch = (input.researchTasks ?? []).some(task =>
+      task.status === "completed" && Array.isArray(task.sources) && task.sources.length > 0
+    );
+    if (!hasSourceBackedResearch) {
+      gaps.push({ id: "research", message: "Complete at least one source-backed research task before asking for historical accuracy or real-world factual detail." });
+    }
+  }
+
+  return {
+    ready: gaps.length === 0,
+    approvedCharacterCount: approvedCharacters.length,
+    approvedWorldFactCount: approvedWorldFacts.length,
+    approvedRelationshipCount: approvedRelationships.length,
+    gaps,
+  };
+}
+
+export function requiresHistoricalResearchForChapter(message: string): boolean {
+  return /\b(?:historically accurate|historical accuracy|historically correct|fact[- ]?check(?:ed|ing)?|accurate to (?:the )?(?:real )?history|real[- ]world accuracy|factual accuracy)\b/i.test(message);
+}
+
+/** Explicit escape hatch for a knowingly non-canon thumbnail; ordinary chapter requests do not bypass readiness. */
+export function requestsProvisionalChapterOverride(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  if (!text) return false;
+  if (/\b(?:don't|do not|not yet|never|let's not)\b[\s\S]{0,80}\b(?:start|begin|write|draw|create|storyboard|override|bypass)\b/i.test(text)) return false;
+  return /\b(?:rough|provisional|experimental)\b[\s\S]{0,70}\b(?:storyboard|chapter|scene)\b[\s\S]{0,50}\banyway\b/i.test(text)
+    || /\b(?:bypass|override)\b[\s\S]{0,60}\b(?:foundation|readiness|worldbuilding|world-building)\b/i.test(text);
+}
+
+export function formatChapterReadinessMessage(report: ChapterReadinessReport): string {
+  if (report.ready) return "The chapter foundation check is complete. Kuro can begin the approved storyboard.";
+  const details = report.gaps.map((gap, index) => (index + 1) + ". " + gap.message).join("\n");
+  return "I’m holding chapter production for now. We can keep brainstorming and researching, but Kuro should not start writing or drawing the chapter while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction, Character Timeline, Style Bible, and relationship records, then ask to start the chapter again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
+}

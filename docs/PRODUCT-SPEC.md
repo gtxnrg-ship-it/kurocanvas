@@ -71,9 +71,20 @@ Versioned schemas for bounded strokes/points, paths, lines, ellipses, rectangles
 - Destructive edits, overwrites, bulk operations, and canon retcons require explicit approval.
 - Batch long work and yield to rendering/input. Errors preserve recoverable state and identify the failed action.
 
-## 5. Panel-by-panel manga production
+## 5. Format-aware creative production
 
-Support infinite/virtualized vertical Webtoon scroll and page-based layouts, chapters, scenes, panel groups, gutters, panel order, reading direction, and pacing. Start with rough stick-figure blocking and composition thumbnails on the actual canvas. Progress through gesture/pose, anatomy/volume, silhouettes, perspective, environments, props, linework, value/color, lighting, effects, and polish in reviewable stages.
+Kuro is not a manga-only tool. The creator chooses the medium and format, or describes a custom form; Kuro adapts planning, layout, pacing, reading direction, canvas profile, lettering, and continuity checks to that brief. Supported target conventions include:
+
+- **Webtoon / vertical-scroll comics:** long vertical strips, varied panel heights, phone-first pacing, intentional gutters, and scroll reveals.
+- **Manga pages and doujin / fan-created comics:** paginated layouts, explicit reading direction, panel order, source-aware inspiration, and creator-defined canon. Never trace or reproduce a source's specific page, protected character design, or signature composition.
+- **Short one-shots:** compact standalone stories with setup, turn, and resolution, without assuming a long serialized chapter arc.
+- **Comic strips and graphic novels:** horizontal 3–4 panel strips, general comic pages, or cinematic page rhythms without forcing manga conventions.
+- **Visual-novel scene boards, animation/film storyboards, and shot sequences:** staging, camera angle, action continuity, character placement, scene/background cues, and reserved dialogue areas. A storyboard is not a playable game, animation, or rendered film.
+- **Illustrated picture books, character/concept sheets, and custom hybrid formats:** composition and text areas suited to the brief, with creator-controlled exceptions to defaults.
+
+The project must keep the *selected format* distinct from the *story itself*. Format defaults may guide an initial canvas, but users can override canvas size, layout, page/strip mode, reading direction, panel density, and visual conventions. A prompt that asks for brainstorming or research must not start production. A request to produce reader-facing output waits for the appropriate approved world/character/visual foundations, unless the user explicitly requests a clearly marked provisional experiment.
+
+Start with rough blocking and composition thumbnails on the actual editable canvas. Progress through gesture/pose, anatomy/volume, silhouettes, perspective, environments, props, linework, value/color, lighting, effects, lettering, and polish in reviewable stages. Native editable operations and staged generation do not imply that a limited text-only model can independently produce publication-ready illustration; unsupported steps must be disclosed rather than simulated with false progress.
 
 Users can inspect/edit each panel at every stage, lock approved panels, compare versions, revise only a selected stage, and preserve accepted work. Reuse poses, characters, clothing, props, backgrounds, camera views, and templates with provenance/versioning. Check identity, proportions, scars, hairstyle, outfit continuity, screen direction, geography, injuries, and object positions against canon and neighboring panels. Support speech/thought bubbles, tails, narration, SFX, lettering styles, balloon order, text fit, and reading-direction validation. Panel-level revision must not damage unrelated panels.
 

@@ -16,10 +16,10 @@ export const KURO_SPEECH_VOICES = [
 /** Public Fish Audio community profiles chosen after listening to the user's references. */
 export const KURO_FISH_VOICES = [
   { id: "84644c87811b4279940848ec184e0ffe", label: "SAKURA · bright, expressive Japanese voice style", sampleUrl: "https://fish.audio/ja/m/84644c87811b4279940848ec184e0ffe/" },
-  { id: "8f5b0abbfa464c3fab065588dbfd48de", label: "Chiaki Nanami · gentle, soft-spoken, conversational", sampleUrl: "https://fish.audio/ja/m/8f5b0abbfa464c3fab065588dbfd48de/" },
-  { id: "cbe13152c7ff4da98be9a95d448a1f39", label: "Mitsuri Kanroji · affectionate, bright, expressive", sampleUrl: "https://fish.audio/ja/m/cbe13152c7ff4da98be9a95d448a1f39/" },
+  { id: "46063b8e2f754955b60c1fe78e14304f", label: "Chiaki Nanami · gentle, soft-spoken, conversational", sampleUrl: "https://fish.audio/m/46063b8e2f754955b60c1fe78e14304f/" },
+  { id: "7f4b9a6850dc4a138c78b3028f4f30ed", label: "Mitsuri Kanroji · affectionate, bright, expressive", sampleUrl: "https://fish.audio/m/7f4b9a6850dc4a138c78b3028f4f30ed/" },
 ] as const;
-export const KURO_FISH_AUDIO_MODEL = "s2.1-pro-free";
+export const KURO_FISH_AUDIO_MODEL = "drama-3";
 export const KURO_FISH_AUDIO_TTS_ENDPOINT = "https://api.fish.audio/v1/tts";
 export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "" };
 
@@ -28,7 +28,7 @@ export function readKuroSpeechPreferences(): KuroSpeechPreferences {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as Partial<KuroSpeechPreferences> | null;
     const engine: KuroSpeechEngine = stored?.engine === "system" || stored?.engine === "fish" ? stored.engine : "kokoro";
     const voiceList = engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES;
-    const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : DEFAULT_KURO_SPEECH_PREFERENCES.voice;
+    const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id;
     const voice = voiceList.some(item => item.id === stored?.voice) ? stored!.voice! : fallbackVoice;
     const rate = typeof stored?.rate === "number" && Number.isFinite(stored.rate) ? Math.max(0.8, Math.min(1.2, stored.rate)) : 1;
     const apiKey = typeof stored?.apiKey === "string" ? stored.apiKey.trim().slice(0, 1024) : "";
@@ -40,7 +40,7 @@ export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
     engine: value.engine === "system" || value.engine === "fish" ? value.engine : "kokoro",
     voice: (value.engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES).some(item => item.id === value.voice)
       ? value.voice
-      : value.engine === "fish" ? KURO_FISH_VOICES[0].id : DEFAULT_KURO_SPEECH_PREFERENCES.voice,
+      : value.engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id,
     rate: Number.isFinite(value.rate) ? Math.max(0.8, Math.min(1.2, value.rate)) : 1,
     apiKey: typeof value.apiKey === "string" ? value.apiKey.trim().slice(0, 1024) : "",
   };

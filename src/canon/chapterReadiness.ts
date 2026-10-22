@@ -125,6 +125,41 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
   };
 }
 
+/**
+ * Hold reader-facing story output until the project's world, cast, visual direction, and
+ * character continuity are approved. Character profiles/backstories, research, brainstorming,
+ * worldbuilding, and design exploration remain available during foundation work.
+ */
+export function requiresApprovedStoryFoundations(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  if (!text) return false;
+
+  // An explicit deferral is not a request to start production. A later positive clause can
+  // still request a different deliverable (e.g. "don't write yet, but plan the opening scene").
+  const deferredAction = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,80}?\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.exec(text);
+  if (deferredAction) {
+    const remainder = text.slice(deferredAction.index + deferredAction[0].length);
+    const contrastingClause = remainder.match(/\b(?:but|instead|just|actually|rather|however)\b([\s\S]{0,160})/i)?.[1] ?? "";
+    if (!/\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(contrastingClause)) {
+      return false;
+    }
+  }
+
+  const outputAction = /\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(text);
+  if (!outputAction) return false;
+
+  const storyArtifact = /\b(?:chapter|scene|episode|page|panel|storyboard|comic|manga|webtoon|story|storyline|plot\s+beat|story\s+arc|story\s+sequence|sequence|narrative|script|dialogue|dialog|conversation|monologue|narration|prose|paragraph|opening|ending|prologue|epilogue|fight\s+sequence|fight\s+scene|battle\s+scene|character\s+entrance|first\s+meeting|encounter)\b/i.test(text);
+  if (!storyArtifact) return false;
+
+  // Foundational documents are part of the preparation phase, not chapter production.
+  const foundationDocument = /\b(?:character\s+(?:backstory|profile|biography|bio|description|sheet|model\s+sheet|design\s+sheet)|world\s+(?:bible|rules|history|notes)|lore|timeline|relationship\s+(?:map|history|profile)|setting\s+notes)\b/i.test(text);
+  const readerFacingArtifact = /\b(?:chapter|scene|episode|page|panel|storyboard|comic|manga|webtoon|prose|dialogue|dialog|conversation|monologue|narration|paragraph|opening|ending|prologue|epilogue|fight\s+sequence|fight\s+scene|battle\s+scene|character\s+entrance|first\s+meeting|encounter)\b/i.test(text);
+  if (foundationDocument && !readerFacingArtifact) return false;
+
+  // Private brainstorming stays unrestricted unless the user explicitly requests an artifact.
+  return true;
+}
+
 export function requiresHistoricalResearchForChapter(message: string): boolean {
   return /\b(?:historically accurate|historical accuracy|historically correct|fact[- ]?check(?:ed|ing)?|accurate to (?:the )?(?:real )?history|real[- ]world accuracy|factual accuracy)\b/i.test(message);
 }
@@ -141,5 +176,5 @@ export function requestsProvisionalChapterOverride(message: string): boolean {
 export function formatChapterReadinessMessage(report: ChapterReadinessReport): string {
   if (report.ready) return "The chapter foundation check is complete. Kuro can begin the approved storyboard.";
   const details = report.gaps.map((gap, index) => (index + 1) + ". " + gap.message).join("\n");
-  return "I’m holding chapter production for now. We can keep brainstorming and researching, but Kuro should not start writing or drawing the chapter while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction, Character Timeline, Style Bible, and relationship records, then ask to start the chapter again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
+  return "I’m holding story production for now. We can keep brainstorming and researching, but Kuro should not start writing dialogue, scenes, or other reader-facing material while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction, Character Timeline, Style Bible, and relationship records, then ask Kuro to start story production again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
 }

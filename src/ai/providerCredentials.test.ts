@@ -34,7 +34,8 @@ describe("remote model credentials", () => {
     saveRemoteModelCredential("https://model.example/v1", "secret-token", true);
     saveRemoteModelCredential("https://model.example/v1", " ", true);
     expect(readRemoteModelCredential("https://model.example/v1")).toBe("");
-    saveRemoteModelCredential("https://model.example/v1", "secret-token");
+    expect(hasRemoteModelConsent("https://model.example/v1")).toBe(true);
+    saveRemoteModelCredential("https://model.example/v1", "secret-token", true);
     clearRemoteModelCredential();
     expect(readRemoteModelCredential("https://model.example/v1")).toBe("");
   });

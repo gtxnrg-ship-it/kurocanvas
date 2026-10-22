@@ -1,7 +1,7 @@
 # Kuro Canvas
 
 > 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  
-> The rolling release is updated only after the Android workflow passes its checks and assembles an APK. The release page identifies the exact source commit for that binary; while a newer build is running, the download can temporarily lag behind `main`. This is a debug-signed test package, not a production or Play Store release, and it has not been smoke-tested on a physical device in this audit.
+> **Latest published APK source:** `434464344e7f5017dd3899a11cc677828804af0f` · **SHA-256:** `a4f793051d521247c6cda71878a1794ce23e04d92fdb2b338f27756dd72851d4`. The rolling release is updated only after the Android workflow passes and assembles an APK; while a newer build is running, it can temporarily lag behind `main`. This is debug-signed test software, not a production or Play Store release. It has not been smoke-tested on a physical device in this audit.
 
 **Create · Draw · Tell · Together.**
 
@@ -40,7 +40,9 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Rich chat replies and safe Markdown rendering | Implemented | Links open externally; raw HTML is not executed and arbitrary embedded image URLs are not auto-loaded |
 | Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
 | Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
-| Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete | 
+| Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
+| Nonlinear character visual chronology | Implemented in main | The Style Bible now distinguishes a chapter-targeted request from explicit in-world story order; browser-level approval/reload/next-chapter validation remains open |
+| Project JSON export download | Browser/WebView revoke timing fixed in main | Delayed object-URL cleanup has tests, but exporting and opening a real backup on Android/iOS still needs smoke testing | 
 | Chat-to-Live-Creation routing | Implemented in main | Explicit draw/visual artifact requests route from chat; ambiguous phrases still need creator direction, and only supported editable native actions can execute |
 | Qwen3-0.6B local model | Experimental | The only active text-only model; runs in a browser worker with cancellation and local speed benchmark. Quality, download reliability and Android performance still need real-device verification |
 | Replaceable model adapter | Implemented | Future upgrades use the `ModelProvider` seam and require tests/benchmarks; no model carousel or silent remote fallback |

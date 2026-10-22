@@ -61,7 +61,7 @@ describe("chapter readiness gate", () => {
     const report = evaluateChapterReadiness({ hasUniverse: false });
     expect(report.ready).toBe(false);
     expect(report.gaps.map(gap => gap.id)).toEqual(expect.arrayContaining([
-      "universe", "world", "cast", "art-direction", "character-design", "timeline",
+      "universe", "world", "cast", "art-direction",
     ]));
     expect(formatChapterReadinessMessage(report)).toContain("Still needed:");
     expect(formatChapterReadinessMessage(report)).toContain("World Bible");

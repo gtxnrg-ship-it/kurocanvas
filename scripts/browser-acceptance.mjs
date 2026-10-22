@@ -85,7 +85,7 @@ try {
     await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
     await toolsToggle.click();
-    await page.getByRole('button', { name: 'Drawing canvas' }).click();
+    await page.getByRole('button', { name: 'Drawing canvas', exact: true }).click();
     const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
     await canvas.waitFor({ state: 'visible', timeout: 20000 });
     await page.waitForFunction(() => {

@@ -40,6 +40,10 @@ describe("Kuro request-aware response quality", () => {
     expect(guidance).toMatch(/fenced code blocks/i);
     expect(guidance).toMatch(/avoid a heading on every paragraph/i);
     expect(guidance).toMatch(/Do not emit raw HTML/i);
+    expect(guidance).toMatch(/COLLABORATIVE CONVERSATION/i);
+    expect(guidance).toMatch(/prematurely formalize/i);
+    expect(guidance).toMatch(/CONTEXTUAL UNDERSTANDING/i);
+    expect(guidance).toMatch(/without defending the previous answer/i);
   });
 
   it("asks Kuro to understand imperfect English and distinguish author intent from reader-facing reveals", () => {

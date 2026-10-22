@@ -19,7 +19,7 @@ This is an evidence-backed audit snapshot, not a claim that every possible defec
 
 **Acceptance principle:** chat is the front door and orchestration surface. Specialist views are available when useful, but the user should not have to manually orchestrate the application.
 
-## Findings and changes made on this audit branch
+## Findings and changes merged into current main
 
 | Priority | Finding | Evidence and impact | Action on current main |
 |---|---|---|---|
@@ -31,13 +31,13 @@ This is an evidence-backed audit snapshot, not a claim that every possible defec
 | P2 copy accuracy | **The chat side panel called itself “LIVE WORKSPACE” while showing a saved-document preview.** | `WorkspacePreview.tsx` loads the persisted drawing and regenerates an SVG after storage-change notifications. Its own notice accurately says it is saved artwork, not a live 3D viewport; the panel title was more suggestive than the implementation. | Renamed the panel to “SAVED CANVAS PREVIEW”. The dedicated Live Creation canvas remains the place to watch actual drawing actions. |
 | P1 orchestration | **A visual request from chat did not itself enter Live Creation.** | `send()` treated requests as live only when the user had already navigated to the Live Creation view. An ordinary character-design conversation could require the user to understand and open the specialist mode manually. | Added a conservative intent matcher for explicit canvas requests and visual deliverables (character sheets, storyboards, panels, maps, portraits, and similar work). It switches to Live Creation only for a clear visual-production request; ordinary brainstorming and research remain in chat. Added unit tests for both paths. |
 
-Current status: the changes described in this section are merged to `main` through PR #153. Exact-main typecheck, test suite and production build passed on SHA `c924d39fe67b`; automated test success is not proof of hands-on device acceptance.
+Current status: the original chat-first fixes are in main through PR #153. Subsequent main changes expand natural visual-request routing through PR #156, protect character-revision chronology through PR #157, and fix chapter-vs-story-order filtering plus JSON download timing through PR #158. At current source SHA `434464344e7f5017dd3899a11cc677828804af0f`, both CI workflows and preview build passed; Project checks recorded 71 test files / 541 tests, TypeScript and production build succeeded. The latest-source Android APK build was still running. Automated success is not proof of hands-on device acceptance.
 
 ## Important gaps against the original vision
 
 ### P0 — One coherent creation journey is not yet demonstrated
 
-The code has distinct Home, Chat, Live Creation, Drawing Canvas, Reader, Research Lab and Creative Vault views. The audit branch now routes explicit canvas/artifact requests straight from Chat into Live Creation, which removes a manual navigation step. That still does **not** prove the entire brainstorm → research → approved world → character design → live native drawing → save character to world/vault → story outline/draft workflow end to end.
+The code has distinct Home, Chat, Live Creation, Drawing Canvas, Reader, Research Lab and Creative Vault views. Main now routes explicit canvas/artifact requests from Chat into Live Creation. PR #156 added direct “draw her” style and broader character-look requests; PR #158 extended this to natural appearance edits such as outfit/hair/scar changes, while preserving negation and keeping personality/worldbuilding discussions in chat. That still does **not** prove the entire brainstorm → research → approved world → character design → live native drawing → save character to world/vault → story outline/draft workflow end to end.
 
 A browser-level acceptance test must prove this path from a fresh install and a returning project. In particular, verify when the user asks “make this character now” that Kuro can initiate a real creation session from the conversation, show incremental editable work, and offer clear approval into the correct project's character/world records. Do not assume this works merely because the individual studio components exist.
 
@@ -61,7 +61,7 @@ The current session also has a bounded batch count. Verify that hitting the limi
 
 The merged PR #155 adds a post-creation **Save design** action. It links the saved drawing to a proposed story-memory visual reference, adds a proposed character entity for a new character, and adds a proposed visual state to the active project's style bible. It supports a new appearance for an existing character without replacing that character's approved identity. The handoff asks for creator-confirmed appearance details, protects project scope, blocks duplicate drawing links, and attempts rollback if the three storage writes fail partway. These entries are proposals, never auto-approved canon.
 
-This removes the manual asset-linking gap in source, but doesn't prove that approved details are consistently retrieved during chapter writing. Browser/Android acceptance must still verify World & Vault shows the record, approval state persists after reload, the linked drawing opens, retcon/revision works, and the next chapter uses the approved name, age, outfit, scars, injuries and timeline state.
+This removes the manual asset-linking gap in source, but doesn't prove that approved details are consistently retrieved during chapter writing. PR #157 also prevents an existing character's later visual version from silently defaulting to story order zero. PR #158 adds integration tests that check proposals stay out of writing context until approved and that later visual states do not leak into earlier chapters. Browser/Android acceptance must still verify World & Vault shows the record, approval state persists after reload, the linked drawing opens, retcon/revision works, and a subsequent chapter uses the approved name, age, outfit, scars, injuries and timeline state.
 
 ### P1 — The “simple on a phone” requirement is still a device acceptance task
 
@@ -69,19 +69,19 @@ Mobile CSS intentionally makes the canvas non-interactive in the compact compani
 
 ### P1 — Voice is not ready to be called integrated until hardware checks pass
 
-Voice profile/accent and speech-input reliability improvements are merged through [PR #154](https://github.com/gtxnrg-ship-it/kurocanvas/pull/154) and passed both automated workflows before merge. The older [PR #152](https://github.com/gtxnrg-ship-it/kurocanvas/pull/152) is still non-mergeable and must not be blindly merged; the current main already contains the live audio visualizer/session path, so compare its unique delta before closing or replacing it. Fish Audio requires the user's own API key/network and receives spoken reply text; browser speech recognition may process audio off-device. The selected voice profiles share one Kuro personality, and accent choices are prompt-level directions, not guaranteed acoustic results. Physical Android checks for consent, key handling, English intelligibility, interruption, permissions, background/resume and audio playback are still required.
+Voice profile/accent and speech-input reliability improvements are merged through [PR #154](https://github.com/gtxnrg-ship-it/kurocanvas/pull/154) and passed both automated workflows before merge. Older voice PRs #151 and #152 were closed as superseded by current main; their stale app/settings snapshots must not be merged over the integrated voice path. Fish Audio requires the user's own API key/network and receives spoken reply text; browser speech recognition may process audio off-device. The selected voice profiles share one Kuro personality, and accent choices are prompt-level directions, not guaranteed acoustic results. Physical Android checks for consent, key handling, English intelligibility, interruption, permissions, background/resume and audio playback are still required.
 
 ### P1 — Project portability and failure recovery remain release blockers
 
 The roadmap identifies incomplete coverage for binary reference assets, unlinked drawings, full archive round-trip, corrupted/oversized packages, interrupted saves, active research tasks, multi-tab deletion and real-browser storage failure. These are potential data-loss issues until the round trips are exercised. Verify autosave/reload, switching/deleting projects, export/import of all linked assets, backup recovery, and unsupported or damaged archives before claiming a project is portable.
 
-### P2 — The verification record is stale
+### P2 — Exact-source verification is updated; device acceptance remains open
 
-The top of `ROADMAP.md` still described its last evidence as 21 October and referenced an older main SHA, while the reviewed main commit is from 22 October. Update the status snapshot only from exact-commit CI/release evidence; keep source-level implementation, automated tests, and physical-device verification as separate statuses.
+The roadmap is now refreshed to current source SHA `434464344e7f5017dd3899a11cc677828804af0f` using exact-main CI links. Project checks record 71 passing test files / 541 passing tests, TypeScript and Vite production build passing, and the preview build passing. The APK workflow for that SHA was still running when updated. Keep source-level implementation, automated tests, APK provenance, public deployment and physical-device verification as separate statuses.
 
 ## Baseline checks observed
 
-After PR #155, current application source `main` was `c924d39fe67b3847b86eaa0d9aac8b7cb60f0556`. Exact-source [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959249), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959262), and [development-preview build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959278) passed; Project checks recorded 70 test files / 531 tests passed, TypeScript passed and Vite build succeeded. The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959286) was still running when this status was written. These are automation results, not proof of real-device usability, full creative journey, voice quality, or autonomous art quality.
+After PR #158, current application source `main` was `434464344e7f5017dd3899a11cc677828804af0f`. Exact-source [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39768338824), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39768338871), and [development-preview build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39768338798) passed; Project checks recorded 71 test files / 541 tests passed, TypeScript passed and Vite build succeeded. The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39768338797) was still running when this status was written. These are automation results, not proof of real-device usability, full creative journey, voice quality, or autonomous art quality.
 
 ## Required release acceptance run
 

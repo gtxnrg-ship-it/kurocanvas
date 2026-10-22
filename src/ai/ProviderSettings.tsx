@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, isLocalTinyModelPrepared, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
-import type { KuroVoiceIntensity } from "./kuroPersona";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
 import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatingLabel, saveLocalModelBenchmark, type LocalModelBenchmark } from "./modelBenchmark";
 import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
@@ -21,8 +20,6 @@ interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
   initialSupportsVision?: boolean;
-  voiceIntensity: KuroVoiceIntensity;
-  onVoiceIntensityChange: (intensity: KuroVoiceIntensity) => void;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
@@ -34,7 +31,7 @@ const canonicalConfig: ActiveProviderConfig = {
   supportsVision: false,
 };
 
-export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({ onSave, onClose }: ProviderSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -190,7 +187,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       const response = await provider.generate({
         role: "reasoning",
         messages: [
-          { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance(voiceIntensity) },
+          { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance() },
           { role: "user", content: "Reply naturally to a manga creator who feels overwhelmed and does not know where to start drawing a scene. Be playfully tsundere if it fits, then offer one useful first step. Keep it to 2–4 sentences." },
         ],
         temperature: 0.75,
@@ -316,14 +313,9 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       {speechPreferences.engine==="kokoro"&&speechPreparing&&<progress className="speech-download-progress" value={speechProgress} max="100" aria-label="Local voice model preparation progress"/>}
     </fieldset>
     <fieldset className="kuro-voice-settings">
-      <legend>Kuro's personality</legend>
-      <label>Tsundere intensity<select value={voiceIntensity} onChange={e => onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}>
-        <option value="subtle">Subtle · dry wit, gentle warmth</option>
-        <option value="playful">Balanced · playful teasing</option>
-        <option value="expressive">Expressive · dramatic anime energy</option>
-      </select></label>
-      <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
-      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Generating and speaking…" : "Generate & speak voice sample"}</button>
+      <legend>Kuro's personality · fixed</legend>
+      <p>Kuro has one consistent personality across every voice option: thoughtful, highly engaged, curious, warm, naturally playful and lightly tsundere when it fits. She adapts to context instead of changing into a different character; serious moments come before teasing. Changing SAKURA, Chiaki or Mitsuri changes the vocal performance, not who Kuro is.</p>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Generating and speaking…" : "Generate & speak Kuro sample"}</button>
       {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}

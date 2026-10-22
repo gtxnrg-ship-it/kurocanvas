@@ -72,7 +72,7 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
       quick: 256,
       balanced: 2048,
       deep: 8192,
-      exhaustive: 12288;
+      exhaustive: 12288,
     };
     return localBudget[depth];
   }

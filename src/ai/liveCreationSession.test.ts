@@ -5,6 +5,7 @@ import {
   DEFAULT_LIVE_CREATION_MAX_BATCHES,
   settleLiveCreationBatch,
   pauseLiveCreationBeforeApply,
+  settleLiveCreationPlanning,
   type LiveCreationSession,
 } from "./liveCreationSession";
 
@@ -115,6 +116,28 @@ describe("live creation session recovery", () => {
     expect(paused.lastError).toContain("No canvas changes were made");
     expect(paused.log.some(entry => entry.status === "working")).toBe(false);
     expect(paused.log.some(entry => entry.label.includes("canvas unchanged"))).toBe(true);
+  });
+
+  it("settles model cancellation and provider failure before a drawing batch starts", () => {
+    const planning: LiveCreationSession = {
+      ...session,
+      batches: 3,
+      status: "planning",
+      lastError: "",
+      log: [{ id: "request-4", kind: "request", label: "Create the next panel", status: "working" }],
+    };
+    const cancelled = settleLiveCreationPlanning(planning, "cancelled", "Creator stopped inference", true);
+    expect(cancelled.status).toBe("paused");
+    expect(cancelled.batches).toBe(3);
+    expect(cancelled.log.some(entry => entry.status === "working")).toBe(false);
+
+    const failed = settleLiveCreationPlanning(planning, "error", "Model returned invalid output", true);
+    expect(failed.status).toBe("error");
+    expect(failed.lastError).toContain("invalid output");
+    expect(failed.batches).toBe(3);
+
+    const failedAfterLeaving = settleLiveCreationPlanning(planning, "error", "Provider failed", false);
+    expect(failedAfterLeaving.status).toBe("paused");
   });
 
 });

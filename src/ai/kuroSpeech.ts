@@ -26,7 +26,9 @@ export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: 
 export function readKuroSpeechPreferences(): KuroSpeechPreferences {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as Partial<KuroSpeechPreferences> | null;
-    const engine: KuroSpeechEngine = stored?.engine === "system" || stored?.engine === "fish" ? stored.engine : "kokoro";
+    const engine: KuroSpeechEngine = stored === null
+      ? DEFAULT_KURO_SPEECH_PREFERENCES.engine
+      : stored.engine === "system" || stored.engine === "fish" ? stored.engine : "kokoro";
     const voiceList = engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES;
     const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id;
     const voice = voiceList.some(item => item.id === stored?.voice) ? stored!.voice! : fallbackVoice;

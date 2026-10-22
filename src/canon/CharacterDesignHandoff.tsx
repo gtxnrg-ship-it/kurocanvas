@@ -166,7 +166,7 @@ export default function CharacterDesignHandoff({ projectId, drawingId, originalP
         {characters.map(entity => <option key={entity.id} value={entity.id}>{entity.name} · {entity.status}</option>)}
       </select></label>
       <label>Character name<input value={name} onChange={event => setName(event.target.value)} maxLength={120} required disabled={saving || Boolean(selectedCharacter)}/></label>
-      {selectedHasVisualHistory && <p className="character-handoff-timeline-note" role="note">This character already has visual history. Open <strong>More appearance &amp; continuity details</strong> and set a chapter number or story order before saving this new version.</p>}
+      {selectedHasVisualHistory && <p className="character-handoff-status" role="note">This character already has visual history. Open <strong>More appearance &amp; continuity details</strong> and set a chapter number or story order before saving this new version.</p>}
       {entityChoice === "new" && <label>Aliases (optional, comma separated)<input value={aliases} onChange={event => setAliases(event.target.value)} maxLength={500} disabled={saving}/></label>}
       <div className="character-handoff-traits">
         {visibleTraits.map(field => <label key={field.key}>{field.label}<input value={traits[field.key] ?? ""} onChange={event => changeTrait(field.key,event.target.value)} placeholder={field.placeholder} maxLength={500} disabled={saving}/></label>)}

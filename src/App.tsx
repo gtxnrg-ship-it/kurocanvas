@@ -575,10 +575,13 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  async function send(messageOverride?:string, continuationSourceOverride?:string){
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
+ const creativeInfluences=extractCreativeInfluenceResearch(text);
+ const explicitResearchIntent=extractResearchTaskIntent(text);
+ const referenceQuery=extractReferenceSearchQuery(text);
  // A chapter request is the point where planning becomes production. Require the
  // project-owned foundations to be approved before switching out of chat and drawing.
  // The explicit provisional override is only for non-canon experiments.
- if(isMangaChapterProductionRequest(text)&&!requestsProvisionalChapterOverride(text)){
+ if(isMangaChapterProductionRequest(text)&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
   let readiness;
   try{
    if(!activeProjectId||!activeUniverseId){
@@ -615,10 +618,8 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
    return;
   }
  }
- const creativeInfluences=extractCreativeInfluenceResearch(text);
  const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
- const explicitResearchIntent=extractResearchTaskIntent(text);
- const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||explicitResearchIntent||creativeInfluences.length);
+ const hasIndependentWorkflow=Boolean(referenceQuery||explicitResearchIntent||creativeInfluences.length);
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");
   if(!accepted){
@@ -679,7 +680,6 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   liveSessionRef.current=next;setLiveSession(next);
  }
  chatAbortControllerRef.current?.abort();const requestController=new AbortController();chatAbortControllerRef.current=requestController;const requestGeneration=++chatRequestGenerationRef.current;const requestIsCurrent=()=>!requestController.signal.aborted&&chatRequestGenerationRef.current===requestGeneration;const contextQuery=continuationSourceOverride?text+'\n\nOriginal user request to preserve:\n'+continuationSourceOverride:text;let recentTurns=buildKuroConversationTurns(messages,24,4000,contextQuery,26000);setDraft('');setMessages(m=>[...m,{role:'user',text}]);setWorking(true);setWorkingLabel('Reading your workspace and story context…');let draftForMemoryCapture='';try{
- const referenceQuery=extractReferenceSearchQuery(text);
  if(referenceQuery){
   setWorkingLabel('Searching Wikimedia Commons for visual references…');
   setProviderNotice('Searching Wikimedia Commons for '+referenceQuery+'…');

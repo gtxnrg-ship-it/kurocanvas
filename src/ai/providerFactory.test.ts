@@ -9,7 +9,7 @@ import { resetKuroModelAdapterForTests } from "./kuroModelAdapter";
 
 afterEach(() => resetKuroModelAdapterForTests());
 
-describe("single-model provider factory", () => {
+describe("configured model provider factory", () => {
   it("returns the shared Qwen adapter only for the canonical local config", async () => {
     const config = {
       baseUrl: LOCAL_TINY_BASE_URL,
@@ -27,13 +27,30 @@ describe("single-model provider factory", () => {
     }]);
   });
 
-  it("rejects remote URLs instead of silently sending prompts to a hosted provider", () => {
-    expect(() => createConfiguredProvider({
+  it("supports an explicitly configured HTTPS-compatible endpoint without calling it during construction", () => {
+    const provider = createConfiguredProvider({
       baseUrl: "https://api.example.invalid/v1",
       modelUri: "some-hosted-model",
-      apiKey: "must-not-be-used",
+      apiKey: "session-only-key",
       allowInsecureLocalhost: false,
-    })).toThrow(/only on-device Qwen3-0.6B/i);
+      supportsVision: true,
+      supportsStructuredOutput: true,
+    });
+    expect(provider.id).toBe("kuro-configured-compatible");
+    expect(provider.displayName).toContain("compatible");
+  });
+
+  it("rejects insecure remote endpoints and an empty remote model ID", () => {
+    expect(() => createConfiguredProvider({
+      baseUrl: "http://api.example.invalid/v1",
+      modelUri: "some-hosted-model",
+      allowInsecureLocalhost: false,
+    })).toThrow(/HTTPS/i);
+    expect(() => createConfiguredProvider({
+      baseUrl: "https://api.example.invalid/v1",
+      modelUri: " ",
+      allowInsecureLocalhost: false,
+    })).toThrow(/Choose a model ID/i);
   });
 
   it("does not advertise Qwen as ready before explicit local preparation", () => {

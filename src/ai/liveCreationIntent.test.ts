@@ -62,6 +62,12 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Give the protagonist a long cape and boots.")).toBe(true);
   });
 
+  it("respects requests to defer equipment and appearance edits", () => {
+    expect(shouldStartLiveCreationFromChat("Don't give her a sword yet; let's discuss the design first.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't put a tattoo on her arm yet.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't redesign his armor yet, but shorten his hair.")).toBe(true);
+  });
+
   it("does not activate on an empty request", () => {
     expect(shouldStartLiveCreationFromChat("  ")).toBe(false);
   });

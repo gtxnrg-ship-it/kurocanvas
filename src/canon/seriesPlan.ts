@@ -170,6 +170,7 @@ export function evaluateSeriesProductionRequest(
   fields: SeriesPlanFields,
   requestedChapterNumber?: number,
   allowRevision = false,
+  pendingReviewChapterNumber?: number,
 ): SeriesProductionDecision {
   if (!isSeriesPlanApproved(fields)) {
     return { allowed: false, complete: false, revision: false, message: "Approve the complete series plan before producing a chapter." };
@@ -186,8 +187,13 @@ export function evaluateSeriesProductionRequest(
   const approved = new Set(approvedSeriesChapterRecords(fields).map(item => item.chapterNumber));
   const expected = chapters.find(chapter => !approved.has(chapter.number));
   const target = requestedChapterNumber ?? expected?.number;
+  const reopeningApproved = requestedChapterNumber !== undefined && approved.has(requestedChapterNumber) && allowRevision;
+  const reopeningPending = requestedChapterNumber !== undefined
+    && requestedChapterNumber === pendingReviewChapterNumber
+    && allowRevision;
+
   if (target === undefined) {
-    if (allowRevision && requestedChapterNumber !== undefined) {
+    if (reopeningApproved) {
       return { allowed: true, complete: true, revision: true, targetChapterNumber: requestedChapterNumber };
     }
     return {
@@ -196,18 +202,18 @@ export function evaluateSeriesProductionRequest(
     };
   }
 
-  if (expected && target === expected.number) {
-    return {
-      allowed: true, complete: false, revision: false,
-      targetChapterNumber: target, expectedChapterNumber: expected.number,
-    };
-  }
-
-  if (allowRevision && requestedChapterNumber !== undefined) {
+  if (reopeningApproved || reopeningPending) {
     return {
       allowed: true, complete: false, revision: true,
       targetChapterNumber: requestedChapterNumber, expectedChapterNumber: expected?.number,
       message: "This is an explicit chapter revision. After a changed drawing batch is saved, this chapter and later approvals will be reopened for review.",
+    };
+  }
+
+  if (expected && target === expected.number) {
+    return {
+      allowed: true, complete: false, revision: false,
+      targetChapterNumber: target, expectedChapterNumber: expected.number,
     };
   }
 

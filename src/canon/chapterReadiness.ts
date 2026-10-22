@@ -74,10 +74,13 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
   const seriesPlan = evaluateSeriesPlan((artDirection ?? {}) as SeriesPlanFields);
   if (!seriesPlan.approved) {
     const missing = seriesPlan.issues.filter(issue => issue.id !== "approval").map(issue => issue.message);
+    const guidance = seriesPlan.valid
+      ? "The outline is complete, but it is not approved yet. Review it in Art Direction and select “Review and approve full series.”"
+      : missing.join(" ");
     gaps.push({
       id: "series-plan",
       message: "Complete and explicitly approve the entire series plan in Art Direction before chapter production. " +
-        (missing.length ? missing.join(" ") : "The plan changed after approval, so it must be reviewed and approved again."),
+        (guidance || "The plan changed after approval, so it must be reviewed and approved again."),
     });
   }
 

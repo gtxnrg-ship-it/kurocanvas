@@ -18,6 +18,16 @@ describe("creative format routing", () => {
     expect(detectCreativeProductionRequest("Create a graphic novel page.")).toMatchObject({
       id: "graphic-novel", layout: "page", width: 1800, height: 2700,
     });
+
+    expect(detectCreativeProductionRequest("Create a zine page about our fictional city.")).toMatchObject({
+      id: "zine", layout: "page", width: 1800, height: 2700,
+    });
+    expect(detectCreativeProductionRequest("Storyboard an animated short about a lost robot.")).toMatchObject({
+      id: "storyboard", layout: "page", width: 1800, height: 2700,
+    });
+    expect(detectCreativeProductionRequest("Create a comic about two rival chefs.")).toMatchObject({
+      id: "comic-page", layout: "page", width: 1800, height: 2700,
+    });
     expect(detectCreativeProductionRequest("Make an illustrated picture book spread.")).toMatchObject({
       id: "picture-book", layout: "square-spread", width: 1800, height: 1800,
     });

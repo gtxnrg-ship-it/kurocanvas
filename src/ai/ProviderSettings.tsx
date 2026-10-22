@@ -332,12 +332,39 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
     <div className="provider-settings-head">
       <div>
-        <small>LOCAL MODEL · SINGLE ADAPTER</small>
+        <small>MODEL CONNECTION</small>
         <h2 id="provider-settings-title">Kuro's intelligence</h2>
-        <p>Kuro currently runs one model: Qwen3-0.6B on your device. Her drawing, memory, canon, research, and workflow harnesses are app features—not separate models.</p>
+        <p>Choose private on-device Qwen or explicitly connect a compatible endpoint. Kuro’s drawing, canon, memory, and research workflows stay in this app; a hosted model may receive the relevant prompt context when you use it.</p>
       </div>
       <button onClick={closeSettings} aria-label="Close settings">×</button>
     </div>
+    <fieldset className="provider-connection-settings">
+      <legend>Model connection</legend>
+      <label>Selected model route<select value={providerMode} onChange={event=>{setProviderMode(event.target.value as "local" | "remote");setError("");setStatus("");}}>
+        <option value="local">On-device · Qwen3-0.6B</option>
+        <option value="remote">Compatible model endpoint · advanced</option>
+      </select></label>
+      <p>Qwen stays local and text-only. A compatible endpoint can unlock stronger hosted text models and, only when explicitly confirmed, image understanding. Kuro does not switch routes silently.</p>
+    </fieldset>
+    {providerMode === "remote" && <fieldset className="provider-remote-settings">
+      <legend>Compatible endpoint</legend>
+      <label>Endpoint base URL<input type="url" autoComplete="url" spellCheck={false} value={remoteBaseUrl} onChange={event=>{setRemoteBaseUrl(event.target.value);setRemoteModels([]);setStatus("");setError("");}} placeholder="https://your-provider.example/v1"/></label>
+      <label>Model ID<input list="kuro-remote-model-list" autoComplete="off" spellCheck={false} value={remoteModelId} onChange={event=>{setRemoteModelId(event.target.value);setError("");}} placeholder="Test connection, then choose an ID"/></label>
+      <datalist id="kuro-remote-model-list">{remoteModels.map(model=><option key={model.id} value={model.modelUri || model.name}>{model.name}</option>)}</datalist>
+      <label>API key <span className="provider-muted">(optional, depends on endpoint)</span><input type="password" autoComplete="off" spellCheck={false} value={remoteApiKey} onChange={event=>{setRemoteApiKey(event.target.value);setRemoteModels([]);setStatus("");setError("");}} placeholder="Stored only in this browser session"/></label>
+      <label className="provider-check"><input type="checkbox" checked={remoteAllowInsecureLocalhost} onChange={event=>{setRemoteAllowInsecureLocalhost(event.target.checked);setRemoteModels([]);}}/><span>Allow plain HTTP only for a local loopback endpoint such as localhost. Remote endpoints must use HTTPS.</span></label>
+      <label className="provider-check"><input type="checkbox" checked={remoteSupportsVision} onChange={event=>{setRemoteSupportsVision(event.target.checked);setRemoteModels([]);}}/><span>I have verified that this endpoint and selected model accept image_url input. Leave off unless confirmed.</span></label>
+      <label className="provider-check"><input type="checkbox" checked={remoteSupportsStructuredOutput} onChange={event=>{setRemoteSupportsStructuredOutput(event.target.checked);setRemoteModels([]);}}/><span>I have verified that this endpoint supports OpenAI-compatible JSON mode.</span></label>
+      <div className="provider-remote-privacy">
+        <strong>Privacy and key handling</strong>
+        <p>When this route is active, Kuro sends your request plus the relevant conversation context and project notes needed for the task to the endpoint you chose. Depending on the request, that can include approved canon, story memory, research notes, reference descriptions, or drawing-plan context. Do not connect an endpoint you do not trust. There is no Kuro-hosted proxy.</p>
+        <p>The API key is saved in sessionStorage for this endpoint only, not localStorage or project packages. It is not encrypted and remains accessible to JavaScript running in this page. The endpoint may log or retain requests according to its own policies and may charge usage.</p>
+      </div>
+      <label className="provider-check provider-privacy-consent"><input type="checkbox" checked={remotePrivacyConsent} onChange={event=>setRemotePrivacyConsent(event.target.checked)}/><span>I understand and consent to sending relevant request context to this configured endpoint, and I trust the endpoint and its data policies.</span></label>
+      <div className="provider-actions"><button type="button" className="provider-secondary" onClick={()=>void testRemoteEndpoint()} disabled={busy||voiceTesting||!remotePrivacyConsent}>{busy?"Checking endpoint…":"Test endpoint & list models"}</button></div>
+      {remoteModels.length>0&&<p className="provider-status" role="status" aria-live="polite">Found {remoteModels.length} model ID{remoteModels.length===1?"":"s"}. Choose one from the Model ID suggestions before saving.</p>}
+    </fieldset>}
+    {providerMode === "local" && <>
     <ModelAdvisor benchmark={localBenchmark} />
     <div className="provider-recommended-model">
       <strong>Qwen3-0.6B · the only active model</strong>
@@ -350,7 +377,7 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
       <button type="button" className="provider-secondary" onClick={benchmarkLocalModel} disabled={busy || voiceTesting || !localModelPrepared}>{busy ? "Working…" : "Benchmark generation speed"}</button>
       <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
-    </div>
+    </div></>}
     <fieldset className="kuro-speech-settings">
       <legend>Spoken voice · audio output</legend>
       <label>Speech engine<select value={speechPreferences.engine} onChange={event=>{
@@ -396,10 +423,12 @@ export default function ProviderSettings({ initialBaseUrl, initialModelUri, init
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">Kuro’s chat and project-memory paths remain local to the configured Qwen model. If Fish Audio is selected for speech, the spoken text and your API key are sent to Fish Audio for audio generation. No remote chat-model fallback is used. Image understanding is not supported by Qwen3-0.6B here.</p>
+    <p className="provider-warning">{providerMode === "local"
+      ? "Chat and project context use on-device Qwen3-0.6B, which is text-only. No remote chat-model fallback is used. Fish Audio speech, if selected above, separately sends spoken reply text and your voice API key to Fish Audio."
+      : "Chat requests and the relevant project context go directly from this browser to the configured endpoint. Your key is stored only in this browser session, not in localStorage or exported project packages. Image pixels are sent only when the selected model is explicitly configured for vision. Fish Audio speech uses a separate provider and separate key."}</p>
     <div className="provider-actions">
       <button className="provider-secondary" onClick={closeSettings}>Close</button>
-      <button onClick={save} disabled={busy || voiceTesting}>Use Qwen3-0.6B</button>
+      <button onClick={save} disabled={busy || voiceTesting}>{providerMode === "local" ? "Use Qwen3-0.6B" : "Use configured endpoint"}</button>
     </div>
   </section>;
 }

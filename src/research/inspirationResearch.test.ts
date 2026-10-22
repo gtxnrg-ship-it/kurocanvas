@@ -42,6 +42,7 @@ describe("creative influence research intent", () => {
   it("does not enqueue research for ordinary opinions or explicitly rejected inspiration", () => {
     expect(extractCreativeInfluenceResearch("I like the leadership in Tokyo Revengers.")).toEqual([]);
     expect(extractCreativeInfluenceResearch("Don't borrow the power system from Naruto.")).toEqual([]);
+    expect(extractCreativeInfluenceResearch("I am not inspired by Naruto's power system.")).toEqual([]);
     expect(extractCreativeInfluenceResearch("I want an original manga, not something based on an existing series.")).toEqual([]);
   });
 

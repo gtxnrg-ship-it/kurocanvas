@@ -73,7 +73,8 @@ describe("complete local chat generation", () => {
       ],
     }, model);
 
-    const continuation = generate.mock.calls[1]?.[0].messages.at(-1)?.content ?? "";
+    const retryMessages = generate.mock.calls[1]?.[0].messages ?? [];
+    const continuation = retryMessages[retryMessages.length - 1]?.content ?? "";
     expect(continuation).toContain("OPENING PREMISE");
     expect(continuation).toContain("FINAL CONSTRAINT");
     expect(continuation).toContain("middle of original request omitted");

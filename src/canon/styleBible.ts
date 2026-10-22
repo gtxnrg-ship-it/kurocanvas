@@ -97,7 +97,9 @@ export function buildStyleBibleContext(
   const errors = validateStyleBible(bible, projectId);
   if (errors.length) throw new Error("Style bible validation failed: " + errors.join(" "));
   const conflicts = findStyleConflicts(bible);
-  const requestedOrder = targetStoryOrder ?? targetOrderFromMessage(userMessage);
+  const explicitStoryOrder = targetStoryOrder;
+  const requestedChapter = explicitStoryOrder === undefined ? targetOrderFromMessage(userMessage) : undefined;
+  const requestedOrder = explicitStoryOrder ?? requestedChapter;
   const lines = [
     "PROJECT STYLE BIBLE — APPROVED CONTINUITY ONLY",
     "Never drift between chapters. The approved project style summary and approved rules control every panel and character depiction.",
@@ -114,7 +116,11 @@ export function buildStyleBibleContext(
   }
   for (const rule of statusApproved(bible.rules)) lines.push("LOCKED " + rule.category + " rule: " + rule.rule);
   const states = statusApproved(bible.characterStates)
-    .filter(state => requestedOrder === undefined || (state.chapterNumber ?? state.storyOrder) <= requestedOrder)
+    .filter(state => {
+      if (explicitStoryOrder !== undefined) return state.storyOrder <= explicitStoryOrder;
+      if (requestedChapter !== undefined) return (state.chapterNumber ?? state.storyOrder) <= requestedChapter;
+      return true;
+    })
     .sort((a,b) => a.storyOrder-b.storyOrder);
   const traitKeys = ["age", "hair", "scars", "outfit", "body", "eyes", "accessories", "injuries", "other"] as const;
   const resolved = new Map<string, { latest: CharacterVisualState; traits: Partial<Record<(typeof traitKeys)[number], string>> }>();
@@ -130,7 +136,8 @@ export function buildStyleBibleContext(
     entry.latest = state;
     resolved.set(key, entry);
   }
-  if (requestedOrder !== undefined) lines.push("Target story order: " + requestedOrder + ". Future visual states are forbidden in this request.");
+  if (explicitStoryOrder !== undefined) lines.push("Target story order: " + explicitStoryOrder + ". Future visual states are forbidden in this request.");
+  else if (requestedChapter !== undefined) lines.push("Target chapter: " + requestedChapter + ". Future visual states are forbidden in this request.");
   if (resolved.size) lines.push("RESOLVED APPROVED CHARACTER STATES AT OR BEFORE THE REQUESTED STORY ORDER (unchanged traits persist forward)");
   for (const { latest, traits: resolvedTraits } of resolved.values()) {
     const traits = traitKeys.filter(key => resolvedTraits[key]).map(key => key + ": " + resolvedTraits[key]);

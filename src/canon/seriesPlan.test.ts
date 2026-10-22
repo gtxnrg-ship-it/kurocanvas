@@ -4,6 +4,11 @@ import {
   evaluateSeriesPlan,
   invalidateSeriesPlanApproval,
   isSeriesPlanApproved,
+  approvedSeriesChapterRecords,
+  approveSeriesChapter,
+  evaluateSeriesProductionRequest,
+  invalidateSeriesApprovalsFrom,
+  nextSeriesChapterNumber,
   parseSeriesChapterPlan,
   resolveApprovedSeriesChapter,
   seriesPlanSignature,
@@ -78,6 +83,64 @@ describe("whole-series plan contract", () => {
     const invalidated = { ...approved, ...invalidateSeriesPlanApproval(approved), seriesChapterPlan: approved.seriesChapterPlan!.replace("Mira discovers a lantern", "Mira follows a faint lantern") };
     expect(isSeriesPlanApproved(invalidated)).toBe(false);
     expect(evaluateSeriesPlan(invalidated).issues.map(issue => issue.id)).toContain("approval");
+  });
+
+  it("unlocks one chapter at a time only after its saved drawing is explicitly approved", () => {
+    const approved = approveSeriesPlan(completeDraft);
+    expect(nextSeriesChapterNumber(approved)).toBe(1);
+    expect(evaluateSeriesProductionRequest(approved).targetChapterNumber).toBe(1);
+    expect(evaluateSeriesProductionRequest(approved, 2).allowed).toBe(false);
+
+    const chapterOne = approveSeriesChapter(approved, 1, "drawing-ch-1", "2026-10-22T12:00:00.000Z");
+    expect(approvedSeriesChapterRecords(chapterOne)).toMatchObject([{ chapterNumber: 1, drawingId: "drawing-ch-1" }]);
+    expect(nextSeriesChapterNumber(chapterOne)).toBe(2);
+    expect(evaluateSeriesProductionRequest(chapterOne).targetChapterNumber).toBe(2);
+    expect(evaluateSeriesProductionRequest(chapterOne, 3).message).toContain("Chapter 2");
+
+    expect(() => approveSeriesChapter(approved, 2, "drawing-ch-2")).toThrow(/review chapters in order/i);
+    expect(() => approveSeriesChapter(approved, 1, "")).toThrow(/saved chapter drawing/i);
+  });
+
+  it("holds a finished but unreviewed chapter and requires an explicit revision request", () => {
+    const approved = approveSeriesPlan(completeDraft);
+    const pending = evaluateSeriesProductionRequest(approved, 1, false, 1);
+    expect(pending.allowed).toBe(false);
+    expect(pending.message).toContain("awaiting your review");
+
+    const revision = evaluateSeriesProductionRequest(approved, 1, true, 1);
+    expect(revision.allowed).toBe(true);
+    expect(revision.revision).toBe(true);
+  });
+
+  it("only permits revisions of approved or pending chapters, never arbitrary future chapters", () => {
+    const approved = approveSeriesPlan(completeDraft);
+    expect(evaluateSeriesProductionRequest(approved, 3, true).allowed).toBe(false);
+    const afterFirst = approveSeriesChapter(approved, 1, "drawing-ch-1");
+    expect(evaluateSeriesProductionRequest(afterFirst, 1, true).revision).toBe(true);
+    expect(evaluateSeriesProductionRequest(afterFirst, 2, false).allowed).toBe(true);
+    expect(evaluateSeriesProductionRequest(afterFirst, 3, true).allowed).toBe(false);
+  });
+
+  it("reopens the revised chapter and every later chapter for review, while preserving earlier approval", () => {
+    let state = approveSeriesPlan(completeDraft);
+    state = approveSeriesChapter(state, 1, "drawing-ch-1");
+    state = approveSeriesChapter(state, 2, "drawing-ch-2");
+    state = invalidateSeriesApprovalsFrom(state, 2);
+    expect(approvedSeriesChapterRecords(state).map(item => item.chapterNumber)).toEqual([1]);
+    expect(nextSeriesChapterNumber(state)).toBe(2);
+  });
+
+  it("discards stale chapter progress when the approved series plan changes", () => {
+    let state = approveSeriesPlan(completeDraft);
+    state = approveSeriesChapter(state, 1, "drawing-ch-1");
+    const changedPlan = approveSeriesPlan({
+      ...state,
+      seriesEnding: state.seriesEnding + " The city also preserves a new memorial for the lost explorers.",
+      seriesPlanApproved: false,
+      seriesPlanApprovalSignature: "",
+    });
+    expect(approvedSeriesChapterRecords(changedPlan)).toEqual([]);
+    expect(nextSeriesChapterNumber(changedPlan)).toBe(1);
   });
 
   it("accepts a single-chapter one-shot as a complete work", () => {

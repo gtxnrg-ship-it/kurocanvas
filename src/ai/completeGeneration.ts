@@ -12,7 +12,7 @@ const COMPLETE_SENTINEL = "[KURO_REPLY_COMPLETE]";
 
 function textOf(content: ModelRequest["messages"][number]["content"]): string {
   if (typeof content === "string") return content;
-  return content.map(part => part.type === "text" ? part.text : "[image input]");
+  return content.map(part => part.type === "text" ? part.text : "[image input]").join("");
 }
 
 function countOutputTokens(response: ModelResponse): number {

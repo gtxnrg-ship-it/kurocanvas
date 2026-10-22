@@ -241,6 +241,22 @@ try {
     }
   });
 
+
+  await runCheck('Reader loads saved drawing previews as pages approach the viewport', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
+    const readerNav = page.getByRole('button', { name: 'Reader', exact: true });
+    if (!(await readerNav.isVisible())) await toolsToggle.click();
+    await readerNav.click();
+    await page.locator('.reader-workspace').waitFor({ state: 'visible', timeout: 15000 });
+    const cards = page.locator('.reader-page');
+    await cards.first().waitFor({ state: 'visible', timeout: 10000 });
+    await cards.first().scrollIntoViewIfNeeded();
+    await page.locator('.reader-page-art img[src^="blob:"]').first().waitFor({ state: 'visible', timeout: 15000 });
+    assert.equal(await page.locator('.reader-page-count').isVisible(), true,
+      'Reader should present saved drawings as a continuous, scrollable list.');
+  });
+
   await runCheck('no uncaught JavaScript runtime errors occurred', async () => {
     assert.deepEqual(runtimeErrors, [], 'Uncaught browser errors: ' + runtimeErrors.join(' | '));
   });

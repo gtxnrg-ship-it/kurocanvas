@@ -78,6 +78,9 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
     };
 
     if (restored.status === "planning" || restored.status === "drawing") {
+      // The counter is incremented when a plan begins. An interrupted drawing batch
+      // was never fully read back, so it must not remain in the verified-batch count.
+      if (restored.status === "drawing") restored.batches = Math.max(0, restored.batches - 1);
       restored.status = "paused";
       restored.lastError = "Kuro was interrupted by a reload or app restart. Inspect the saved canvas before continuing; unfinished work was not assumed complete.";
       restored.log = [

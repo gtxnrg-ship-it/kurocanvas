@@ -125,6 +125,13 @@ export function getCreativeFormatSpec(id: CreativeFormatId): CreativeProductionS
   return FORMAT_SPECS[id];
 }
 
+export type CreativeFormatChoice = "auto" | CreativeFormatId;
+
+/** An explicit picker choice affects production only; Auto leaves routing to the user's request. */
+export function resolveCreativeFormatChoice(choice: CreativeFormatChoice): CreativeProductionSpec | undefined {
+  return choice === "auto" ? undefined : FORMAT_SPECS[choice];
+}
+
 export function describeCreativeFormats(): string {
   return [
     "Webtoon / vertical-scroll comic",

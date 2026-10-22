@@ -3,6 +3,7 @@ import {
   createBrowserSpeechRecognition,
   describeSpeechRecognitionError,
   transcriptFromSpeechEvent,
+  normalizeSpokenPunctuation,
   type BrowserSpeechRecognition,
   type BrowserSpeechResultEvent,
 } from "./speechInput";
@@ -42,6 +43,15 @@ describe("optional browser speech input", () => {
       ],
     } as BrowserSpeechResultEvent;
     expect(transcriptFromSpeechEvent(event)).toBe("Make a character with a red coat and black boots.");
+  });
+
+  it("turns spoken punctuation commands into readable dictation", () => {
+    expect(normalizeSpokenPunctuation("Make a new character comma wearing a red coat period"))
+      .toBe("Make a new character, wearing a red coat.");
+    expect(normalizeSpokenPunctuation("Give her red hair exclamation mark new paragraph Make the eyes gold"))
+      .toBe("Give her red hair!\n\nMake the eyes gold");
+    expect(normalizeSpokenPunctuation("Say hello open quote Kuro close quote"))
+      .toBe("Say hello “Kuro”");
   });
 
   it("returns an empty transcript for empty or non-text recognition results", () => {

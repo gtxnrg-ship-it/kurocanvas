@@ -66,7 +66,42 @@ export function transcriptFromSpeechEvent(event: BrowserSpeechResultEvent): stri
     const value = event.results[index]?.[0]?.transcript;
     if (typeof value === "string" && value.trim()) transcript.push(value.trim());
   }
-  return transcript.join(" ").replace(/\s+/g, " ").trim();
+  return normalizeSpokenPunctuation(transcript.join(" ").replace(/\s+/g, " ").trim());
+}
+
+/**
+ * Normalize common dictation commands when a browser literally transcribes the
+ * spoken punctuation words. Native speech services may already emit punctuation;
+ * this pass preserves existing punctuation and only translates explicit commands.
+ */
+export function normalizeSpokenPunctuation(value: string): string {
+  let text = value.trim();
+  const replacements: ReadonlyArray<readonly [RegExp, string]> = [
+    [/\bnew paragraph\b[,.!?;:]?/gi, "\n\n"],
+    [/\bnew line\b[,.!?;:]?/gi, "\n"],
+    [/\bquestion mark\b[,.!?;:]?/gi, "?"],
+    [/\bexclamation mark\b[,.!?;:]?/gi, "!"],
+    [/\b(?:full stop|period)\b[,.!?;:]?/gi, "."],
+    [/\bcomma\b[,.!?;:]?/gi, ","],
+    [/\bsemicolon\b[,.!?;:]?/gi, ";"],
+    [/\bcolon\b[,.!?;:]?/gi, ":"],
+    [/\bellipsis\b[,.!?;:]?/gi, "…"],
+    [/\bopen quote\b/gi, "“"],
+    [/\bclose quote\b/gi, "”"],
+  ];
+  for (const [pattern, punctuation] of replacements) text = text.replace(pattern, punctuation);
+  // Tidy spacing around punctuation without flattening deliberate new paragraphs.
+  text = text
+    .replace(/[ \t]+([,.;:!?…])/g, "$1")
+    .replace(/([,;:!?…])(?=\S)/g, "$1 ")
+    .replace(/\.([A-Za-z“])/g, ". $1")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/“[ \t]+/g, "“")
+    .replace(/[ \t]+”/g, "”")
+    .trim();
+  return text;
 }
 
 export function describeSpeechRecognitionError(error: string | undefined): string {

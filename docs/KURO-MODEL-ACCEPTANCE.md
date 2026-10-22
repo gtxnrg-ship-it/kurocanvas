@@ -20,7 +20,7 @@ Run the exact source commit through the repository CI workflows. Require all of:
 - npm test
 - npm run build
 
-Tests should cover provider adapter identity, rejection of remote/alternate-model configuration, opt-in preparation, bounded per-pass inference with multi-pass chat completion, total reply budgets, context-preserving clipping, temperature propagation (including deterministic repair), cancellation between passes, unsupported image input, schema validation, stale document approvals, read-back verification, rollback, and project isolation.
+Tests should cover provider adapter identity, rejection of remote/alternate-model configuration, opt-in preparation, bounded 1,024-token local inference passes with multi-pass chat completion up to a bounded 12,288-token total reply budget, total reply budgets, context-preserving clipping, temperature propagation (including deterministic repair), cancellation between passes, unsupported image input, schema validation, stale document approvals, read-back verification, rollback, and project isolation.
 
 A CI pass proves the tested code paths, not the successful download or good generation quality of the real model weights.
 

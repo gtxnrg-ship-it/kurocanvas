@@ -98,11 +98,43 @@ try {
     await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   });
 
+  await runCheck('Live Creation studio stays usable from phones through desktop', async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
+    const liveNav = page.getByRole('button', { name: 'Live Creation', exact: true });
+    if (!(await liveNav.isVisible())) await toolsToggle.click();
+    await liveNav.click();
+    await page.locator('.live-studio').waitFor({ state: 'visible', timeout: 20000 });
+    await page.getByRole('button', { name: 'Back to chat' }).waitFor({ state: 'visible' });
+    await page.locator('.live-composer textarea').waitFor({ state: 'visible' });
+    for (const width of [320, 360, 390, 430, 600, 601, 768, 900, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForTimeout(80);
+      const sizes = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        html: document.documentElement.scrollWidth,
+        body: document.body.scrollWidth,
+      }));
+      assert.ok(sizes.html <= width + 1 && sizes.body <= width + 1,
+        'Live Creation horizontally overflows at ' + width + 'px: ' + JSON.stringify(sizes));
+      if (width <= 600) {
+        assert.equal(await page.locator('.live-canvas-pane .draw-toolbar').isVisible(), true,
+          'Phone Live Creation must keep the native drawing controls visible.');
+        assert.equal(await page.locator('.live-canvas-pane canvas[aria-label^="Drawing canvas. Use pointer"]').evaluate(element => getComputedStyle(element).pointerEvents), 'auto',
+          'Phone Live Creation must keep canvas input enabled.');
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByRole('button', { name: 'Back to chat' }).click();
+    await page.locator('.chatlayout').waitFor({ state: 'visible', timeout: 10000 });
+  });
+
   await runCheck('drawing workspace opens and pointer input changes the canvas', async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
-    await toolsToggle.click();
-    await page.getByRole('button', { name: 'Drawing canvas', exact: true }).click();
+    const drawingNav = page.getByRole('button', { name: 'Drawing canvas', exact: true });
+    if (!(await drawingNav.isVisible())) await toolsToggle.click();
+    await drawingNav.click();
     const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
     await canvas.waitFor({ state: 'visible', timeout: 20000 });
     await page.waitForFunction(() => {

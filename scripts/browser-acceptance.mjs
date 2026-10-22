@@ -137,6 +137,7 @@ try {
     await drawingNav.click();
     const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
     await canvas.waitFor({ state: 'visible', timeout: 20000 });
+    await canvas.scrollIntoViewIfNeeded();
     await page.waitForFunction(() => {
       const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
       return element instanceof HTMLCanvasElement && element.width > 0 && element.height > 0;
@@ -163,6 +164,7 @@ try {
     assert.equal(await page.locator('.drawing-project-controls').isVisible(), true,
       'The phone layout must retain project and drawing controls.');
     const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
+    await canvas.scrollIntoViewIfNeeded();
     assert.equal(await canvas.evaluate(element => getComputedStyle(element).pointerEvents), 'auto',
       'Touch-capable phones must not have drawing input disabled.');
     const before = await canvas.evaluate(element => element.toDataURL());

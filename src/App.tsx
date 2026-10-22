@@ -57,6 +57,7 @@ const CharacterModelStudio = lazy(() => import('./canon/CharacterModelStudio'));
 import { isCharacterModelToolRequest, parseCharacterModelAgentPlan, type CharacterModelAgentCommand } from './canon/characterModelAgentTools';
 const ResearchStudio = lazy(() => import('./research/ResearchStudio'));
 import { buildResearchContext, cancelResearchTask, enqueueResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, researchTaskStorage, startResearchQueueRunner } from './research/researchQueue';
+import { extractCreativeInfluenceResearch } from './research/inspirationResearch';
 const RelationshipMemoryStudio = lazy(() => import('./canon/RelationshipMemoryStudio'));
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Search, Layers3, Library, MessageCircle, Mic, MicOff, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';
 type Mode='home'|'chat'|'canvas'|'live'|'read'|'research'|'vault'; type Msg={role:'user'|'kuro';text:string;tool?:string;references?:ReferenceSearchResult[];referenceProjectId?:string;researchTaskId?:string;researchProjectId?:string}; type RecentConversation={id:string;universeId:string;universeTitle:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
@@ -614,8 +615,10 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
    return;
   }
  }
+ const creativeInfluences=extractCreativeInfluenceResearch(text);
  const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
- const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));
+ const explicitResearchIntent=extractResearchTaskIntent(text);
+ const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||explicitResearchIntent||creativeInfluences.length);
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");
   if(!accepted){

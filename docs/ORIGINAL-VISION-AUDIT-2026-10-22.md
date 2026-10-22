@@ -39,6 +39,8 @@ Current status: the chat-first, voice, visual routing, character-to-Vault, timel
 
 The code has distinct Home, Chat, Live Creation, Drawing Canvas, Reader, Research Lab and Creative Vault views. Main now routes explicit canvas/artifact requests from Chat into Live Creation. PR #156 added direct “draw her” style and broader character-look requests; PR #158 extended this to natural appearance edits such as outfit/hair/scar changes, while preserving negation and keeping personality/worldbuilding discussions in chat. That still does **not** prove the entire brainstorm → research → approved world → character design → live native drawing → save character to world/vault → story outline/draft workflow end to end.
 
+A new integration-level regression test in [PR #166](https://github.com/gtxnrg-ship-it/kurocanvas/pull/166) now joins native-plan parsing → editable drawing snapshot → saved-document read-back verification → project-scoped proposed character hand-off, and checks that unapproved appearance details do not leak into writing context. This closes one domain-logic gap; it is not a browser UI test and does not prove real IndexedDB persistence, live model quality, or a physical-device journey.
+
 A browser-level acceptance test must prove this path from a fresh install and a returning project. In particular, verify when the user asks “make this character now” that Kuro can initiate a real creation session from the conversation, show incremental editable work, and offer clear approval into the correct project's character/world records. Do not assume this works merely because the individual studio components exist.
 
 ### P0 — Character art capability must be described and tested honestly

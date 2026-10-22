@@ -813,6 +813,13 @@ async function pumpQueue(): Promise<void> {
         // Complete with a conditional, project-scoped update instead of put/save:
         // a deletion can occur between the read above and this write, and must never
         // be undone by a late network response recreating the task.
+        const pausedBeforeCommit = await isResearchQueuePaused().catch(() => false);
+        if (paused || controller.signal.aborted || pausedBeforeCommit) {
+          await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
+            status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined, leaseOwnerId: undefined,
+          });
+          continue;
+        }
         const completed = await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
           status: "completed",
           progress: 100,
@@ -823,7 +830,15 @@ async function pumpQueue(): Promise<void> {
           leaseOwnerId: undefined,
           error: undefined,
         });
-        if (!completed) continue;
+        if (!completed) {
+          const globallyPaused = await isResearchQueuePaused().catch(() => false);
+          if (globallyPaused || paused || controller.signal.aborted) {
+            await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
+              status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined, leaseOwnerId: undefined,
+            });
+          }
+          continue;
+        }
         notifyResearchCompletion(completed);
       } catch (error) {
         const current = await researchTaskStorage.get(task.id).catch(() => undefined);

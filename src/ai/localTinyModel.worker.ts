@@ -72,7 +72,8 @@ async function handleRequest(request: WorkerRequest): Promise<void> {
       : { do_sample: false };
     const output = await runtime.model.generate({ ...inputs, max_new_tokens: maxNewTokens, ...sampling });
     const tokenIds = Array.from(output.data).slice(promptLength).map(Number);
-    const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
+    // Preserve token-boundary whitespace; the final chat renderer trims only after continuation chunks are stitched.
+    const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true });
     scope.postMessage({ id: request.id, type: "result", text, outputTokens: tokenIds.length, finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop" });
   } catch (error) {
     scope.postMessage({ id: request.id, type: "error", message: error instanceof Error ? error.message : "Local model worker failed." });

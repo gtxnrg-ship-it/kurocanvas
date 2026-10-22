@@ -525,3 +525,8 @@
 .conversation-menu>button.conversation-menu-danger{color:#ffb6bf;border:1px solid #633c49;background:#281820}
 .conversation-menu>button.conversation-menu-danger:hover:not(:disabled){border-color:#a95a69;background:#3a1f2a;color:#ffe5e9}
 .conversation-menu>button.conversation-menu-danger:disabled{opacity:.48;cursor:not-allowed;background:#1c1722;border-color:#423643;color:#9a8b9c}
+
+.saved.save-state-saving{color:#e7c77c}.saved.save-state-saving i{background:#e7c77c;animation:pulse 1s infinite alternate}
+.saved.save-state-error{color:#ffb6bf}.saved.save-state-error i{background:#ff7f91;box-shadow:0 0 0 3px #ff7f9118}
+.topbar section button.save-retry{border:1px solid #70404a;border-radius:7px;background:#321b23;padding:5px 8px;color:#ffc5cd;font-size:9px;font-weight:700}
+.topbar section button.save-retry:hover{background:#48212c;border-color:#a85c69}

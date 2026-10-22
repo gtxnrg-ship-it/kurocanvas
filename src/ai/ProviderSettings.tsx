@@ -6,6 +6,7 @@ import type { KuroVoiceIntensity } from "./kuroPersona";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
 import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatingLabel, saveLocalModelBenchmark, type LocalModelBenchmark } from "./modelBenchmark";
 import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
+import { KURO_SPEECH_MODEL_ID, KURO_SPEECH_VOICES, prepareKuroVoice, readKuroSpeechPreferences, saveKuroSpeechPreferences, speakKuroVoice, type KuroSpeechPreferences } from "./kuroSpeech";
 
 export interface ActiveProviderConfig {
   /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
@@ -39,6 +40,10 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
   const [status, setStatus] = useState("");
   const [voiceTesting, setVoiceTesting] = useState(false);
   const [voicePreview, setVoicePreview] = useState("");
+  const [speechPreferences,setSpeechPreferences] = useState<KuroSpeechPreferences>(()=>readKuroSpeechPreferences());
+  const [speechPreparing,setSpeechPreparing] = useState(false);
+  const [speechProgress,setSpeechProgress] = useState(0);
+  const [speechStatus,setSpeechStatus] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
   const [localModelPrepared, setLocalModelPrepared] = useState(() => isLocalTinyModelPrepared());
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
@@ -192,7 +197,20 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         maxOutputTokens: 220,
         signal: controller.signal,
       }, selected);
-      setVoicePreview(response.text.trim() || "The model returned an empty reply. Try again after checking model preparation.");
+      const preview=response.text.trim();
+      setVoicePreview(preview || "The model returned an empty reply. Try again after checking model preparation.");
+      if(preview){
+        setSpeechStatus(speechPreferences.engine==="kokoro"?"Preparing Kuro's local Kokoro voice…":"Using the device's speech voice…");
+        try{
+          await speakKuroVoice(preview,speechPreferences,progress=>{
+            setSpeechProgress(progress.percent);
+            setSpeechStatus(progress.status+(progress.percent>0?" · "+progress.percent+"%":""));
+          });
+          setSpeechStatus("Voice preview finished.");
+        }catch(voiceError){
+          setSpeechStatus("Text preview succeeded, but speech playback failed: "+(voiceError instanceof Error?voiceError.message:"unknown voice error"));
+        }
+      }
     } catch (e) {
       if (controller.signal.aborted) setStatus("Kuro's voice preview was cancelled.");
       else setError(e instanceof Error ? e.message : "Kuro's voice preview failed.");
@@ -203,6 +221,23 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
     }
   }
 
+  async function prepareSpeechEngine(){
+    setSpeechPreparing(true);setSpeechProgress(0);setError("");
+    setSpeechStatus(speechPreferences.engine==="kokoro"?"Preparing the local Kokoro model · first use needs a download…":"The device voice engine does not require a model download.");
+    try{
+      if(speechPreferences.engine==="kokoro"){
+        await prepareKuroVoice(progress=>{setSpeechProgress(progress.percent);setSpeechStatus(progress.status+(progress.percent>0?" · "+progress.percent+"%":""));});
+        setSpeechStatus("Kokoro Local is prepared in this session. Browser cache may preserve files for later use.");
+      }else{
+        if(!("speechSynthesis" in window))throw new Error("This device does not expose speech synthesis.");
+        setSpeechStatus("Device speech synthesis is available. Voice quality and voice choices depend on the operating system.");
+      }
+    }catch(error){setSpeechStatus("Voice setup failed: "+(error instanceof Error?error.message:"unknown error"));}
+    finally{setSpeechPreparing(false);}
+  }
+  function updateSpeechPreferences(next:KuroSpeechPreferences){
+    setSpeechPreferences(next);saveKuroSpeechPreferences(next);setSpeechStatus("");
+  }
   function save() {
     onSave(canonicalConfig);
     setStatus("Saved: Qwen3-0.6B · on-device · text-only.");
@@ -231,6 +266,22 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
     </div>
+    <fieldset className="kuro-speech-settings">
+      <legend>Spoken voice · audio output</legend>
+      <label>Speech engine<select value={speechPreferences.engine} onChange={event=>updateSpeechPreferences({...speechPreferences,engine:event.target.value==="system"?"system":"kokoro"})}>
+        <option value="kokoro">Kokoro Local · natural neural speech</option>
+        <option value="system">Device voice · system speech synthesis</option>
+      </select></label>
+      {speechPreferences.engine==="kokoro"&&<label>Kuro's voice<select value={speechPreferences.voice} onChange={event=>updateSpeechPreferences({...speechPreferences,voice:event.target.value})}>
+        {KURO_SPEECH_VOICES.map(voice=><option value={voice.id} key={voice.id}>{voice.label}</option>)}
+      </select></label>}
+      <label>Speaking pace <span>{speechPreferences.rate.toFixed(2)}×</span><input type="range" min="0.8" max="1.2" step="0.05" value={speechPreferences.rate} onChange={event=>updateSpeechPreferences({...speechPreferences,rate:Number(event.target.value)})}/></label>
+      <p>{speechPreferences.engine==="kokoro"?"Kokoro is an open-source, quantized local speech model. First use downloads its voice weights; later availability depends on the browser cache and device memory. The model currently targets English voices.":"The device voice uses the operating system's speech engine. Available voices, realism, network needs and languages vary by Android/browser."}</p>
+      {speechPreferences.engine==="kokoro"&&<small className="speech-model-id">Model: {KURO_SPEECH_MODEL_ID} · Apache-2.0 · quantized ONNX</small>}
+      <button type="button" className="provider-secondary" onClick={()=>void prepareSpeechEngine()} disabled={speechPreparing||voiceTesting}>{speechPreparing?"Preparing voice · "+speechProgress+"%":speechPreferences.engine==="kokoro"?"Prepare local Kokoro voice":"Check device voice"}</button>
+      {speechStatus&&<p className="provider-status" role="status" aria-live="polite">{speechStatus}</p>}
+      {speechPreferences.engine==="kokoro"&&speechPreparing&&<progress className="speech-download-progress" value={speechProgress} max="100" aria-label="Local voice model preparation progress"/>}
+    </fieldset>
     <fieldset className="kuro-voice-settings">
       <legend>Kuro's personality</legend>
       <label>Tsundere intensity<select value={voiceIntensity} onChange={e => onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}>
@@ -239,7 +290,7 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
         <option value="expressive">Expressive · dramatic anime energy</option>
       </select></label>
       <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
-      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Generating and speaking…" : "Generate & speak voice sample"}</button>
       {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}

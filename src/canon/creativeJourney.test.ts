@@ -112,7 +112,8 @@ describe("character design journey integration", () => {
     }, { createId: (() => { let id = 0; return () => "native-journey-" + (++id); })() });
 
     expect(handoff.storyMemory.assetRefs).toEqual(["drawing:drawing-native-mira"]);
-    expect(handoff.visualState).toMatchObject({ projectId, characterName: "Mira", status: "proposed" });
+    expect(handoff.styleBible.projectId).toBe(projectId);
+    expect(handoff.visualState).toMatchObject({ characterName: "Mira", status: "proposed" });
     expect(buildStyleBibleContext(handoff.styleBible, projectId, "Write the next scene")).not.toContain("short silver hair");
     expect(() => buildStyleBibleContext(handoff.styleBible, "different-world", "Write chapter one")).toThrow(/another project/i);
   });

@@ -1,3 +1,5 @@
+> **Current main source:** `7a19acad2c1b95b963c8c72ec0b7dc6d87f15a22` · [Latest debug APK and provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest).
+
 # Kuro Canvas
 
 > 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  

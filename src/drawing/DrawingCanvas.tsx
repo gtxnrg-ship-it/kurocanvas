@@ -178,7 +178,7 @@ function createSurface(width: number, height: number): HTMLCanvasElement | null 
 }
 
 type PendingCanvasPlan = { id: string; commands: NativeDrawingCommand[]; expectedDocumentSignature: string; expectedDocumentWasSaved: boolean } | null;
-export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error' | 'cancelled', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void }) {
+export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projectId = '', requestedDrawingId = '', onDrawingOpened, initialDimensions }: { pendingPlan?: PendingCanvasPlan; onPlanResult?: (id: string, result: 'success' | 'error' | 'cancelled', message: string) => void; projectId?: string; requestedDrawingId?: string; onDrawingOpened?: (drawingId: string) => void; initialDimensions?: { width: number; height: number; name?: string } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const layerSurfaceRef = useRef<HTMLCanvasElement | null>(null);
@@ -378,10 +378,14 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       } else {
         const pending = pendingNewDocRef.current?.id === drawingId ? pendingNewDocRef.current.doc : null;
         if (pendingNewDocRef.current?.id === drawingId) pendingNewDocRef.current = null;
-        docRef.current = pending ?? { version: 1, width: 1600, height: 1200, background: '#fffdfb', strokes: [] };
+        const initial = initialDimensions && isValidCanvasDimensions(initialDimensions.width, initialDimensions.height)
+          ? initialDimensions
+          : undefined;
+        docRef.current = pending ?? { version: 1, width: initial?.width ?? 1600, height: initial?.height ?? 1200, background: '#fffdfb', strokes: [] };
         setStrokes([]); setRedoStack([]); setPlanUndoStack([]); setPlanRedoStack([]); setLayers([DEFAULT_LAYER]); setActiveLayerId(DEFAULT_LAYER.id);
         setBackground('#fffdfb');
-        setNotice('New canvas · Drawings save automatically on this device');
+        if (!pending && initial?.name?.trim()) setDrawingName(initial.name.trim());
+        setNotice(initial ? 'New ' + (initial.name || 'canvas') + ' · ' + initial.width + ' × ' + initial.height + ' px' : 'New canvas · Drawings save automatically on this device');
       }
       setLoaded(true); setSaveState('saved'); onDrawingOpened?.(drawingId);
     }).catch(error => {
@@ -394,7 +398,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       setNotice('Local storage unavailable: ' + (error instanceof Error ? error.message : 'unknown error'));
     });
     return () => { cancelled = true; };
-  }, [drawingId, projectId]);
+  }, [drawingId, projectId, initialDimensions?.width, initialDimensions?.height, initialDimensions?.name]);
 
   useEffect(() => {
     docRef.current = { ...docRef.current, strokes, background };
@@ -1305,7 +1309,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const createDrawing = () => {
     const name = globalThis.prompt('Name your new drawing', 'Untitled drawing');
     if (!name?.trim()) return;
-    const presetChoice = globalThis.prompt('Canvas preset: landscape, portrait, square, webtoon, manga, A4, or custom', 'landscape');
+    const presetChoice = globalThis.prompt('Canvas preset: landscape, portrait, square, webtoon, long-webtoon, manga, A4, or custom', 'landscape');
     if (!presetChoice?.trim()) return;
     const preset = presetChoice.trim().toLowerCase();
     let dimensions = CANVAS_PRESETS[preset];
@@ -1316,7 +1320,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       if (heightInput === null) return;
       dimensions = [Number(widthInput), Number(heightInput)];
     }
-    if (!dimensions) { setNotice('Unknown canvas preset. Choose landscape, portrait, square, webtoon, manga, A4, or custom.'); return; }
+    if (!dimensions) { setNotice('Unknown canvas preset. Choose landscape, portrait, square, webtoon, long-webtoon, manga, A4, or custom.'); return; }
     const [width, height] = dimensions;
     if (!isValidCanvasDimensions(width, height)) {
       setNotice('Canvas dimensions must be 256–6000 px per side and no more than 16 megapixels. Nothing was created.'); return;

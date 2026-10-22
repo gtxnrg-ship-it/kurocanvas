@@ -87,5 +87,8 @@ describe("whole-series plan contract", () => {
       seriesChapterPlan: "Chapter 1: Two estranged friends repair their broken radio before dawn and finally talk.",
     };
     expect(validateSeriesPlan(oneShot)).toEqual([]);
+
+    const invalidOneShot = { ...oneShot, seriesChapterPlan: completeDraft.seriesChapterPlan };
+    expect(validateSeriesPlan(invalidOneShot).map(issue => issue.id)).toContain("chapter-count");
   });
 });

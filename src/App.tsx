@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import MessageRenderer from './chat/MessageRenderer';
 import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, prepareLocalTinyModel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
-import { clearRemoteModelCredential, readRemoteModelCredential, saveRemoteModelCredential } from './ai/providerCredentials';
+import { clearRemoteModelCredential, hasRemoteModelConsent, readRemoteModelCredential, saveRemoteModelCredential } from './ai/providerCredentials';
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
 import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, shouldEndLiveSpeechSession, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
@@ -155,35 +155,31 @@ export default function App(){
  useEffect(()=>{
   let cancelled=false;
   const isLocal=providerConfig.baseUrl===LOCAL_TINY_BASE_URL;
-  const apiKey=isLocal?undefined:readRemoteModelCredential(providerConfig.baseUrl);
-  const runtimeConfig={...providerConfig,apiKey};
-  let provider;
-  try{
-   provider=createConfiguredProvider(runtimeConfig,progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
-  }catch(error){
-   setActiveProvider(null);
-   setProviderNotice((isLocal?'Qwen3-0.6B is not ready: ':'Configured model endpoint is invalid: ')+(error instanceof Error?error.message:'configuration error'));
+  if(!isLocal){
+   // Never probe a remote endpoint on page load. The creator's explicit saved consent
+   // is session-scoped; model discovery happens when they send a request or test settings.
+   if(!hasRemoteModelConsent(providerConfig.baseUrl)){
+    setActiveProvider(null);
+    setProviderNotice('A remote endpoint is saved, but this browser session has no active privacy consent. Open Settings to review and reconnect it.');
+    return()=>{cancelled=true;};
+   }
+   const apiKey=readRemoteModelCredential(providerConfig.baseUrl);
+   setActiveProvider({...providerConfig,apiKey});
+   setProviderNotice('Configured remote model selected. No network request was made on startup; connection is checked when you send a request. Relevant context will go to this endpoint.');
    return()=>{cancelled=true;};
   }
+  const canonical={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false,supportsStructuredOutput:false};
+  const provider=createConfiguredProvider(canonical,progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
   void provider.listModels().then(models=>{
-   const model=isLocal
-    ?models.find(item=>item.id==='kuro-local:qwen3-0.6b')
-    :models.find(item=>item.modelUri===providerConfig.modelUri||item.name===providerConfig.modelUri);
+   const model=models.find(item=>item.id==='kuro-local:qwen3-0.6b');
    if(!cancelled&&model){
-    setActiveProvider({...providerConfig,apiKey});
-    setProviderNotice(isLocal
-      ?localModelReadinessLabel()
-      :'Connected · '+model.name+' · configured endpoint. Requests may include your prompt, selected chat context, approved canon and relevant project notes.');
-   }else if(!cancelled){
-    setActiveProvider(null);
-    setProviderNotice(isLocal
-      ?'Qwen3-0.6B is not ready: its model descriptor was not found.'
-      :'The endpoint responded, but the selected model ID was not found. Open Preferences and choose a listed model.');
+    setActiveProvider({...canonical});
+    setProviderNotice(localModelReadinessLabel());
    }
   }).catch(error=>{
    if(!cancelled){
     setActiveProvider(null);
-    setProviderNotice((isLocal?'Qwen3-0.6B is not ready: ':'Configured provider could not connect: ')+(error instanceof Error?error.message:'model discovery failed'));
+    setProviderNotice('Qwen3-0.6B is not ready: '+(error instanceof Error?error.message:'model discovery failed'));
    }
   });
   return()=>{cancelled=true;};
@@ -384,14 +380,14 @@ useEffect(()=>{
    ?{baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false,supportsStructuredOutput:false}
    :{baseUrl:trimEndpointSlashes(config.baseUrl),modelUri:config.modelUri.trim(),allowInsecureLocalhost:config.allowInsecureLocalhost===true,supportsVision:config.supportsVision===true,supportsStructuredOutput:config.supportsStructuredOutput===true};
   if(isLocal)clearRemoteModelCredential();
-  else saveRemoteModelCredential(safe.baseUrl,config.apiKey||'');
+  else saveRemoteModelCredential(safe.baseUrl,config.apiKey||'',true);
   setProviderConfig(safe);
   setActiveProvider({...safe,apiKey:isLocal?undefined:(config.apiKey?.trim()||undefined)});
   try{localStorage.setItem('kuro-model-provider',JSON.stringify(safe));}catch{}
   setProviderNotice(isLocal?localModelReadinessLabel():'Saved model endpoint settings. Checking connection…');
  }
  async function synthesizeArtDirection(bible:ArtDirectionBible):Promise<Partial<ArtDirectionBible>>{
-  if(!activeProvider)throw new Error('Prepare Qwen3-0.6B in Preferences before asking Kuro to synthesize art direction.');
+  if(!activeProvider)throw new Error('Connect the selected model in Preferences before asking Kuro to synthesize art direction.');
   const provider=createConfiguredProvider({baseUrl:activeProvider.baseUrl,modelUri:activeProvider.modelUri,apiKey:activeProvider.apiKey,allowInsecureLocalhost:activeProvider.allowInsecureLocalhost,supportsVision:activeProvider.supportsVision,supportsStructuredOutput:activeProvider.supportsStructuredOutput}, progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
   const models=await provider.listModels();
   const model:ModelDescriptor|undefined=models.find(item=>item.modelUri===activeProvider.modelUri||item.name===activeProvider.modelUri);

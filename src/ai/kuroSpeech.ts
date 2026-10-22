@@ -26,6 +26,19 @@ export const KURO_FISH_VOICES = [
 export const KURO_FISH_AUDIO_MODEL = "drama-3";
 export const KURO_FISH_AUDIO_TTS_ENDPOINT = "https://api.fish.audio/v1/tts";
 
+export interface KuroFishTtsPayload {
+  text: string;
+  reference_id: string;
+  format: "mp3";
+  language: "en";
+  normalize: true;
+  prosody: { speed: number; volume: 0; normalize_loudness: true };
+  chunk_length: 300;
+  min_chunk_length: 80;
+  condition_on_previous_chunks: true;
+  latency: "balanced";
+}
+
 /** Keep the same core voice while letting delivery respond gently to the meaning of the text. */
 export function kuroFishPerformanceDirection(text: string): string {
   const serious = /\b(sorry|apolog(?:y|ize|ise)|that sounds painful|i'm sorry|i am sorry|grief|lost someone|overwhelmed|scared|afraid|hurt|frustrat|exhausted|worried|anxious|hard day|tough time|struggling)\b/i.test(text);
@@ -39,6 +52,21 @@ export function kuroFishPerformanceDirection(text: string): string {
         ? "curious, attentive and conversational, with an interested rising tone where natural"
         : "natural, warm and conversational, lightly playful when it fits";
   return "[speaking fluent English with a subtle Japanese-influenced accent; " + mood + "; natural anime voice, expressive but never exaggerated]";
+}
+
+export function buildKuroFishTtsPayload(text: string, preferences: Pick<KuroSpeechPreferences, "voice" | "rate">): KuroFishTtsPayload {
+  return {
+    text: kuroFishPerformanceDirection(text) + " " + text,
+    reference_id: preferences.voice,
+    format: "mp3",
+    language: "en",
+    normalize: true,
+    prosody: { speed: Math.max(0.8, Math.min(1.2, preferences.rate)), volume: 0, normalize_loudness: true },
+    chunk_length: 300,
+    min_chunk_length: 80,
+    condition_on_previous_chunks: true,
+    latency: "balanced",
+  };
 }
 export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "" };
 
@@ -263,18 +291,7 @@ async function speakFishChunk(
       },
       // Drama 3 supports bracketed performance directions; the voice profile remains the
       // same while the delivery is guided toward the user's requested English accent and tone.
-      body: JSON.stringify({
-        text: kuroFishPerformanceDirection(text) + " " + text,
-        reference_id: preferences.voice,
-        format: "mp3",
-        language: "en",
-        normalize: true,
-        prosody: { speed: preferences.rate, volume: 0, normalize_loudness: true },
-        chunk_length: 300,
-        min_chunk_length: 80,
-        condition_on_previous_chunks: true,
-        latency: "balanced",
-      }),
+      body: JSON.stringify(buildKuroFishTtsPayload(text, preferences)),
       signal: controller.signal,
     });
     if (requestGeneration !== playbackGeneration) return;

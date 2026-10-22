@@ -123,6 +123,30 @@ try {
     await page.locator('.save-indicator.saved').waitFor({ state: 'visible', timeout: 15000 });
   });
 
+  await runCheck('phone viewport retains accessible drawing controls and editable canvas input', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(120);
+    assert.equal(await page.locator('.drawing-alt .draw-toolbar').isVisible(), true,
+      'The phone layout must retain drawing tools.');
+    assert.equal(await page.locator('.drawing-project-controls').isVisible(), true,
+      'The phone layout must retain project and drawing controls.');
+    const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
+    assert.equal(await canvas.evaluate(element => getComputedStyle(element).pointerEvents), 'auto',
+      'Touch-capable phones must not have drawing input disabled.');
+    const before = await canvas.evaluate(element => element.toDataURL());
+    const bounds = await canvas.boundingBox();
+    assert(bounds && bounds.width > 60 && bounds.height > 60, 'The phone canvas has no usable visible area.');
+    await page.mouse.move(bounds.x + bounds.width * 0.22, bounds.y + bounds.height * 0.30);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * 0.55, bounds.y + bounds.height * 0.48, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForFunction(previous => {
+      const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
+      return element instanceof HTMLCanvasElement && element.toDataURL() !== previous;
+    }, before, { timeout: 10000 });
+    await page.locator('.save-indicator.saved').waitFor({ state: 'visible', timeout: 15000 });
+  });
+
   await runCheck('drawing workspace stays within phone and tablet widths', async () => {
     for (const width of [320, 360, 390, 430, 600, 601, 768, 900, 1280]) {
       await page.setViewportSize({ width, height: 900 });

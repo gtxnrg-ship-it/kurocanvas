@@ -6,6 +6,7 @@ export type CreativeFormatId =
   | "comic-strip"
   | "graphic-novel"
   | "comic-page"
+  | "zine"
   | "visual-novel"
   | "storyboard"
   | "picture-book"
@@ -53,6 +54,10 @@ const FORMAT_SPECS: Record<CreativeFormatId, CreativeProductionSpec> = {
     id: "comic-page", label: "Comic page", layout: "page", width: 1800, height: 2700, foundationGate: true,
     promptGuidance: "COMIC PAGE PRODUCTION: Create one editable portrait page with a coherent grid or deliberately varied panel shapes, readable gutters, strong focal hierarchy, and space for dialogue/captions. Respect the requested reading direction and genre rather than forcing one house style.",
   },
+  zine: {
+    id: "zine", label: "Zine / mini-comic page", layout: "page", width: 1800, height: 2700, foundationGate: true,
+    promptGuidance: "ZINE / MINI-COMIC PAGE PRODUCTION: Treat the page as a creator-led zine or mini-comic, with a strong handmade editorial voice, deliberate typography/lettering areas, and a clear printable page composition. Follow the user's specified paper/layout style; do not assume manga panel conventions unless requested. Keep all elements editable and identify any print-safety assumptions.",
+  },
   "visual-novel": {
     id: "visual-novel", label: "Visual novel scene board", layout: "wide-scene", width: 1600, height: 900, foundationGate: true,
     promptGuidance: "VISUAL-NOVEL SCENE BOARD: Compose a wide 16:9 scene with a clear background/environment, character staging and eye-lines, expression/pose cues, and a separate reserved dialogue-box area. This is an editable scene/layout storyboard, not a playable game or a finished character sprite. Keep speaker and dialogue details grounded in approved story context.",
@@ -83,10 +88,11 @@ const FORMAT_MATCHERS: Array<{ id: CreativeFormatId; pattern: RegExp }> = [
   { id: "graphic-novel", pattern: /\bgraphic\s+novel\b/i },
   { id: "visual-novel", pattern: /\bvisual\s+novel\b/i },
   { id: "picture-book", pattern: /\b(?:picture\s+book|illustrated\s+children'?s\s+book)\b/i },
+  { id: "zine", pattern: /\b(?:zine|fanzine|mini[\s-]?comic)\b/i },
   { id: "custom-storyboard", pattern: /\b(?:custom|hybrid|experimental)\s+(?:visual\s+)?(?:story|comic|format|sequence|narrative|book|storyboard)\b/i },
-  { id: "storyboard", pattern: /\b(?:storyboard|animatic\s+board|shot\s+sequence|short\s+film\s+board|film\s+storyboard)\b/i },
+  { id: "storyboard", pattern: /\b(?:storyboard|animatic(?:\s+board)?|shot\s+sequence|short\s+film(?:\s+board)?|film\s+storyboard|animated\s+short|animation\s+sequence|film\s+sequence)\b/i },
   { id: "manga", pattern: /\b(?:manga|manga\s+page)\b/i },
-  { id: "comic-page", pattern: /\b(?:comic\s+page|comic\s+book|graphic\s+comic)\b/i },
+  { id: "comic-page", pattern: /\b(?:comic\s+page|comic\s+book|graphic\s+comic|graphic\s+story|webcomic|comic)\b/i },
 ];
 
 const STRONG_PRODUCTION_ACTION = /\b(?:write|draft|compose|script|create|make|build|produce|generate|draw|sketch|illustrate|paint|render|storyboard|plan|outline|start|begin|turn\s+.+\s+into|adapt\s+.+\s+into)\b/i;
@@ -113,7 +119,7 @@ export function detectCreativeProductionRequest(message: string): CreativeProduc
   if (!matched) return undefined;
 
   // A user who is discussing a work but not asking for a deliverable stays in chat.
-  const asksForDeliverable = /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+story|custom\s+format|custom|hybrid|experimental|narrative|story|format)\b/i.test(text);
+  const asksForDeliverable = /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+film|film|animation|short\s+story|zine|fanzine|mini[\s-]?comic|webcomic|custom\s+format|custom|hybrid|experimental|narrative|story|format)\b/i.test(text);
   if (!asksForDeliverable) return undefined;
   return FORMAT_SPECS[matched.id];
 }
@@ -132,6 +138,8 @@ export function describeCreativeFormats(): string {
     "Doujin and fan-created comics",
     "Short one-shots",
     "Comic strips (including 3–4 panel strips)",
+    "Zines, fanzines, and mini-comics",
+    "Film / animation storyboards and shot sequences",
     "Graphic novels and general comic pages",
     "Visual-novel scene boards",
     "Storyboards / shot sequences",

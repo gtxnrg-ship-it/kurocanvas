@@ -1,5 +1,5 @@
-export type KuroSpeechEngine = "kokoro" | "system";
-export interface KuroSpeechPreferences { engine: KuroSpeechEngine; voice: string; rate: number; }
+export type KuroSpeechEngine = "kokoro" | "system" | "fish";
+export interface KuroSpeechPreferences { engine: KuroSpeechEngine; voice: string; rate: number; apiKey: string; }
 export interface KuroSpeechProgress { status: string; percent: number; file?: string; }
 const STORAGE_KEY = "kuro-speech-preferences";
 export const KURO_SPEECH_MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
@@ -13,22 +13,36 @@ export const KURO_SPEECH_VOICES = [
   { id: "bf_emma", label: "Emma · British, warm" },
   { id: "bf_isabella", label: "Isabella · British, soft" },
 ] as const;
-export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "kokoro", voice: "af_bella", rate: 1 };
+/** Public Fish Audio community profiles chosen after listening to the user's references. */
+export const KURO_FISH_VOICES = [
+  { id: "84644c87811b4279940848ec184e0ffe", label: "SAKURA · bright, expressive Japanese voice style", sampleUrl: "https://fish.audio/ja/m/84644c87811b4279940848ec184e0ffe/" },
+  { id: "8f5b0abbfa464c3fab065588dbfd48de", label: "Chiaki Nanami · gentle, soft-spoken, conversational", sampleUrl: "https://fish.audio/ja/m/8f5b0abbfa464c3fab065588dbfd48de/" },
+  { id: "cbe13152c7ff4da98be9a95d448a1f39", label: "Mitsuri Kanroji · affectionate, bright, expressive", sampleUrl: "https://fish.audio/ja/m/cbe13152c7ff4da98be9a95d448a1f39/" },
+] as const;
+export const KURO_FISH_AUDIO_MODEL = "s2.1-pro-free";
+export const KURO_FISH_AUDIO_TTS_ENDPOINT = "https://api.fish.audio/v1/tts";
+export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "" };
 
 export function readKuroSpeechPreferences(): KuroSpeechPreferences {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as Partial<KuroSpeechPreferences> | null;
-    const engine: KuroSpeechEngine = stored?.engine === "system" ? "system" : "kokoro";
-    const voice = KURO_SPEECH_VOICES.some(item => item.id === stored?.voice) ? stored!.voice! : DEFAULT_KURO_SPEECH_PREFERENCES.voice;
+    const engine: KuroSpeechEngine = stored?.engine === "system" || stored?.engine === "fish" ? stored.engine : "kokoro";
+    const voiceList = engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES;
+    const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : DEFAULT_KURO_SPEECH_PREFERENCES.voice;
+    const voice = voiceList.some(item => item.id === stored?.voice) ? stored!.voice! : fallbackVoice;
     const rate = typeof stored?.rate === "number" && Number.isFinite(stored.rate) ? Math.max(0.8, Math.min(1.2, stored.rate)) : 1;
-    return { engine, voice, rate };
+    const apiKey = typeof stored?.apiKey === "string" ? stored.apiKey.trim().slice(0, 1024) : "";
+    return { engine, voice, rate, apiKey };
   } catch { return { ...DEFAULT_KURO_SPEECH_PREFERENCES }; }
 }
 export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
   const safe: KuroSpeechPreferences = {
-    engine: value.engine === "system" ? "system" : "kokoro",
-    voice: KURO_SPEECH_VOICES.some(item => item.id === value.voice) ? value.voice : DEFAULT_KURO_SPEECH_PREFERENCES.voice,
+    engine: value.engine === "system" || value.engine === "fish" ? value.engine : "kokoro",
+    voice: (value.engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES).some(item => item.id === value.voice)
+      ? value.voice
+      : value.engine === "fish" ? KURO_FISH_VOICES[0].id : DEFAULT_KURO_SPEECH_PREFERENCES.voice,
     rate: Number.isFinite(value.rate) ? Math.max(0.8, Math.min(1.2, value.rate)) : 1,
+    apiKey: typeof value.apiKey === "string" ? value.apiKey.trim().slice(0, 1024) : "",
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(safe)); } catch { /* storage may be disabled */ }
 }
@@ -45,6 +59,7 @@ const pending = new Map<number, Pending>();
 let playbackGeneration = 0;
 let audioContext: AudioContext | undefined;
 let activeSource: AudioBufferSourceNode | undefined;
+let activeFetchController: AbortController | undefined;
 
 function getAudioContext(): AudioContext {
   if (!audioContext) {
@@ -126,21 +141,80 @@ function speechChunks(value: string): string[] {
   if (current) chunks.push(current);
   return chunks;
 }
-async function playSamples(samples: Float32Array, sampleRate: number, requestGeneration: number): Promise<void> {
+function playAudioBuffer(buffer: AudioBuffer, rate: number, requestGeneration: number): Promise<void> {
+  if (requestGeneration !== playbackGeneration) return Promise.resolve();
+  const context = getAudioContext();
+  return new Promise<void>((resolve, reject) => {
+    const source = context.createBufferSource();
+    activeSource = source;
+    source.buffer = buffer;
+    source.playbackRate.value = Math.max(0.8, Math.min(1.2, rate));
+    source.connect(context.destination);
+    source.onended = () => { if (activeSource === source) activeSource = undefined; resolve(); };
+    try { source.start(); } catch (error) { reject(error); }
+  });
+}
+async function playSamples(samples: Float32Array, sampleRate: number, rate: number, requestGeneration: number): Promise<void> {
   if (requestGeneration !== playbackGeneration) return;
   const context = getAudioContext();
   if (context.state === "suspended") await context.resume();
   if (requestGeneration !== playbackGeneration) return;
   const buffer = context.createBuffer(1, samples.length, sampleRate);
   buffer.copyToChannel(samples, 0);
-  await new Promise<void>((resolve, reject) => {
-    const source = context.createBufferSource();
-    activeSource = source;
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.onended = () => { if (activeSource === source) activeSource = undefined; resolve(); };
-    try { source.start(); } catch (error) { reject(error); }
-  });
+  await playAudioBuffer(buffer, rate, requestGeneration);
+}
+async function speakFishChunk(
+  text: string,
+  preferences: KuroSpeechPreferences,
+  requestGeneration: number,
+  onProgress?: (value: KuroSpeechProgress) => void,
+): Promise<void> {
+  if (!preferences.apiKey.trim()) {
+    throw new Error("Fish Audio is selected, but no API key is saved. Add your own Fish Audio API key in Settings → Spoken voice.");
+  }
+  if (!KURO_FISH_VOICES.some(item => item.id === preferences.voice)) {
+    throw new Error("Select one of the configured Fish Audio voices in Settings.");
+  }
+  const controller = new AbortController();
+  activeFetchController = controller;
+  onProgress?.({ status: "Connecting to Fish Audio for English speech", percent: 0 });
+  try {
+    const response = await fetch(KURO_FISH_AUDIO_TTS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + preferences.apiKey.trim(),
+        "Content-Type": "application/json",
+        model: KURO_FISH_AUDIO_MODEL,
+      },
+      body: JSON.stringify({ text, reference_id: preferences.voice, format: "mp3" }),
+      signal: controller.signal,
+    });
+    if (requestGeneration !== playbackGeneration) return;
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240).replace(/\s+/g, " ").trim();
+      if (response.status === 401 || response.status === 403) throw new Error("Fish Audio rejected the API key or access to this voice. Check the key and account permissions in Settings.");
+      if (response.status === 429) throw new Error("Fish Audio rate limit reached. Wait a moment, then try again.");
+      throw new Error("Fish Audio speech request failed (" + response.status + ")" + (detail ? ": " + detail : "."));
+    }
+    onProgress?.({ status: "Decoding generated speech", percent: 0 });
+    const audioBytes = await response.arrayBuffer();
+    if (requestGeneration !== playbackGeneration) return;
+    const context = getAudioContext();
+    if (context.state === "suspended") await context.resume();
+    const buffer = await context.decodeAudioData(audioBytes.slice(0));
+    if (requestGeneration !== playbackGeneration) return;
+    onProgress?.({ status: "Speaking with the selected Fish Audio voice", percent: 100 });
+    await playAudioBuffer(buffer, preferences.rate, requestGeneration);
+  } catch (error) {
+    if (requestGeneration !== playbackGeneration) return;
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    if (error instanceof TypeError) {
+      throw new Error("Could not reach Fish Audio. Check the network connection; the service may also block this browser's request.");
+    }
+    throw error;
+  } finally {
+    if (activeFetchController === controller) activeFetchController = undefined;
+  }
 }
 function speakSystemChunk(text: string, rate: number, requestGeneration: number): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -177,13 +251,20 @@ export async function speakKuroVoice(
       }
       return;
     }
+    if (preferences.engine === "fish") {
+      for (const chunk of chunks) {
+        if (requestGeneration !== playbackGeneration) return;
+        await speakFishChunk(chunk, preferences, requestGeneration, onProgress);
+      }
+      return;
+    }
     await prepareKuroVoice(onProgress);
     for (const chunk of chunks) {
       if (requestGeneration !== playbackGeneration) return;
       const reply = await requestWorker({ type: "generate", text: chunk, voice: preferences.voice }, onProgress);
       if (requestGeneration !== playbackGeneration) return;
       if (reply.type !== "audio") throw new Error("Kuro's local voice model returned no audio.");
-      await playSamples(reply.samples, reply.sampleRate, requestGeneration);
+      await playSamples(reply.samples, reply.sampleRate, preferences.rate, requestGeneration);
     }
   } catch (error) {
     if (requestGeneration !== playbackGeneration) return;
@@ -193,6 +274,8 @@ export async function speakKuroVoice(
 export function stopKuroVoice(): void {
   playbackGeneration++;
   try { window.speechSynthesis?.cancel(); } catch { /* optional device voice */ }
+  try { activeFetchController?.abort(); } catch { /* request may already have ended */ }
+  activeFetchController = undefined;
   try { activeSource?.stop(); } catch { /* source may already have ended */ }
   activeSource = undefined;
 }

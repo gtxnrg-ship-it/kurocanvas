@@ -1,7 +1,7 @@
 # Kuro Canvas
 
 > 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  
-> The rolling release is updated only after the Android workflow passes its checks and assembles an APK. The release page identifies the exact source commit for that binary; while a newer build is running, the download can temporarily lag behind `main`. This is a debug-signed test package, not a production or Play Store release, and it has not been smoke-tested on a physical device in this audit.
+> **Latest published APK source:** `430ac5619fd6afaed4363afc37378502f1b8542b` · **SHA-256:** `d5b6bebb7469147898a4ad845104ba7c5b690d4522eca3f4cd314d7a6d3bf4bc`. The rolling release is updated only after the Android workflow passes and assembles an APK; while a newer build is running, it can temporarily lag behind `main`. This is debug-signed test software, not a production or Play Store release. It has not been smoke-tested on a physical device in this audit.
 
 **Create · Draw · Tell · Together.**
 
@@ -34,12 +34,16 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Home, chat, canvas, reader, Vault and settings areas | Implemented in the app | Feature completeness and edge cases vary by area |
 | Native editable 2D drawing | Implemented | Not all drawing capabilities are available to Kuro through a unified action registry |
 | Layers, strokes, drawing revisions and local storage | Implemented | Browser/device recovery and migration still need broader verification |
-| Universe/conversation separation and resume flows | Implemented on this branch | Isolation needs continued regression and end-to-end testing |
-| Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed |
+| Universe/conversation separation and resume flows | Implemented in main | Isolation needs continued regression and end-to-end testing |
+| Canon, story memory, character evolution and relationships | Foundation implemented | Retrieval quality, evidence coverage and long-story behavior are not guaranteed | 
+| Character design → World & Vault | Implemented in main: a finished/paused Live Creation session can link its saved editable drawing to a proposed character, proposed visual-timeline state and linked story-memory record | Creator must confirm appearance traits and chronology. These stay proposed until approved; the text-only model does not inspect image pixels. Approval persistence and next-chapter continuity still need an end-to-end device/browser check |
 | Rich chat replies and safe Markdown rendering | Implemented | Links open externally; raw HTML is not executed and arbitrary embedded image URLs are not auto-loaded |
 | Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
 | Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
+| Nonlinear character visual chronology | Implemented in main | The Style Bible now distinguishes a chapter-targeted request from explicit in-world story order; browser-level approval/reload/next-chapter validation remains open |
+| Project JSON export download | Browser/WebView revoke timing fixed in main | Delayed object-URL cleanup has tests, but exporting and opening a real backup on Android/iOS still needs smoke testing | 
+| Chat-to-Live-Creation routing | Implemented in main | Explicit draw/visual artifact requests route from chat; ambiguous phrases still need creator direction, and only supported editable native actions can execute |
 | Qwen3-0.6B local model | Experimental | The only active text-only model; runs in a browser worker with cancellation and local speed benchmark. Quality, download reliability and Android performance still need real-device verification |
 | Replaceable model adapter | Implemented | Future upgrades use the `ModelProvider` seam and require tests/benchmarks; no model carousel or silent remote fallback |
 | Live voice session (experimental) | Fish Audio Drama 3 output with SAKURA, Chiaki Nanami and Mitsuri voice profiles; configurable natural/subtle-Japanese/more-noticeable-Japanese English delivery direction; local Kokoro/device alternatives; microphone and playback level meters; one stable Kuro personality | Fish Audio requires your own API key and a network connection. Spoken reply text (which may contain story details) is sent to Fish Audio. The API key is kept in sessionStorage, not encrypted, and is not intentionally persisted across browser sessions. Accent directions are prompts, not a guaranteed acoustic accent. Android WebView recognition, speech interruption and full-device behavior need hands-on testing. |

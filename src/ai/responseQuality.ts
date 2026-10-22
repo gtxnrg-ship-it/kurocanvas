@@ -13,6 +13,36 @@ const CONTINUATION_REQUEST = /\b(?:continue|keep going|go on|carry on|finish (?:
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
 const HUGE_REQUEST = /\b(?:exhaustive|comprehensive|every single detail|leave nothing out|full specification|production[- ]ready|fully finish|end to end|entire system|all edge cases)\b/i;
 
+/** Exact composer text used by Kuro's visible Continue answer control. */
+export const KURO_CONTINUE_ANSWER_PROMPT =
+  "Continue from the last unfinished point. Do not repeat the sections already completed.";
+
+/**
+ * Recover the substantive user request behind repeated UI continuation turns.
+ * This prevents each Continue click from replacing the original creative brief
+ * with the generic one-line continuation instruction.
+ */
+export function findKuroContinuationSource(
+  messages: readonly { role: string; text: string }[],
+  beforeIndex: number,
+): string | undefined {
+  const earlierUserMessages = messages.slice(0, Math.max(0, beforeIndex))
+    .filter(message => message.role === "user");
+  return [...earlierUserMessages].reverse()
+    .find(message => message.text.trim() !== KURO_CONTINUE_ANSWER_PROMPT)?.text;
+}
+
+/** Bound the hidden source attached to a continuation without losing premise or ending constraints. */
+export function boundKuroContinuationSource(value: string, maxChars = 4000): string {
+  if (value.length <= maxChars) return value;
+  const marker = "\\n[…middle of original request omitted…]\\n";
+  const available = Math.max(0, maxChars - marker.length);
+  const head = Math.ceil(available * 0.6);
+  const tail = available - head;
+  return value.slice(0, head) + marker + (tail ? value.slice(-tail) : "");
+}
+
+
 export function inferKuroResponseDepth(message: string): KuroResponseDepth {
   const text = message.trim();
   if (!text || /^(?:hi|hey|hello|thanks|thank you|ok|okay|yes|no|lol|haha)[!.\s]*$/i.test(text)) return "quick";

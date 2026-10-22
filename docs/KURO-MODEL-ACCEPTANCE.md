@@ -43,7 +43,7 @@ Run tasks against the exact model revision, quantization, Transformers.js/ONNX R
 | Revision and undo | Make a targeted revision and restore the previous state | Only intended elements change; undo restores the exact state |
 | Long-context retrieval | Recall old universe facts from the correct universe | No cross-universe leakage; supporting records can be inspected |
 | Cancellation | Cancel model generation and model preparation | Worker terminates; no stale reply or false success appears |
-| Long reply continuation | Use a detailed prompt that hits the local per-pass ceiling | Kuro continues from the unfinished point without restarting or duplicating earlier sections; cancelling between passes stops generation |
+| Long reply continuation | Use a detailed prompt that hits the local per-pass ceiling, then press Continue answer more than once | Kuro continues without restarting, preserves the original premise and final constraints across separate continuation clicks, and stops cleanly when cancelled |
 | No-surprise-download | Send a message before preparing the runtime | No worker download begins; user gets clear instructions and the draft remains available |
 | Model-independent tools | Run an explicit source-research or Wikimedia-reference lookup before preparing Qwen | Tool queue/results work without model weights; AI chat still asks for explicit preparation |
 | Error handling | Test offline loading, malformed JSON, truncated output and low memory | App remains usable and explains failure; no fake completion |

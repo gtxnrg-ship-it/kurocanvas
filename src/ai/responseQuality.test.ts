@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth } from "./responseQuality";
+import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, inferKuroResponseDepth, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from "./responseQuality";
 
 describe("Kuro request-aware response quality", () => {
   it("does not expand greetings and explicit brevity requests into essays", () => {
@@ -45,6 +45,26 @@ describe("Kuro request-aware response quality", () => {
     expect(guidance).toMatch(/prematurely formalize/i);
     expect(guidance).toMatch(/CONTEXTUAL UNDERSTANDING/i);
     expect(guidance).toMatch(/without defending the previous answer/i);
+  });
+
+  it("keeps the original user request across repeated Continue answer actions", () => {
+    const messages = [
+      { role: "user", text: "Create an 8-page doujin; keep the crimson scarf and unresolved ending." },
+      { role: "kuro", text: "Partial script… truncated" },
+      { role: "user", text: KURO_CONTINUE_ANSWER_PROMPT },
+      { role: "kuro", text: "The rest of the script… truncated" },
+    ];
+    expect(findKuroContinuationSource(messages, 3)).toBe(messages[0].text);
+    expect(boundKuroContinuationSource(messages[0].text)).toContain("crimson scarf");
+  });
+
+  it("bounds long continuation source while preserving beginning and final constraints", () => {
+    const long = "OPENING PREMISE " + "background detail ".repeat(400) + " FINAL CONSTRAINT";
+    const bounded = boundKuroContinuationSource(long, 900);
+    expect(bounded.length).toBeLessThanOrEqual(900);
+    expect(bounded).toContain("OPENING PREMISE");
+    expect(bounded).toContain("FINAL CONSTRAINT");
+    expect(bounded).toContain("middle of original request omitted");
   });
 
   it("provides a manga and doujin production contract without forcing every reply into a panel script", () => {

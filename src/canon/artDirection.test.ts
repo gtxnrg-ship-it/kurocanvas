@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildArtDirectionContext, createEmptyArtDirection, parseArtDirectionSynthesis, validateArtDirection } from "./artDirection";
+import { approveSeriesPlan } from "./seriesPlan";
 
 describe("project art direction bible", () => {
   it("creates an empty project-scoped style contract", () => {
@@ -27,6 +28,24 @@ describe("project art direction bible", () => {
     expect(context).toContain("do not reproduce exact characters");
   });
 
+
+  it("passes the whole-series plan to Kuro as draft until its exact contents are approved", () => {
+    const bible = createEmptyArtDirection("series-1");
+    Object.assign(bible, {
+      seriesScope: "A 3-episode vertical mystery comic with a complete ending.",
+      seriesArcPlan: "The opening introduces the lead and the mystery. The middle escalates the investigation and costs the lead an important friendship. The final arc resolves the core question and relationship.",
+      seriesChapterPlan: [
+        "Chapter 1: The lead discovers a strange signal and hides it from a close friend.",
+        "Chapter 2: The investigation exposes a family secret and breaks the friends' trust.",
+        "Chapter 3: The lead reveals the truth, resolves the mystery, and repairs the friendship.",
+      ].join("\n"),
+      seriesEnding: "The finale explains the signal, pays off the opening clue, restores trust, and shows the lasting change in the community.",
+    });
+    expect(buildArtDirectionContext(bible, "series-1")).toContain("WHOLE-SERIES PLAN — DRAFT ONLY, NOT APPROVED");
+    const approved = { ...bible, ...approveSeriesPlan(bible) };
+    expect(buildArtDirectionContext(approved, "series-1")).toContain("WHOLE-SERIES PLAN — CREATOR-APPROVED");
+    expect(buildArtDirectionContext(approved, "series-1")).toContain("Chapter 3:");
+  });
 
   it("parses only editable fields from a structured synthesis draft", () => {
     const parsed = parseArtDirectionSynthesis(JSON.stringify({

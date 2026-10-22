@@ -580,8 +580,10 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  const explicitResearchIntent=extractResearchTaskIntent(text);
  const referenceQuery=extractReferenceSearchQuery(text);
  const explicitFormatSpec=detectCreativeProductionRequest(text);
- const inheritedFormatSpec=continuationSourceOverride
-  ? detectCreativeProductionRequest(continuationSourceOverride) || (isMangaChapterProductionRequest(continuationSourceOverride)?DEFAULT_ILLUSTRATED_STORY:undefined)
+ const continuationFormatSource=continuationSourceOverride
+  || (modeRef.current==='live'?liveSessionRef.current?.originalPrompt:undefined);
+ const inheritedFormatSpec=continuationFormatSource
+  ? detectCreativeProductionRequest(continuationFormatSource) || (isMangaChapterProductionRequest(continuationFormatSource)?DEFAULT_ILLUSTRATED_STORY:undefined)
   : undefined;
  const legacyChapterRequest=!continuationSourceOverride&&isMangaChapterProductionRequest(text);
  const productionSpec=explicitFormatSpec||inheritedFormatSpec||(legacyChapterRequest?DEFAULT_ILLUSTRATED_STORY:undefined);

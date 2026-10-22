@@ -47,13 +47,14 @@ export interface CharacterModelRecord {
   createdAt: string;
   updatedAt: string;
 }
-/** Select the latest model variant available at the requested story order; never use a future model for a flashback. */
+/** Select the latest eligible model variant; without a target story order, use only the timeline-neutral base model. */
 export function selectCharacterModelVariant(
   records: CharacterModelRecord[], characterName: string, targetStoryOrder?: number,
 ): CharacterModelRecord | undefined {
   const normalize = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
   const variants = records.filter(record => normalize(record.characterName) === normalize(characterName));
-  if (targetStoryOrder === undefined) return variants.find(record => !record.characterStateId) ?? variants.sort((a,b)=>(a.storyOrder??0)-(b.storyOrder??0))[0];
+  // With no temporal target, choosing a chapter-specific model would silently guess the scene's point in the story.
+  if (targetStoryOrder === undefined) return variants.find(record => !record.characterStateId);
   const eligible = variants.filter(record => (record.storyOrder ?? 0) <= targetStoryOrder)
     .sort((a,b)=>(a.storyOrder??0)-(b.storyOrder??0));
   return eligible[eligible.length - 1];

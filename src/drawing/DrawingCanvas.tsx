@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History, Pipette } from 'lucide-react';
+import { Eraser, Minus, Plus, RotateCcw, RotateCw, Download, Trash2, Hand, Pencil, CircleHelp, Cloud, AlertTriangle, Square, Circle, Type, MousePointer2, Copy, Library, MessageCircle, ImagePlus, History, Pipette, PaintBucket } from 'lucide-react';
 import { drawingRevisionStorage, drawingStorage, storyMemoryStorage } from '../core/storage';
 import { buildSvgDocument } from './svgExport';
 import type { LocalDrawingDocument } from '../core/storage';
@@ -16,8 +16,9 @@ import { applyStrokeAppearance } from './strokeAppearance';
 import { drawingGuardSignature } from './drawingGuard';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 import { resolveBrushPressure } from './brushDynamics';
+import { buildFloodFillOverlay, MAX_FLOOD_FILL_PIXELS } from './floodFill';
 
-type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper';
+type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper' | 'fill';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
 type Point = { x: number; y: number; pressure: number };
 type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay';
@@ -209,6 +210,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
   const [symmetryMode, setSymmetryMode] = useState<SymmetryMode>('off');
   const [panelLayout, setPanelLayout] = useState<PanelLayoutPreset>('two-rows');
   const [fillShapes, setFillShapes] = useState(false);
+  const [fillTolerance, setFillTolerance] = useState(24);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [layers, setLayers] = useState<Layer[]>([DEFAULT_LAYER]);
   const [activeLayerId, setActiveLayerId] = useState(DEFAULT_LAYER.id);
@@ -694,7 +696,114 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     const rect = e.currentTarget.getBoundingClientRect();
     return { x: ((e.clientX - rect.left) / rect.width) * docRef.current.width, y: ((e.clientY - rect.top) / rect.height) * docRef.current.height, pressure: e.pressure > 0 ? e.pressure : 0.5 };
   };
+
+  const fillAt = async (point: Point) => {
+    const width = docRef.current.width;
+    const height = docRef.current.height;
+    if (width * height > MAX_FLOOD_FILL_PIXELS) {
+      setNotice('Bucket fill is limited to 4 megapixels on this device to avoid exhausting memory. Use a smaller canvas for this operation.');
+      return;
+    }
+    const activeLayer = layers.find(layer => layer.id === activeLayerId);
+    if (!activeLayer || activeLayer.locked || !activeLayer.visible) {
+      setNotice('Choose a visible, unlocked layer before using bucket fill.');
+      return;
+    }
+
+    setNotice('Preparing bucket fill…');
+    // Allow the status to paint before creating two bounded document-size surfaces.
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    const targetDrawingId = drawingId;
+    try {
+      const composite = createSurface(width, height);
+      const layerSurface = createSurface(width, height);
+      const compositeCtx = composite?.getContext('2d', { willReadFrequently: true });
+      const layerCtx = layerSurface?.getContext('2d');
+      if (!composite || !layerSurface || !compositeCtx || !layerCtx) {
+        setNotice('Bucket fill is unavailable because this browser could not allocate a canvas surface.');
+        return;
+      }
+
+      compositeCtx.fillStyle = background;
+      compositeCtx.fillRect(0, 0, width, height);
+      // Rasterize visible layers into a temporary merged image. Erasers remain
+      // layer-local, and the fill mask therefore respects outlines on visible layers.
+      for (const layer of layers) {
+        if (!layer.visible) continue;
+        layerCtx.clearRect(0, 0, width, height);
+        for (const mark of strokes) {
+          if ((mark.layerId || layers[0]?.id) === layer.id) drawStroke(layerCtx, mark);
+        }
+        compositeCtx.save();
+        compositeCtx.globalAlpha = layer.opacity ?? 1;
+        compositeCtx.globalCompositeOperation = layer.blendMode === 'normal' || !layer.blendMode ? 'source-over' : layer.blendMode;
+        compositeCtx.drawImage(layerSurface, 0, 0);
+        compositeCtx.restore();
+      }
+
+      const sourcePixels = compositeCtx.getImageData(0, 0, width, height);
+      const fill = buildFloodFillOverlay(sourcePixels, point.x, point.y, color, fillTolerance);
+      if (!fill.filledPixels || !fill.width || !fill.height) {
+        setNotice('Nothing changed: the clicked area already matches this color, or no pixels matched the fill tolerance.');
+        return;
+      }
+
+      const overlay = createSurface(fill.width, fill.height);
+      const overlayCtx = overlay?.getContext('2d');
+      if (!overlay || !overlayCtx) {
+        setNotice('Could not allocate the cropped bucket-fill overlay.');
+        return;
+      }
+      const overlayPixels = overlayCtx.createImageData(fill.width, fill.height);
+      overlayPixels.data.set(fill.data);
+      overlayCtx.putImageData(overlayPixels, 0, 0);
+      const imageDataUrl = overlay.toDataURL('image/png');
+      if (imageDataUrl.length > 19 * 1024 * 1024) {
+        setNotice('This fill is too complex to save safely as an editable overlay. Try a smaller region or canvas.');
+        return;
+      }
+
+      const fillStroke: Stroke = {
+        id: crypto.randomUUID(),
+        layerId: activeLayerId,
+        tool: 'brush',
+        shape: 'image',
+        imageDataUrl,
+        imageName: 'Bucket fill',
+        color,
+        size: 1,
+        opacity: strokeOpacity / 100,
+        points: [
+          { x: fill.x, y: fill.y, pressure: 1 },
+          { x: fill.x + fill.width, y: fill.y + fill.height, pressure: 1 },
+        ],
+      };
+      await preloadDrawingImages([fillStroke]);
+      if (drawingId !== targetDrawingId) {
+        setNotice('The active drawing changed before the fill could be applied. Nothing was added.');
+        return;
+      }
+
+      const before = strokes.map(mark => ({ ...mark, points: mark.points.map(item => ({ ...item })) }));
+      setEditUndoStack(old => [...old, before]);
+      setEditRedoStack([]);
+      setHistoryOrder(old => [...old, 'edit']);
+      setRedoOrder([]);
+      setRedoStack([]);
+      setPlanRedoStack([]);
+      setStrokes(old => [...old, fillStroke]);
+      setNotice('Filled ' + fill.filledPixels.toLocaleString() + ' connected pixels · added to layer "' + activeLayer.name + '" · Undo is available');
+    } catch (error) {
+      setNotice('Bucket fill failed: ' + (error instanceof Error ? error.message : 'unexpected error'));
+    }
+  };
+
   const pointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (tool === 'fill') {
+      e.preventDefault();
+      void fillAt(pointFromEvent(e));
+      return;
+    }
     if (tool === 'eyedropper') {
       const rect = e.currentTarget.getBoundingClientRect();
       const scaleX = e.currentTarget.width / Math.max(1, rect.width);
@@ -913,7 +1022,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       if (event.altKey) return;
       if (key === '[' || key === '{') { event.preventDefault(); setSize(value => Math.max(1, value - ((event.shiftKey || key === '{') ? 10 : 1))); return; }
       if (key === ']' || key === '}') { event.preventDefault(); setSize(value => Math.min(200, value + ((event.shiftKey || key === '}') ? 10 : 1))); return; }
-      const toolShortcuts: Record<string, Tool> = { b: 'brush', e: 'eraser', v: 'select', h: 'pan', l: 'line', r: 'rectangle', o: 'ellipse', t: 'text', i: 'eyedropper', p: 'panel', u: 'bubble' };
+      const toolShortcuts: Record<string, Tool> = { b: 'brush', g: 'fill', e: 'eraser', v: 'select', h: 'pan', l: 'line', r: 'rectangle', o: 'ellipse', t: 'text', i: 'eyedropper', p: 'panel', u: 'bubble' };
       const nextTool = toolShortcuts[key];
       if (nextTool) {
         event.preventDefault();
@@ -1260,11 +1369,12 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <button type="button" className="drawing-blocker-cancel" onClick={() => cancelPlanExecutionRef.current?.()}>Cancel drawing and restore the original</button>
     </div>}
     <div className="althead"><div><small>EDITABLE 2D DRAWING</small><h1>Canvas</h1><p>Brush, eraser, geometric shape tools, layers, undo/redo, and PNG export.</p><div className="drawing-project-controls"><label>Drawing <select value={drawingId} onChange={e => switchDrawing(e.target.value)}><option value="default-canvas-v1">{drawingId==='default-canvas-v1'?drawingName:'My first sketch (legacy)'}</option>{documents.filter(d=>d.id!=='default-canvas-v1').map(d=><option key={d.id} value={d.id}>{d.name||'Untitled drawing'}</option>)}</select></label><button onClick={createDrawing}>＋ New drawing</button><button onClick={renameDrawing}>Rename</button><button onClick={deleteDrawing}>Delete</button></div></div><button onClick={() => setShowHelp(v => !v)}><CircleHelp size={15}/> {showHelp ? 'Hide tips' : 'Drawing tips'}</button></div>
-    {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. In Select mode, arrow keys nudge objects (Shift for 10 px), Delete removes, and Ctrl/Cmd+D duplicates. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
+    {showHelp && <div className="drawing-help">New drawings support landscape, portrait, square, Webtoon, manga, A4, and validated custom dimensions. Tall pages scroll without being squashed. Draw with mouse, finger, or stylus. Shortcuts: B brush, G bucket fill, E eraser, V select, H pan, L line, R rectangle, O ellipse, T lettering, I eyedropper, P panel, U speech balloon. Use [ and ] to change brush size; Shift+[ or Shift+] changes it faster. In Select mode, arrow keys nudge objects (Shift for 10 px), Delete removes, and Ctrl/Cmd+D duplicates. Ctrl/Cmd+Z undoes and Shift+Ctrl/Cmd+Z redoes. Line, rectangle, ellipse, comic-panel, and speech-bubble tools create editable vector-like strokes. Layout presets create starter page grids in one undoable action. Pressure is used when your device reports it. Use Stabilizer to reduce hand jitter on slow curves and ink lines. The eraser only affects the active layer; PNG export excludes hidden layers.</div>}
     <div className="draw-toolbar">
       <div className="draw-toolgroup">
         <button className={tool==='select'?'chosen':''} onClick={() => setTool('select')} title="Select and move objects"><MousePointer2 size={16}/><span>Select</span></button>
         <button className={tool==='brush'?'chosen':''} onClick={() => setTool('brush')} title="Brush"><Pencil size={16}/><span>Brush</span></button>
+        <button className={tool==='fill'?'chosen':''} onClick={() => setTool('fill')} title="Contiguous bucket fill · G" aria-pressed={tool==='fill'}><PaintBucket size={16}/><span>Fill</span></button>
         <button className={tool==='eyedropper'?'chosen':''} onClick={() => setTool('eyedropper')} title="Sample a color from the visible canvas"><Pipette size={16}/><span>Eyedropper</span></button>
         <button className={tool==='eraser'?'chosen':''} onClick={() => setTool('eraser')} title="Eraser"><Eraser size={16}/><span>Eraser</span></button>
         <button className={tool==='pan'?'chosen':''} onClick={() => setTool('pan')} title="Pan"><Hand size={16}/><span>Pan</span></button>
@@ -1281,6 +1391,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       <label className="brush-preset-control">Brush <select aria-label="Brush preset" value={brushPreset} onChange={e => {setBrushPreset(e.target.value as BrushPreset);setTool('brush')}}><option value="ink">Ink pen</option><option value="pencil">Pencil</option><option value="marker">Marker</option><option value="airbrush">Airbrush</option><option value="watercolor">Watercolor wash</option><option value="dry-brush">Dry brush</option><option value="calligraphy">Calligraphy nib</option></select></label>
       <label className="pressure-control" title="Set how strongly stylus pressure changes line thickness">Pressure <input aria-label="Brush pressure sensitivity" type="range" min="0" max="100" step="5" value={pressureSensitivity} onChange={e => setPressureSensitivity(Number(e.target.value))}/><output>{pressureSensitivity}%</output></label>
       <label className="background-control">Paper <input aria-label="Canvas paper color" type="color" value={background} onChange={e => setBackground(e.target.value)}/></label>
+      {tool==='fill' && <label className="pressure-control" title="How different a pixel can be from the clicked pixel and still be included in the fill">Tolerance <input aria-label="Bucket fill tolerance" type="range" min="0" max="80" step="1" value={fillTolerance} onChange={e => setFillTolerance(Number(e.target.value))}/><output>{fillTolerance}</output></label>}
       {(tool==='rectangle' || tool==='ellipse') && <button className={'grid-toggle '+(fillShapes?'chosen':'')} aria-pressed={fillShapes} onClick={() => setFillShapes(value => !value)} title="Fill closed shapes with the selected color">Fill</button>}
       <button className={'grid-toggle '+(showGrid?'chosen':'')} aria-pressed={showGrid} onClick={() => setShowGrid(value => !value)}>Grid</button>
       <label className="symmetry-control" title="Mirror new strokes around the center of the canvas">Symmetry <select aria-label="Drawing symmetry mode" value={symmetryMode} onChange={e => setSymmetryMode(e.target.value as SymmetryMode)}><option value="off">Off</option><option value="vertical">Vertical mirror</option><option value="horizontal">Horizontal mirror</option><option value="quad">Four-way</option></select></label>

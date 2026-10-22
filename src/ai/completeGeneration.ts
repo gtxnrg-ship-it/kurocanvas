@@ -16,6 +16,15 @@ function textOf(content: ModelRequest["messages"][number]["content"]): string {
   return content.map(part => part.type === "text" ? part.text : "[image input]").join("");
 }
 
+function preserveRequestBeginningAndEnd(text: string, maxChars = 2400): string {
+  if (text.length <= maxChars) return text;
+  const marker = "\n[…middle of original request omitted…]\n";
+  const available = Math.max(0, maxChars - marker.length);
+  const head = Math.ceil(available * 0.6);
+  const tail = available - head;
+  return text.slice(0, head) + marker + (tail ? text.slice(-tail) : "");
+}
+
 function countOutputTokens(response: ModelResponse): number {
   const reported = response.usage?.outputTokens;
   if (typeof reported === "number" && Number.isFinite(reported) && reported > 0) {
@@ -107,7 +116,7 @@ export async function generateCompleteLocalReply(
     "Begin by repeating the exact overlap text below verbatim, then continue beyond it. The application removes an exact repeated prefix. Do not paraphrase that overlap.",
     "Exact overlap to repeat first:\n" + joinContinuationChunks(parts).slice(-240),
     "If the answer is already complete and nothing meaningful remains, reply with exactly " + COMPLETE_SENTINEL + ".",
-    originalRequestText ? "Original user request (preserve its intent and constraints):\n" + originalRequestText.slice(-2400) : "",
+    originalRequestText ? "Original user request (preserve its intent and constraints):\n" + preserveRequestBeginningAndEnd(originalRequestText) : "",
   ].filter(Boolean).join("\n\n");
 
   let outputTokens = 0;

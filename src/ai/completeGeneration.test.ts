@@ -57,6 +57,28 @@ describe("complete local chat generation", () => {
     expect(result.usage?.outputTokens).toBe(1324);
   });
 
+  it("preserves both the premise and final constraints of a long original request", async () => {
+    const longOriginal = "OPENING PREMISE: Keep the original protagonist and central conflict. "
+      + "world detail ".repeat(260)
+      + " FINAL CONSTRAINT: Keep the ending unresolved and do not change the approved costume.";
+    const { provider, generate } = providerWith([
+      { text: "Opening draft " + "continued detail ".repeat(70), finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },
+      { text: "[KURO_REPLY_COMPLETE]", finishReason: "stop", usage: { outputTokens: 3 }, modelId: model.id, providerId: model.providerId },
+    ]);
+    await generateCompleteLocalReply(provider, {
+      ...request,
+      messages: [
+        request.messages[0],
+        { role: "user", content: longOriginal },
+      ],
+    }, model);
+
+    const continuation = generate.mock.calls[1]?.[0].messages.at(-1)?.content ?? "";
+    expect(continuation).toContain("OPENING PREMISE");
+    expect(continuation).toContain("FINAL CONSTRAINT");
+    expect(continuation).toContain("middle of original request omitted");
+  });
+
   it("removes an exact repeated overlap and keeps continuation in the same paragraph", async () => {
     const { provider } = providerWith([
       { text: "First sentence ends. The final thought is still being developed", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },

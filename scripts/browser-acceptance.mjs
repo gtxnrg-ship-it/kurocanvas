@@ -73,6 +73,26 @@ try {
       'Declining setup must preserve the draft.');
   });
 
+  await runCheck('chat exposes a usable creative-format picker on narrow screens', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const picker = page.getByRole('combobox', { name: 'Preferred production format' });
+    await picker.waitFor({ state: 'visible', timeout: 10000 });
+    const options = await picker.locator('option').allTextContents();
+    assert.ok(options.some(option => /Webtoon/i.test(option)), 'Webtoon should be offered as a first-class format.');
+    assert.ok(options.some(option => /one-shot/i.test(option)), 'Short one-shots should be a first-class format.');
+    assert.ok(options.some(option => /Custom creative format/i.test(option)), 'Custom formats should remain open-ended.');
+    await picker.selectOption('webtoon');
+    assert.equal(await picker.inputValue(), 'webtoon', 'The creator should be able to explicitly select Webtoon.');
+    await picker.selectOption('auto');
+    const sizes = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      html: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    assert.ok(sizes.html <= sizes.viewport + 1 && sizes.body <= sizes.viewport + 1,
+      'The format picker must not create horizontal overflow on mobile: ' + JSON.stringify(sizes));
+  });
+
   await runCheck('story output waits for approved world and character foundations', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const composer = page.getByRole('textbox', { name: 'Message to Kuro' });

@@ -370,9 +370,6 @@
   border-radius: 8px;
   background: rgba(80, 24, 43, .18);
 }
-.reader-page-art img {
-  loading: lazy;
-}
 
 .reader-page-art img{display:block;width:min(100%,820px);height:auto;max-height:78vh;object-fit:contain;border:1px solid #342b3e;border-radius:4px;background:#fff}
 @media(max-width:620px){.reader-workspace{padding:20px 13px 32px}.reader-workspace-head{flex-direction:column}.reader-workspace-head>button{width:100%}.reader-page-meta{padding:12px;column-gap:8px}.reader-page-art{padding:8px}}

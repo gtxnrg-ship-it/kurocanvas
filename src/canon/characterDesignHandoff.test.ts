@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyCanon, type CanonBundle } from "./universe";
-import { createEmptyStyleBible, type ProjectStyleBible } from "./styleBible";
+import { createEmptyCanon } from "./universe";
+import { createEmptyStyleBible } from "./styleBible";
 import { createCharacterDesignHandoff } from "./characterDesignHandoff";
 import type { StoryMemoryRecord } from "./storyMemory";
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Plus, Trash2, Upload } from 'lucide-react';
 import { createProject, type KuroProject } from '../core/project';
-import { parseKuroPackage, parseKuroArchive, serializeKuroPackage, serializeKuroArchive, createKuroPackage } from '../core/package';
+import { parseKuroPackage, parseKuroArchive, serializeKuroPackage, serializeKuroArchive, createKuroPackage, downloadKuroArchive } from '../core/package';
 import { artDirectionStorage, canonStorage, characterModelStorage, chatMessageStorage, characterEvolutionStorage, conversationStorage, drawingRevisionStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, saveImportedProjectBundle, type DrawingRevision, type LocalDrawingDocument } from '../core/storage';
 import { validateCanon, type CanonBundle } from '../canon/universe';
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from '../canon/storyMemory';
@@ -129,12 +129,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         }
       }
       const content = serializeKuroArchive(createKuroPackage(project, assets));
-      const url = URL.createObjectURL(new Blob([content], { type: 'application/vnd.kuro-canvas+zip' }));
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') + '.kuro';
-      anchor.click();
-      globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadKuroArchive(content, project.name);
       setMessage('Exported “' + project.name + '” with ' + memories.length + ' story memories, ' + (canon ? 'its World Bible' : 'no World Bible yet') + ', ' + (artDirection ? 'its Art Direction Bible' : 'no Art Direction Bible') + ', ' + (styleBible ? 'its chapter-aware Style Bible' : 'no Style Bible') + ', ' + references.length + ' reference sources, ' + characterModels.length + ' 3D character models, ' + exportedDrawings + ' saved drawings and ' + exportedRevisions + ' revision checkpoints, ' + universes.length + ' universes, ' + conversations.length + ' conversations, ' + messages.length + ' chat messages, ' + relationships.length + ' relationship records, and ' + characterStates.length + ' character timeline states.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Project export failed.');
@@ -376,7 +371,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         <button disabled={busy} onClick={() => void exportProject(project.id)}><Download size={15}/> Export</button>
         <button disabled={busy} title="Permanently delete this project and its owned local data" aria-label={'Delete project ' + project.name} onClick={() => void deleteProject(project.id, project.name)}><Trash2 size={15}/> Delete</button>
       </article>)}</div>}
-    <p className="project-manager-note">The <code>.kuro</code> archive carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models, linked drawings, revisions and universe transcripts. Legacy <code>.kuro.json</code> backups can still be imported. Completed research travels with its sources; unfinished research is imported paused. ZIP entries are checksummed but currently stored without compression under a 50 MB limit; unlinked canvases and binary reference images are not included.</p>
+    <p className="project-manager-note">The <code>.kuro</code> archive carries the World Bible, research notes and source excerpts, approved/proposed story memories, timelines, character models, all saved project canvases (including those not linked from Story Vault), drawing revisions and universe transcripts. Legacy <code>.kuro.json</code> backups can still be imported. Completed research travels with its sources; unfinished research is imported paused. Reference URLs and attribution metadata are preserved, but source image files are not embedded and need to be fetched again. ZIP entries are checksummed but stored without compression under a 50 MB limit.</p>
     <WorldStudio />
   </section>;
 }

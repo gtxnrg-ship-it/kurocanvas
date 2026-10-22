@@ -32,6 +32,9 @@ const base: ChapterReadinessInput = {
     genres: "Fantasy mystery",
     visualStyle: "Clean expressive linework, graphic shadows, warm lantern accents.",
     ...approveSeriesPlan({
+      title: "Lantern Coast",
+      premise: "Two friends investigate a broken sky.",
+      genres: "Fantasy mystery",
       seriesScope: "A complete 3-chapter fantasy mystery for vertical-scroll comic format.",
       seriesArcPlan: "The first arc introduces Mira and Ren and the mystery of a broken sky. The middle escalates the investigation and strains their trust. The final arc reveals the observatory's secret and resolves their relationship.",
       seriesChapterPlan: [

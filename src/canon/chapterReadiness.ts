@@ -4,11 +4,12 @@ import type { ProjectStyleBible } from "./styleBible";
 import type { CharacterEvolutionState } from "./characterEvolution";
 import type { RelationshipRecord } from "./relationshipMemory";
 import type { ResearchTaskRecord } from "../research/researchQueue";
+import { evaluateSeriesPlan, type SeriesPlanFields } from "./seriesPlan";
 
 export interface ChapterReadinessInput {
   hasUniverse: boolean;
   canon?: Pick<CanonBundle, "entities" | "facts">;
-  artDirection?: Pick<ArtDirectionBible, "title" | "premise" | "genres" | "visualStyle">;
+  artDirection?: Pick<ArtDirectionBible, "title" | "premise" | "genres" | "visualStyle"> & Partial<Pick<ArtDirectionBible, "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature">>;
   styleBible?: Pick<ProjectStyleBible, "characterStates">;
   characterTimelines?: Array<Pick<CharacterEvolutionState, "characterId" | "timelineId" | "storyOrder" | "status">>;
   relationships?: Array<Pick<RelationshipRecord, "characterAId" | "characterBId">>;
@@ -17,7 +18,7 @@ export interface ChapterReadinessInput {
 }
 
 export interface ChapterReadinessGap {
-  id: "universe" | "world" | "cast" | "art-direction" | "character-design" | "timeline" | "relationships" | "research" | "verification";
+  id: "universe" | "world" | "cast" | "art-direction" | "series-plan" | "character-design" | "timeline" | "relationships" | "research" | "verification";
   message: string;
 }
 
@@ -33,6 +34,18 @@ const clean = (value: unknown): string => typeof value === "string" ? value.trim
 const normalize = (value: string): string => value.normalize("NFKC").toLocaleLowerCase().trim();
 const WORLD_FACT_PREDICATE = /world|setting|rule|location|history|timeline|culture|power|faction|geograph|technolog|conflict|government|magic|religion|school|nation|era|city|kingdom|country|economy|language|politic|climate|calendar|species|system|tradition|law|custom/i;
 const VISUAL_TRAITS = ["age", "hair", "eyes", "scars", "outfit", "body", "accessories", "injuries", "other"] as const;
+/**
+ * A whole-series outline is foundation work, not chapter production. Keep it in
+ * chat even when a format detector notices words like Webtoon, episode, or chapter.
+ */
+export function isWholeSeriesPlanningRequest(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  if (!text) return false;
+  const plansWholeWork = /\b(?:whole|entire|full|complete)\s+(?:creative\s+)?(?:series|story|season|saga|narrative)\b|\ball\s+(?:planned\s+)?(?:chapters|episodes)\b|\bfrom\s+(?:chapter\s+1|the\s+first\s+chapter|the\s+beginning)\s+(?:through|to|until)\s+(?:the\s+)?(?:finale|ending|last\s+chapter|last\s+episode)\b/i.test(text);
+  const planningAction = /\b(?:plan|outline|map|structure|architect|brainstorm|develop)\b/i.test(text);
+  return plansWholeWork && planningAction;
+}
+
 
 /**
  * Deterministic preflight for sequential chapter production. Discussion remains open at every
@@ -70,6 +83,19 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
   if (!clean(artDirection?.title) || !clean(artDirection?.premise) || !clean(artDirection?.genres) || !clean(artDirection?.visualStyle)) {
     gaps.push({ id: "art-direction", message: "Complete the project's title, premise, genres, and unified visual style in Art Direction." });
   }
+  const seriesPlan = evaluateSeriesPlan((artDirection ?? {}) as SeriesPlanFields);
+  if (!seriesPlan.approved) {
+    const missing = seriesPlan.issues.filter(issue => issue.id !== "approval").map(issue => issue.message);
+    const guidance = seriesPlan.valid
+      ? "The outline is complete, but it is not approved yet. Review it in Art Direction and select “Review and approve full series.”"
+      : missing.join(" ");
+    gaps.push({
+      id: "series-plan",
+      message: "Complete and explicitly approve the entire series plan in Art Direction before chapter production. " +
+        (guidance || "The plan changed after approval, so it must be reviewed and approved again."),
+    });
+  }
+
 
   const visualizedNames = new Set((input.styleBible?.characterStates ?? [])
     .filter(state => state.status === "approved" && VISUAL_TRAITS.filter(key => clean(state[key])).length >= 3)
@@ -133,6 +159,7 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
 export function requiresApprovedStoryFoundations(message: string): boolean {
   const text = message.normalize("NFKC").trim();
   if (!text) return false;
+  if (isWholeSeriesPlanningRequest(text)) return false;
 
   // An explicit deferral is not a request to start production. A later positive clause can
   // still request a different deliverable (e.g. "don't write yet, but plan the opening scene").
@@ -178,5 +205,5 @@ export function requestsProvisionalChapterOverride(message: string): boolean {
 export function formatChapterReadinessMessage(report: ChapterReadinessReport): string {
   if (report.ready) return "The chapter foundation check is complete. Kuro can begin the approved storyboard.";
   const details = report.gaps.map((gap, index) => (index + 1) + ". " + gap.message).join("\n");
-  return "I’m holding story production for now. We can keep brainstorming and researching, but Kuro should not start writing dialogue, scenes, or other reader-facing material while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction, Character Timeline, Style Bible, and relationship records, then ask Kuro to start story production again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
+  return "I’m holding story production for now. We can keep brainstorming and researching, but Kuro should not start writing dialogue, scenes, or other reader-facing material while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction and whole-series plan, Character Timeline, Style Bible, and relationship records, then ask Kuro to start story production again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
 }

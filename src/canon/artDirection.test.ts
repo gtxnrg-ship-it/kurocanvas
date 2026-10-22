@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildArtDirectionContext, createEmptyArtDirection, parseArtDirectionSynthesis, validateArtDirection } from "./artDirection";
+import { approveSeriesPlan } from "./seriesPlan";
 
 describe("project art direction bible", () => {
   it("creates an empty project-scoped style contract", () => {
@@ -27,6 +28,63 @@ describe("project art direction bible", () => {
     expect(context).toContain("do not reproduce exact characters");
   });
 
+
+  it("passes the whole-series plan to Kuro as draft until its exact contents are approved", () => {
+    const bible = createEmptyArtDirection("series-1");
+    Object.assign(bible, {
+      seriesScope: "A 3-episode vertical mystery comic with a complete ending.",
+      seriesArcPlan: "The opening introduces the lead and the mystery. The middle escalates the investigation and costs the lead an important friendship. The final arc resolves the core question and relationship.",
+      seriesChapterPlan: [
+        "Chapter 1: The lead discovers a strange signal and hides it from a close friend.",
+        "Chapter 2: The investigation exposes a family secret and breaks the friends' trust.",
+        "Chapter 3: The lead reveals the truth, resolves the mystery, and repairs the friendship.",
+      ].join("\n"),
+      seriesEnding: "The finale explains the signal, pays off the opening clue, restores trust, and shows the lasting change in the community.",
+    });
+    expect(buildArtDirectionContext(bible, "series-1")).toContain("WHOLE-SERIES PLAN — DRAFT ONLY, NOT APPROVED");
+    const approved = { ...bible, ...approveSeriesPlan(bible) };
+    expect(buildArtDirectionContext(approved, "series-1")).toContain("WHOLE-SERIES PLAN — CREATOR-APPROVED");
+    expect(buildArtDirectionContext(approved, "series-1")).toContain("Chapter 3:");
+  });
+
+  it("keeps the planned finale available before long chapter lists are truncated", () => {
+    const bible = createEmptyArtDirection("series-1");
+    Object.assign(bible, {
+      title: "Lantern Coast",
+      premise: "Two friends investigate a broken sky.",
+      genres: "Fantasy mystery",
+      seriesScope: "A 40-episode vertical fantasy mystery.",
+      seriesArcPlan: "A long-form mystery that escalates through four major arcs and pays off its early clues.",
+      seriesEnding: "FINAL CLUE: Mira returns the first lantern to the observatory and the sky heals because both friends tell the truth.",
+      seriesChapterPlan: Array.from({ length: 40 }, (_, index) =>
+        "Chapter " + (index + 1) + ": " + ("A lengthy chapter summary which preserves character motivation, reveals, visual continuity, and meaningful consequences. ").repeat(3)
+      ).join("\n"),
+    });
+    const context = buildArtDirectionContext(bible, "series-1", 1200);
+    expect(context).toContain("FINAL CLUE:");
+    expect(context).not.toContain("Chapter 40:");
+  });
+
+  it("places the explicitly requested approved chapter brief before the long chapter list", () => {
+    const bible = createEmptyArtDirection("series-1");
+    Object.assign(bible, {
+      title: "Lantern Coast",
+      premise: "Two friends investigate a broken sky.",
+      genres: "Fantasy mystery",
+      seriesScope: "A 3-episode vertical fantasy mystery.",
+      seriesArcPlan: "The opening introduces Mira and Ren. The middle tests their trust. The ending resolves the sky mystery and repairs their relationship.",
+      seriesChapterPlan: [
+        "Chapter 1: Mira discovers a lantern that glows under the eclipsed sky and hides it from Ren.",
+        "Chapter 2: Ren notices the missing observatory key and confronts Mira about their broken trust.",
+        "Chapter 3: The pair enter the sealed observatory and discover evidence of the first eclipse.",
+      ].join("\n"),
+      seriesEnding: "The finale reveals why the sky broke, resolves Mira and Ren's trust, and pays off the lantern clue.",
+    });
+    const approved = { ...bible, ...approveSeriesPlan(bible) };
+    const context = buildArtDirectionContext(approved, "series-1", 2000, 2);
+    expect(context).toContain("ACTIVE PLANNED CHAPTER 2");
+    expect(context).toContain("Ren notices the missing observatory key");
+  });
 
   it("parses only editable fields from a structured synthesis draft", () => {
     const parsed = parseArtDirectionSynthesis(JSON.stringify({

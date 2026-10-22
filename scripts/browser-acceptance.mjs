@@ -150,6 +150,32 @@ try {
     await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   });
 
+  await runCheck('whole-series planning controls remain usable on phones and block unapproved production', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Creative Vault', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Vault sections' }).getByRole('button', { name: 'Visual style', exact: true }).click();
+    await page.getByRole('heading', { name: 'Series plan, opening to finale' }).waitFor({ state: 'visible', timeout: 15000 });
+    const outline = page.getByRole('textbox', { name: /Complete chapter \/ episode outline/i });
+    await outline.waitFor({ state: 'visible', timeout: 10000 });
+    const approve = page.getByRole('button', { name: /Review and approve full series/i });
+    assert.equal(await approve.isDisabled(), true, 'An empty/incomplete outline must not be approvable.');
+    for (const width of [320, 360, 390, 430, 600, 601, 768, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForTimeout(60);
+      const sizes = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        html: document.documentElement.scrollWidth,
+        body: document.body.scrollWidth,
+      }));
+      assert.ok(sizes.html <= width + 1 && sizes.body <= width + 1,
+        'Series planning UI horizontally overflows at ' + width + 'px: ' + JSON.stringify(sizes));
+      assert.equal(await page.getByRole('heading', { name: 'Series plan, opening to finale' }).isVisible(), true,
+        'The series plan heading should remain visible at ' + width + 'px.');
+    }
+    await page.getByRole('button', { name: 'Talk to Kuro', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Message to Kuro' }).waitFor({ state: 'visible', timeout: 10000 });
+  });
+
   await runCheck('Live Creation studio stays usable from phones through desktop', async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });

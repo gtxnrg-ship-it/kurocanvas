@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { approveSeriesPlan } from "./seriesPlan";
 import type { ChapterReadinessInput } from "./chapterReadiness";
 import {
   evaluateChapterReadiness,
+  isWholeSeriesPlanningRequest,
   requiresApprovedStoryFoundations,
   formatChapterReadinessMessage,
   requiresHistoricalResearchForChapter,
@@ -29,6 +31,19 @@ const base: ChapterReadinessInput = {
     premise: "Two friends investigate a broken sky.",
     genres: "Fantasy mystery",
     visualStyle: "Clean expressive linework, graphic shadows, warm lantern accents.",
+    ...approveSeriesPlan({
+      title: "Lantern Coast",
+      premise: "Two friends investigate a broken sky.",
+      genres: "Fantasy mystery",
+      seriesScope: "A complete 3-chapter fantasy mystery for vertical-scroll comic format.",
+      seriesArcPlan: "The first arc introduces Mira and Ren and the mystery of a broken sky. The middle escalates the investigation and strains their trust. The final arc reveals the observatory's secret and resolves their relationship.",
+      seriesChapterPlan: [
+        "Chapter 1: Mira finds a strange lantern and hides it from Ren, triggering the central mystery.",
+        "Chapter 2: The friends explore the observatory and uncover evidence that changes what they believe.",
+        "Chapter 3: Mira and Ren confront the observatory keeper, solve the mystery, and rebuild trust.",
+      ].join("\n"),
+      seriesEnding: "The finale explains the broken sky, resolves the conflict between Mira and Ren, pays off the lantern clue, and leaves the city transformed but stable.",
+    }),
   },
   styleBible: {
     characterStates: [
@@ -56,6 +71,18 @@ describe("chapter readiness gate", () => {
     expect(report.approvedWorldFactCount).toBe(3);
     expect(report.approvedRelationshipCount).toBe(1);
     expect(report.gaps).toEqual([]);
+  });
+
+  it("requires a complete explicitly approved series plan before chapter production", () => {
+    const draft = { ...base.artDirection!, seriesPlanApproved: false, seriesPlanApprovalSignature: "" };
+    const blocked = evaluateChapterReadiness({ ...base, artDirection: draft });
+    expect(blocked.ready).toBe(false);
+    expect(blocked.gaps.map(gap => gap.id)).toContain("series-plan");
+    const editedAfterApproval = { ...base.artDirection!, seriesEnding: base.artDirection!.seriesEnding + " New ending." };
+    const stale = evaluateChapterReadiness({ ...base, artDirection: editedAfterApproval });
+    expect(stale.ready).toBe(false);
+    expect(stale.gaps.map(gap => gap.id)).toContain("series-plan");
+    expect(evaluateChapterReadiness(base).ready).toBe(true);
   });
 
   it("blocks a chapter until required foundations are present", () => {
@@ -119,6 +146,14 @@ describe("chapter readiness gate", () => {
     };
     expect(evaluateChapterReadiness(singleCharacter).gaps.map(gap => gap.id)).not.toContain("relationships");
     expect(evaluateChapterReadiness({ ...base, relationships: [] }).gaps.map(gap => gap.id)).toContain("relationships");
+  });
+
+  it("keeps whole-series outlining in chat instead of routing it into chapter production", () => {
+    const request = "Help me outline the entire Webtoon series from chapter 1 through the finale.";
+    expect(isWholeSeriesPlanningRequest(request)).toBe(true);
+    expect(requiresApprovedStoryFoundations(request)).toBe(false);
+    expect(isWholeSeriesPlanningRequest("Draw the opening Webtoon chapter.")).toBe(false);
+    expect(isWholeSeriesPlanningRequest("Plan a scene for chapter one.")).toBe(false);
   });
 
   it("holds story prose, dialogue, scenes, and panel production until foundations are ready", () => {

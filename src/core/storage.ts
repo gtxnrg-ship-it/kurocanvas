@@ -4,7 +4,7 @@ import { sameDrawingContent } from "./drawingCompare";
 import { validateProject, type KuroProject, type ProjectTemplate } from "./project";
 import { validateCanon, type CanonBundle } from "../canon/universe";
 import { validateStoryMemoryRecord, type StoryMemoryRecord } from "../canon/storyMemory";
-import { validateArtDirection, type ArtDirectionBible } from "../canon/artDirection";
+import { createEmptyArtDirection, validateArtDirection, type ArtDirectionBible } from "../canon/artDirection";
 import { validateStyleBible, type ProjectStyleBible } from "../canon/styleBible";
 import { validateReferenceSource, type ReferenceSourceRecord } from "../canon/referenceScout";
 import { validateCharacterModel, type CharacterModelRecord } from "../canon/characterModels";
@@ -721,9 +721,12 @@ export const artDirectionStorage = {
     if (!projectId.trim()) throw new Error("Choose a project before loading art direction.");
     const result = await requestValue<ArtDirectionBible | undefined>(ART_DIRECTION, "readonly", store => store.get(projectId));
     if (!result) return undefined;
-    const errors = validateArtDirection(result, projectId);
+    // Older saved records predate the full-series outline fields. Normalize those
+    // records in memory so they remain readable and can be resaved without data loss.
+    const normalized = { ...createEmptyArtDirection(projectId), ...result, projectId };
+    const errors = validateArtDirection(normalized, projectId);
     if (errors.length) throw new Error("Saved art direction is invalid: " + errors.join(" "));
-    return result;
+    return normalized;
   },
   async remove(projectId: string): Promise<void> {
     await requestValue<undefined>(ART_DIRECTION, "readwrite", store => store.delete(projectId));

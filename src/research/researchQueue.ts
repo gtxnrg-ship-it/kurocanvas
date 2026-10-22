@@ -788,9 +788,13 @@ async function pumpQueue(): Promise<void> {
         });
       }, 30_000);
       try {
-        await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
+        const started = await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
           stage: task.sourceProvider === "crossref" ? "Searching Crossref scholarly metadata" : "Searching Wikipedia", progress: 8, leaseUntil: Date.now() + 120_000,
         });
+        if (!started) {
+          controller.abort();
+          continue;
+        }
         const sources = await searchResearchSources(task.query, task.depth, task.sourceProvider ?? "wikipedia", controller.signal);
         const current = await researchTaskStorage.get(task.id);
         if (!current || current.status === "cancelled") continue;
@@ -817,7 +821,7 @@ async function pumpQueue(): Promise<void> {
         const current = await researchTaskStorage.get(task.id).catch(() => undefined);
         if (!current || current.status === "cancelled") continue;
         if (paused || controller.signal.aborted) {
-          await researchTaskStorage.update(task.id, task.projectId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined });
+          await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined, leaseOwnerId: undefined });
           continue;
         }
         const message = error instanceof Error ? error.message : "Unexpected research task error.";

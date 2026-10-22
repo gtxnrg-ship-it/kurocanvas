@@ -21,7 +21,7 @@ This is an evidence-backed audit snapshot, not a claim that every possible defec
 
 | Priority | Finding | Evidence and impact | Audit-branch action |
 |---|---|---|---|
-| P1 usability | **“New chat” created a new universe and project.** | The sidebar control called `startNewUniverse()`, despite the existing `createAttachedConversation()` flow. This could create unnecessary worlds and split the user's work. | Changed the control to create a conversation inside the active universe; if no universe exists yet, it creates the first one. |
+| P1 usability/spec alignment | **A “New chat” label obscured universe isolation.** | The architecture contract says independent creative worlds must be isolated, while another conversation in an existing world is a separate explicit action. A generic “New chat” label made scope unclear. | The sidebar now says “New universe” and always creates an isolated universe. The chat header separately offers “New conversation” inside the active universe. |
 | P1 usability | **The first ordinary chat request stopped at a Preferences detour.** | `send()` rejected an unprepared model and told the user to open Preferences and resend. The message stayed in the draft, but the main path required a settings trip and a second send. | Added an explicit, one-time-per-session confirmation before preparing the ~370 MB local model. Progress is surfaced in the existing work/status UI and the same prompt is retried automatically after success. Declining starts no download and keeps the draft. |
 | P1 state handling | **Live Creation could enter “planning” before the model gate rejected the request.** | In `send()`, the live session log/status was updated before the unprepared-model return. That could leave a running-looking session with no running operation. | Moved the Live Creation state transition after the model-preparation gate, so rejected/cancelled first-run setup does not create a false working entry. |
 | P1 usability | **The home hero presented four competing starting actions.** | “New universe”, “Live creation studio”, “Open drawing studio” and “Research & browse” encouraged the user to choose an implementation mode before talking to Kuro. | Replaced the hero actions with one “Talk to Kuro” action. It resumes the active conversation when available and creates the first universe only when necessary. |
@@ -83,7 +83,7 @@ At the time of this review, baseline `main` was `b4e0c632cc08522cfe71c1e1e80f5a3
 Do not declare the original vision complete until these exact-user-flow checks pass on the final source SHA:
 
 1. **Fresh start:** tap “Talk to Kuro”, approve the first local-model preparation, see real progress, and send the original message without retyping. Decline/cancel/fail safely and preserve the draft.
-2. **Returning user:** “New chat” adds a transcript to the current universe and does not silently create another universe. Switching worlds isolates messages, canon, drawings and research.
+2. **Scope clarity:** “New universe” creates a new isolated world; “New conversation” creates another transcript inside the current world. Switching universes isolates messages, canon, drawings and research.
 3. **Brainstorm and research:** discuss a premise naturally, ask for research, inspect source URLs/excerpts and uncertainty, approve only selected facts into canon.
 4. **Character to world:** discuss the design; Kuro creates or requests an incremental native drawing session, shows actual editable changes and per-step status, pauses/revises/undoes correctly, then adds the approved design to the right character/world/vault record.
 5. **Writing:** ask for an outline and first chapter; the output uses approved canon and preserves aliases, age/timeline, look, outfit, scars, injuries, character knowledge, and prior chapter state.
@@ -103,9 +103,9 @@ In the first-run path in `src/App.tsx`, `send()` captures the submitted text bef
 
 The code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. **Audit-branch copy fix:** the prompt now asks whether to start preparing the model, without describing the confirmation as one-time. This is intentional repeated consent per attempt; declining starts no download. Keep this behavior covered by the first-run acceptance tests.
 
-### P1 — “New chat” semantics conflict with the architecture document
+### Resolved in the audit branch — universe and conversation labels now match the architecture contract
 
-The existing `docs/UNIVERSE-ARCHITECTURE-AND-UI.md` says a new chat creates a new isolated universe by default, while continuing a universe in another conversation is an explicit secondary action. PR #153 changes the sidebar's “New chat” to create a conversation inside the active universe. This may be a preferable product decision, but it changes the documented contract and risks surprising users about canon/assets sharing. Resolve the labels and specification together (for example, clearly separate “New story/world” from “New conversation”) before accepting the behavior.
+The sidebar control is labelled **New universe** and always creates a distinct isolated universe. The chat header’s **New conversation** action creates another transcript inside the currently active universe and shares only that universe’s approved canon by explicit action. This keeps the boundary visible in the interface and agrees with `docs/UNIVERSE-ARCHITECTURE-AND-UI.md`. Regression tests must still prove that a fresh universe cannot retrieve another universe’s canon, messages, drawings or research.
 
 ### Required regression coverage
 

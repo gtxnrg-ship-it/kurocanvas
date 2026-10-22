@@ -140,8 +140,10 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
       : "WHOLE-SERIES PLAN — DRAFT ONLY, NOT APPROVED. Help the creator revise it, but do not treat it as locked canon or start chapter writing/drawing.");
     if (cleanText(seriesPlan.seriesScope)) lines.push("Series scope and format: " + cleanText(seriesPlan.seriesScope));
     if (cleanText(seriesPlan.seriesArcPlan)) lines.push("Series arcs and character journeys: " + cleanText(seriesPlan.seriesArcPlan));
-    if (cleanText(seriesPlan.seriesChapterPlan)) lines.push("Complete chapter/episode sequence (one numbered entry per chapter):\n" + cleanText(seriesPlan.seriesChapterPlan));
+    // Keep the finale visible before a potentially very long episode list is truncated
+    // by the model's bounded input context. Chapter-level detail remains retrievable elsewhere.
     if (cleanText(seriesPlan.seriesEnding)) lines.push("Planned finale and payoff map: " + cleanText(seriesPlan.seriesEnding));
+    if (cleanText(seriesPlan.seriesChapterPlan)) lines.push("Complete chapter/episode sequence (one numbered entry per chapter):\n" + cleanText(seriesPlan.seriesChapterPlan));
   }
   for (const [label, value] of entries) if (value.trim()) lines.push(label + ": " + value.trim());
   const influences = bible.influences.filter(item => item.work.trim() && item.aspect.trim());

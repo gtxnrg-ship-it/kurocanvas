@@ -110,10 +110,6 @@ export function buildStyleBibleContext(
   if (bible.title.trim()) lines.push("Style title: " + bible.title.trim());
   if (bible.styleSummary.trim()) lines.push("Unified original style: " + bible.styleSummary.trim());
   if (conflicts.some(conflict => conflict.severity === "error")) lines.push("GENERATION BLOCK: conflicting approved character visual states exist at the same story order. Do not draw or finalize character designs until the user resolves the contradiction in the Style Bible.");
-  for (const inspiration of statusApproved(bible.inspirations)) {
-    lines.push(inspiration.aspect + " from " + inspiration.work + (inspiration.notes.trim() ? ": " + inspiration.notes.trim() : ""));
-  }
-  for (const rule of statusApproved(bible.rules)) lines.push("LOCKED " + rule.category + " rule: " + rule.rule);
   const states = statusApproved(bible.characterStates)
     .filter(state => {
       if (explicitStoryOrder !== undefined) return state.storyOrder <= explicitStoryOrder;
@@ -138,10 +134,22 @@ export function buildStyleBibleContext(
   if (explicitStoryOrder !== undefined) lines.push("Target story order: " + explicitStoryOrder + ". Future visual states are forbidden in this request.");
   else if (requestedChapter !== undefined) lines.push("Target chapter: " + requestedChapter + ". Future visual states are forbidden in this request.");
   if (resolved.size) lines.push("RESOLVED APPROVED CHARACTER STATES AT OR BEFORE THE " + (requestedChapter !== undefined && explicitStoryOrder === undefined ? "REQUESTED CHAPTER" : "REQUESTED STORY ORDER") + " (unchanged traits persist forward)");
-  for (const { latest, traits: resolvedTraits } of resolved.values()) {
+  // Put characters explicitly mentioned by the request first. Under a tight local-model
+  // context budget, the active cast's approved appearance matters more than old inspiration notes.
+  const resolvedEntries = [...resolved.values()].sort((a, b) => {
+    const aMentioned = userMessage.toLocaleLowerCase().includes(a.latest.characterName.toLocaleLowerCase()) ? 1 : 0;
+    const bMentioned = userMessage.toLocaleLowerCase().includes(b.latest.characterName.toLocaleLowerCase()) ? 1 : 0;
+    return bMentioned - aMentioned || b.latest.storyOrder - a.latest.storyOrder;
+  });
+  for (const { latest, traits: resolvedTraits } of resolvedEntries) {
     const traits = traitKeys.filter(key => resolvedTraits[key]).map(key => key + ": " + resolvedTraits[key]);
     lines.push("- " + latest.characterName + " (" + latest.chapterLabel + ", order " + latest.storyOrder + "): " + (traits.join("; ") || "No detailed visual traits recorded."));
   }
+  // Style references are useful but lower priority than approved character continuity.
+  for (const inspiration of statusApproved(bible.inspirations)) {
+    lines.push(inspiration.aspect + " from " + inspiration.work + (inspiration.notes.trim() ? ": " + inspiration.notes.trim() : ""));
+  }
+  for (const rule of statusApproved(bible.rules)) lines.push("LOCKED " + rule.category + " rule: " + rule.rule);
   const limit = Math.max(500, Math.min(12000, Math.floor(maxCharacters)));
   let context = lines.join("\n");
   if (context.length > limit) context = context.slice(0, limit - 24).trimEnd() + "\n[Style context truncated.]";

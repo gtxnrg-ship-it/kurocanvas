@@ -660,3 +660,34 @@
   .draw-toolbar{gap:8px}
   .draw-actions{margin-left:0;flex-wrap:wrap}
 }
+
+@media(max-width:600px){
+  .mobile-companion .home-hero-actions .home-secondary{display:none}
+  .mobile-companion .home-bottom-grid .home-feature:first-child{display:none}
+  .mobile-companion .home-hero-actions .home-primary{width:100%;min-height:48px}
+  .mobile-companion .drawing-alt .draw-toolbar,
+  .mobile-companion .drawing-project-controls{display:none}
+  .mobile-companion .drawing-paper canvas{pointer-events:none;touch-action:pan-y;cursor:default}
+  .mobile-companion .drawing-stage{touch-action:pan-y;min-height:240px}
+  .mobile-studio-hint{
+    margin:12px 0 0;padding:12px 13px;
+    border:1px solid rgba(178,148,244,.22);border-radius:12px;
+    background:linear-gradient(135deg,rgba(93,65,138,.18),rgba(25,20,37,.72));
+    color:#c8badf;font-size:12px;line-height:1.65;
+  }
+  .conversation{padding-inline:16px}
+  .messages{gap:20px}
+  .msg{max-width:100%;gap:10px}
+  .msgbody{flex:1}
+  .bubble{font-size:15px;line-height:1.78;padding:13px 14px;max-width:100%;overflow-wrap:anywhere}
+  .author{font-size:11px;margin-bottom:7px}
+  .author small{font-size:10px}
+  .composer textarea{font-size:16px;line-height:1.55}
+  .composefoot{font-size:9px}
+  .context{font-size:10px;max-width:100%;flex-wrap:wrap}
+  .context small{width:100%;line-height:1.45}
+  .empty-chat{padding:24px 12px}
+  .empty-chat h2{font-size:21px}
+  .empty-chat p{font-size:13px;line-height:1.75}
+  .vault-mobile-tabs{position:sticky;top:0;z-index:4;background:rgba(9,8,15,.94);backdrop-filter:blur(12px)}
+}

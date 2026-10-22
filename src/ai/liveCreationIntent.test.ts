@@ -13,6 +13,20 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Build a world map for this fantasy setting.")).toBe(true);
   });
 
+  it("understands natural visual requests without requiring the word canvas", () => {
+    expect(shouldStartLiveCreationFromChat("Let's make the main character's overall look now.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Start creating the characters' appearances.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Design a visual reference sheet for our villain.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Sketch the protagonist from head to toe.")).toBe(true);
+  });
+
+  it("routes direct drawing commands while respecting explicit negative intent", () => {
+    expect(shouldStartLiveCreationFromChat("Draw her.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Sketch the character.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Don't draw her yet; let's keep brainstorming.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("No need to create a character sheet yet.")).toBe(false);
+  });
+
   it("keeps ordinary brainstorming and research in chat", () => {
     expect(shouldStartLiveCreationFromChat("Let's discuss the protagonist's character design.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Research visual references for a character sheet.")).toBe(false);

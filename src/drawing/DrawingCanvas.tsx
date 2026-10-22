@@ -691,7 +691,9 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       }
     })();
     return () => {
-      cancelled = true;
+      // Route changes must settle the parent live session too. Treat unmount as a real
+      // cancellation so the executor rolls back the batch and reports the verified result.
+      cancel();
       if (cancelPlanExecutionRef.current === cancel) cancelPlanExecutionRef.current = null;
     };
   }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, planRunNonce]);

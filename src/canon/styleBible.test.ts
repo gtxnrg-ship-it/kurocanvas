@@ -54,6 +54,30 @@ describe("project style bible", () => {
     expect(context).not.toContain("grown-out black undercut");
   });
 
+  it("uses story order for temporal requests even when chapter numbers differ", () => {
+    const bible = seeded();
+    bible.characterStates.push(
+      { id: "kuro-early-order", characterName: "Kuro", storyOrder: 10, chapterNumber: 30, chapterLabel: "Chapter 30", hair: "approved early-order hair", status: "approved" },
+      { id: "kuro-late-order", characterName: "Kuro", storyOrder: 100, chapterNumber: 1, chapterLabel: "Chapter 1 flashback", hair: "future late-order hair", status: "approved" },
+    );
+    const context = buildStyleBibleContext(bible, "project-1", "Draw Kuro", 5200, 20);
+    expect(context).toContain("approved early-order hair");
+    expect(context).not.toContain("future late-order hair");
+    expect(context).toContain("Target story order: 20");
+  });
+
+  it("uses chapter number for chapter-targeted requests when no story order is supplied", () => {
+    const bible = seeded();
+    bible.characterStates.push(
+      { id: "chapter-one", characterName: "Kuro", storyOrder: 100, chapterNumber: 1, chapterLabel: "Chapter 1", hair: "chapter-one hair", status: "approved" },
+      { id: "chapter-two", characterName: "Kuro", storyOrder: 2, chapterNumber: 2, chapterLabel: "Chapter 2", hair: "chapter-two hair", status: "approved" },
+    );
+    const context = buildStyleBibleContext(bible, "project-1", "Draw Kuro in chapter 1");
+    expect(context).toContain("chapter-one hair");
+    expect(context).not.toContain("chapter-two hair");
+    expect(context).toContain("Target chapter: 1");
+  });
+
   it("does not promote unapproved character states into generated context", () => {
     const bible = seeded();
     bible.characterStates[1].status = "proposed";

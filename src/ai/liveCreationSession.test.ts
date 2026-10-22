@@ -56,6 +56,14 @@ describe("live creation session recovery", () => {
   it("keeps completed sessions unchanged", () => {
     expect(restoreLiveCreationSession(JSON.stringify(session), "project-1")).toEqual(session);
   });
+
+  it("preserves the exact production drawing target across reloads", () => {
+    const saved = { ...session, drawingId: "production-strip-1", status: "paused" as const };
+    expect(restoreLiveCreationSession(JSON.stringify(saved), "project-1")?.drawingId).toBe("production-strip-1");
+    expect(restoreLiveCreationSession(JSON.stringify({ ...saved, drawingId: "" }), "project-1")).toBeNull();
+    // Older sessions remain readable, but do not invent a canvas target.
+    expect(restoreLiveCreationSession(JSON.stringify(session), "project-1")?.drawingId).toBeUndefined();
+  });
   it("supports bounded long-form runs without accepting an unbounded batch budget", () => {
     expect(DEFAULT_LIVE_CREATION_MAX_BATCHES).toBe(12);
     expect(restoreLiveCreationSession(JSON.stringify({ ...session, maxBatches: 20 }), "project-1")?.maxBatches).toBe(20);

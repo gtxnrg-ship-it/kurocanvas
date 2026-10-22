@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildResearchContext, createResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
+  buildResearchContext, createResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, ownsResearchLease, normalizeImportedResearchTasks, parseCrossrefWorksPayload, parseWikipediaResearchPayload, validateResearchTask,
   type ResearchTaskRecord,
 } from "./researchQueue";
 

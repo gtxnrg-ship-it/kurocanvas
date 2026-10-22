@@ -35,7 +35,7 @@ export function findKuroContinuationSource(
 /** Bound the hidden source attached to a continuation without losing premise or ending constraints. */
 export function boundKuroContinuationSource(value: string, maxChars = 4000): string {
   if (value.length <= maxChars) return value;
-  const marker = "\\n[…middle of original request omitted…]\\n";
+  const marker = "\n[…middle of original request omitted…]\n";
   const available = Math.max(0, maxChars - marker.length);
   const head = Math.ceil(available * 0.6);
   const tail = available - head;

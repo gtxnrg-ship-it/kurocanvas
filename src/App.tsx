@@ -99,6 +99,7 @@ export default function App(){
  const [mode,setMode]=useState<Mode>('home'); const modeRef=useRef<Mode>('home'); modeRef.current=mode; const [mobileVaultSection,setMobileVaultSection]=useState<'overview'|'world'|'timeline'|'relationships'|'style'|'references'|'models'|'projects'>('overview'); const [compactMobile,setCompactMobile]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 600px)').matches); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const messagesRef=useRef(messages); messagesRef.current=messages; const persistedMessageCount=useRef(0); const messagePersistenceGenerationRef=useRef(0); const messagePersistencePromiseRef=useRef<Promise<void>|null>(null); const [localSaveStatus,setLocalSaveStatus]=useState<'saved'|'saving'|'error'>('saved'); const [saveRetryNonce,setSaveRetryNonce]=useState(0); const [saveDrainNonce,setSaveDrainNonce]=useState(0); const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [workingLabel,setWorkingLabel]=useState(''); const [voiceInputActive,setVoiceInputActive]=useState(false); const speechRecognitionRef=useRef<BrowserSpeechRecognition|null>(null); const speechDraftBaseRef=useRef(''); const speechStatusRef=useRef(''); const [conversationMenuOpen,setConversationMenuOpen]=useState(false); const [helpOpen,setHelpOpen]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const kuroVoiceIntensity: KuroVoiceIntensity='playful'; const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
  useEffect(()=>{const viewport=messagesViewportRef.current;if(!viewport||!scrollSticksToBottomRef.current)return;viewport.scrollTop=viewport.scrollHeight;},[messages,working,proposedPlan,planNotice]);
  useEffect(()=>()=>{liveVoiceEnabledRef.current=false;try{stopKuroVoice();}catch{};try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;},[]);
+ useEffect(()=>{if(mode!=='live'&&liveVoiceEnabledRef.current)endLiveVoiceSession('Voice session stopped when leaving Live Creation.');},[mode]);
  useEffect(()=>{const media=window.matchMedia('(max-width: 600px)');const update=()=>setCompactMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;try{speechRecognitionRef.current?.abort?.();}catch{}speechRecognitionRef.current=null;},[]);
@@ -376,7 +377,7 @@ function beginLiveVoiceRecognition(){
   return;
  }
  const recognition=createBrowserSpeechRecognition();
- if(!recognition){liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);setLiveVoiceStatus('This browser does not support continuous speech recognition.');return;}
+ if(!recognition){endLiveVoiceSession('This browser does not support continuous speech recognition.');return;}
  recognition.lang=typeof navigator!=='undefined'&&navigator.language?navigator.language:'en-US';
  recognition.continuous=true;recognition.interimResults=true;
  recognition.onresult=event=>{
@@ -391,14 +392,14 @@ function beginLiveVoiceRecognition(){
  recognition.onerror=event=>{
   if(!liveVoiceEnabledRef.current)return;
   setLiveVoiceStatus(describeSpeechRecognitionError(event.error));
-  if(event.error==='not-allowed'||event.error==='service-not-allowed'){liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);}
+  if(event.error==='not-allowed'||event.error==='service-not-allowed'){endLiveVoiceSession(describeSpeechRecognitionError(event.error));}
  };
  recognition.onend=()=>{
   if(speechRecognitionRef.current===recognition)speechRecognitionRef.current=null;
   if(liveVoiceEnabledRef.current&&!voiceTurnInFlightRef.current)window.setTimeout(()=>beginLiveVoiceRecognition(),280);
  };
  speechRecognitionRef.current=recognition;setVoiceInputActive(true);setLiveVoiceStatus('Listening · speak naturally, then pause for Kuro.');
- try{recognition.start();}catch(error){speechRecognitionRef.current=null;setVoiceInputActive(false);liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);setLiveVoiceStatus('Could not start the microphone: '+(error instanceof Error?error.message:'browser recognition error'));}
+ try{recognition.start();}catch(error){endLiveVoiceSession('Could not start the microphone: '+(error instanceof Error?error.message:'browser recognition error'));}
 }
 async function processLiveVoiceTurn(transcript:string){
  const beforeCount=messagesRef.current.length;
@@ -417,12 +418,22 @@ async function processLiveVoiceTurn(transcript:string){
   if(liveVoiceEnabledRef.current&&modeRef.current==='live'&&(!latest||!['planning','drawing'].includes(latest.status)))window.setTimeout(()=>beginLiveVoiceRecognition(),250);
  }
 }
+function stopLiveVoiceMeter(){
+ try{stopVoiceMeterRef.current?.();}catch{}
+ stopVoiceMeterRef.current=null;
+ liveAudioVisualizerRef.current?.setInputLevel(0);
+ liveAudioVisualizerRef.current?.setOutputLevel(0);
+}
+function endLiveVoiceSession(status='Voice session stopped.'){
+ liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);voiceTurnInFlightRef.current=false;
+ const recognition=speechRecognitionRef.current;speechRecognitionRef.current=null;
+ if(recognition){try{recognition.stop();}catch{}}
+ stopKuroVoice();stopLiveVoiceMeter();setLiveVoiceStatus(status);
+}
 async function toggleLiveVoiceSession(){
  if(liveVoiceEnabledRef.current){
-  liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);voiceTurnInFlightRef.current=false;
-  const recognition=speechRecognitionRef.current;speechRecognitionRef.current=null;
-  if(recognition){try{recognition.stop();}catch{}}
-  stopKuroVoice();try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;liveAudioVisualizerRef.current?.setInputLevel(0);liveAudioVisualizerRef.current?.setOutputLevel(0);setLiveVoiceStatus('Voice session stopped.');return;
+  endLiveVoiceSession('Voice session stopped.');
+  return;
  }
  const speechPreferences=readKuroSpeechPreferences();
  if(speechPreferences.engine==='fish'&&!speechPreferences.apiKey.trim()){

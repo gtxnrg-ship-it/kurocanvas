@@ -83,9 +83,9 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
           : entry),
         {
           id: "recovery-" + restored.id,
-          kind: "status",
+          kind: "status" as const,
           label: "Previous live creation was interrupted. Review the saved canvas before resuming.",
-          status: "paused",
+          status: "paused" as const,
         },
       ].slice(-24);
     }

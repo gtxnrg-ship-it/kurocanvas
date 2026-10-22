@@ -70,6 +70,21 @@ export function transcriptFromSpeechEvent(event: BrowserSpeechResultEvent): stri
 }
 
 /**
+ * Return only final phrases changed in this recognition event. Live voice mode
+ * never submits interim hypotheses, preventing Kuro from replying multiple times.
+ */
+export function finalTranscriptFromSpeechEvent(event: BrowserSpeechResultEvent): string {
+  const parts: string[] = [];
+  const start = Math.max(0, Math.min(event.resultIndex, event.results.length));
+  for (let index = start; index < event.results.length; index++) {
+    const result = event.results[index];
+    const value = result?.isFinal ? result[0]?.transcript : undefined;
+    if (typeof value === "string" && value.trim()) parts.push(value.trim());
+  }
+  return normalizeSpokenPunctuation(parts.join(" ").replace(/\s+/g, " ").trim());
+}
+
+/**
  * Normalize common dictation commands when a browser literally transcribes the
  * spoken punctuation words. Native speech services may already emit punctuation;
  * this pass preserves existing punctuation and only translates explicit commands.
@@ -100,6 +115,8 @@ export function normalizeSpokenPunctuation(value: string): string {
     .replace(/[ \t]{2,}/g, " ")
     .replace(/“[ \t]+/g, "“")
     .replace(/[ \t]+”/g, "”")
+    .replace(/(^|[.!?]\\s+|\\n\\s*)([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase())
+    .replace(/(^|\\s)i(?=\\s|$|[,.!?])/g, (_match, prefix: string) => prefix + "I")
     .trim();
   return text;
 }

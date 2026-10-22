@@ -36,7 +36,7 @@ import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
 import { chooseDrawingTarget } from './drawing/drawingTarget';
 import { isMangaChapterProductionRequest, shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
 import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, resolveCreativeFormatChoice, buildCreativeProductionPrompt, type CreativeFormatChoice } from './ai/creativeFormats';
-import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresApprovedStoryFoundations, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
+import { evaluateChapterReadiness, formatChapterReadinessMessage, isWholeSeriesPlanningRequest, requiresApprovedStoryFoundations, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
@@ -590,12 +590,13 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  const legacyChapterRequest=!continuationSourceOverride&&isMangaChapterProductionRequest(text);
  const selectedFormatSpec=legacyChapterRequest?resolveCreativeFormatChoice(creativeFormatChoice):undefined;
  const productionSpec=explicitFormatSpec||inheritedFormatSpec||selectedFormatSpec||(legacyChapterRequest?DEFAULT_ILLUSTRATED_STORY:undefined);
+ const wholeSeriesPlanningRequest=isWholeSeriesPlanningRequest(text);
  const startsNewProductionCanvas=Boolean(explicitFormatSpec||legacyChapterRequest);
 
  // A chapter request is the point where planning becomes production. Require the
  // project-owned foundations to be approved before switching out of chat and drawing.
  // The explicit provisional override is only for non-canon experiments.
- if((requiresApprovedStoryFoundations(text)||Boolean(productionSpec?.foundationGate))&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
+ if(!wholeSeriesPlanningRequest&&(requiresApprovedStoryFoundations(text)||Boolean(productionSpec?.foundationGate))&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
   let readiness;
   try{
    if(!activeProjectId||!activeUniverseId){
@@ -632,7 +633,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
    return;
   }
  }
- const requestIsLive=modeRef.current==='live'||(!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery&&(Boolean(productionSpec)||shouldStartLiveCreationFromChat(text)));
+ const requestIsLive=(modeRef.current==='live'&&!wholeSeriesPlanningRequest)||(!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery&&!wholeSeriesPlanningRequest&&(Boolean(productionSpec)||shouldStartLiveCreationFromChat(text)));
  const hasIndependentWorkflow=Boolean(referenceQuery||explicitResearchIntent||creativeInfluences.length);
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");

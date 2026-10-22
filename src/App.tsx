@@ -83,7 +83,7 @@ function readProviderConfig(): SafeProviderConfig {
   if(typeof parsed.baseUrl==='string'&&parsed.baseUrl.trim().length>0&&parsed.baseUrl.length<=2048
    &&typeof parsed.modelUri==='string'&&parsed.modelUri.trim().length>0&&parsed.modelUri.length<=512){
    const safe:SafeProviderConfig={
-    baseUrl:parsed.baseUrl.trim().replace(/\\/+$/,''),
+    baseUrl:trimEndpointSlashes(parsed.baseUrl),
     modelUri:parsed.modelUri.trim(),
     allowInsecureLocalhost:parsed.allowInsecureLocalhost===true,
     supportsVision:parsed.supportsVision===true,
@@ -382,7 +382,7 @@ useEffect(()=>{
   const isLocal=config.baseUrl===LOCAL_TINY_BASE_URL;
   const safe:SafeProviderConfig=isLocal
    ?{baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false,supportsStructuredOutput:false}
-   :{baseUrl:config.baseUrl.trim().replace(/\\/+$/,''),modelUri:config.modelUri.trim(),allowInsecureLocalhost:config.allowInsecureLocalhost===true,supportsVision:config.supportsVision===true,supportsStructuredOutput:config.supportsStructuredOutput===true};
+   :{baseUrl:trimEndpointSlashes(config.baseUrl),modelUri:config.modelUri.trim(),allowInsecureLocalhost:config.allowInsecureLocalhost===true,supportsVision:config.supportsVision===true,supportsStructuredOutput:config.supportsStructuredOutput===true};
   if(isLocal)clearRemoteModelCredential();
   else saveRemoteModelCredential(safe.baseUrl,config.apiKey||'');
   setProviderConfig(safe);

@@ -24,6 +24,13 @@ export default function InlineReferenceResults({
   const [savedSources, setSavedSources] = useState<Set<string>>(() => new Set());
   const [savingSource, setSavingSource] = useState("");
   const [status, setStatus] = useState("");
+  const [imageStates, setImageStates] = useState<Record<string, "loading" | "loaded" | "error">>(
+    () => Object.fromEntries(results.map(result => [result.sourceUrl, "loading"])),
+  );
+
+  useEffect(() => {
+    setImageStates(Object.fromEntries(results.map(result => [result.sourceUrl, "loading"])));
+  }, [results]);
 
   useEffect(() => {
     let alive = true;
@@ -84,7 +91,19 @@ export default function InlineReferenceResults({
         return <article className="inline-reference-card" key={result.sourceUrl + "-" + index}>
           <a className="inline-reference-image" href={result.sourceUrl} target="_blank" rel="noreferrer noopener" aria-label={"Open source page for " + result.title}>
             {thumbnail
-              ? <img src={thumbnail} alt={result.title} loading="lazy" referrerPolicy="no-referrer" />
+              ? <>
+                  <img
+                    src={thumbnail}
+                    alt={imageStates[result.sourceUrl] === "error" ? result.title + " (thumbnail unavailable)" : result.title}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onLoad={() => setImageStates(current => ({ ...current, [result.sourceUrl]: "loaded" }))}
+                    onError={() => setImageStates(current => ({ ...current, [result.sourceUrl]: "error" }))}
+                  />
+                  {imageStates[result.sourceUrl] !== "loaded" && <span className={"inline-reference-image-status" + (imageStates[result.sourceUrl] === "error" ? " is-error" : "")} aria-hidden="true"}>
+                    {imageStates[result.sourceUrl] === "error" ? "Image unavailable" : "Fetching image…"}
+                  </span>}
+                </>
               : <span><ImagePlus size={24} /> Thumbnail unavailable</span>}
           </a>
           <div className="inline-reference-detail">

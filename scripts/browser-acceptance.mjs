@@ -243,11 +243,14 @@ try {
 
 
   await runCheck('Reader loads saved drawing previews as pages approach the viewport', async () => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    // Sidebar navigation is intentionally hidden in the compact phone layout.
+    // Use the desktop nav to enter Reader, then check the actual preview at phone width.
+    await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
     const readerNav = page.getByRole('button', { name: 'Reader', exact: true });
     if (!(await readerNav.isVisible())) await toolsToggle.click();
     await readerNav.click();
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.reader-workspace').waitFor({ state: 'visible', timeout: 15000 });
     const cards = page.locator('.reader-page');
     await cards.first().waitFor({ state: 'visible', timeout: 10000 });

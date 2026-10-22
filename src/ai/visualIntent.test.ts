@@ -35,6 +35,7 @@ describe("canvas visual intent", () => {
     expect(isDrawingIntent("Don't draw her yet; let's keep brainstorming.")).toBe(false);
     expect(isDrawingIntent("Please don't sketch the scene yet.")).toBe(false);
     expect(isCanvasVisualIntent("Don't inspect the canvas yet.")).toBe(false);
+    expect(shouldAttachCanvasPreview("Please don't sketch the scene yet.", ["chat", "vision"])).toBe(false);
   });
 
   it("still honors a separate positive visual request after a contrast", () => {

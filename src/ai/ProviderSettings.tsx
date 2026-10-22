@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, isLocalTinyModelPrepared, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
+import { readRemoteModelCredential } from "./providerCredentials";
 import type { ModelDescriptor } from "./modelRegistry";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
 import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatingLabel, saveLocalModelBenchmark, type LocalModelBenchmark } from "./modelBenchmark";
@@ -8,18 +9,20 @@ import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
 import { KURO_FISH_VOICES, KURO_SPEECH_MODEL_ID, KURO_SPEECH_VOICES, prepareKuroVoice, readKuroSpeechPreferences, saveKuroSpeechPreferences, speakKuroVoice, type KuroSpeechEngine, type KuroSpeechPreferences } from "./kuroSpeech";
 
 export interface ActiveProviderConfig {
-  /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
+  /** local://kuro-tiny or an endpoint deliberately configured by the creator. */
   baseUrl: string;
   modelUri: string;
   apiKey?: string;
   allowInsecureLocalhost: boolean;
   supportsVision?: boolean;
+  supportsStructuredOutput?: boolean;
 }
 
 interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
   initialSupportsVision?: boolean;
+  initialSupportsStructuredOutput?: boolean;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
@@ -29,9 +32,10 @@ const canonicalConfig: ActiveProviderConfig = {
   modelUri: LOCAL_TINY_MODEL_URI,
   allowInsecureLocalhost: false,
   supportsVision: false,
+  supportsStructuredOutput: false,
 };
 
-export default function ProviderSettings({ onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({ initialBaseUrl, initialModelUri, initialSupportsVision, initialSupportsStructuredOutput, onSave, onClose }: ProviderSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -45,6 +49,15 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
   const [localModelPrepared, setLocalModelPrepared] = useState(() => isLocalTinyModelPrepared());
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
+  const [providerMode, setProviderMode] = useState<"local" | "remote">(() => initialBaseUrl === LOCAL_TINY_BASE_URL ? "local" : "remote");
+  const [remoteBaseUrl, setRemoteBaseUrl] = useState(() => initialBaseUrl === LOCAL_TINY_BASE_URL ? "" : initialBaseUrl);
+  const [remoteModelId, setRemoteModelId] = useState(() => initialBaseUrl === LOCAL_TINY_BASE_URL ? "" : initialModelUri);
+  const [remoteApiKey, setRemoteApiKey] = useState(() => initialBaseUrl === LOCAL_TINY_BASE_URL ? "" : readRemoteModelCredential(initialBaseUrl));
+  const [remoteModels, setRemoteModels] = useState<ModelDescriptor[]>([]);
+  const [remoteAllowInsecureLocalhost, setRemoteAllowInsecureLocalhost] = useState(false);
+  const [remoteSupportsVision, setRemoteSupportsVision] = useState(initialSupportsVision === true);
+  const [remoteSupportsStructuredOutput, setRemoteSupportsStructuredOutput] = useState(initialSupportsStructuredOutput === true);
+  const [remotePrivacyConsent, setRemotePrivacyConsent] = useState(false);
   const localModelAbortController = useRef<AbortController | undefined>(undefined);
   const inferenceAbortController = useRef<AbortController | undefined>(undefined);
 
@@ -252,7 +265,65 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
   function updateSpeechPreferences(next:KuroSpeechPreferences){
     setSpeechPreferences(next);saveKuroSpeechPreferences(next);setSpeechStatus("");
   }
+  async function testRemoteEndpoint() {
+    if (!remotePrivacyConsent) {
+      setError("Review and accept the remote-provider privacy notice before connecting.");
+      return;
+    }
+    const endpoint = remoteBaseUrl.trim().replace(/\/+$/, "");
+    if (!endpoint) {
+      setError("Enter the compatible endpoint base URL first.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setStatus("Testing the compatible endpoint… only the model-discovery request will be sent.");
+    try {
+      const provider = createConfiguredProvider({
+        baseUrl: endpoint,
+        modelUri: remoteModelId.trim() || "__model_discovery_probe__",
+        apiKey: remoteApiKey,
+        allowInsecureLocalhost: remoteAllowInsecureLocalhost,
+        supportsVision: remoteSupportsVision,
+        supportsStructuredOutput: remoteSupportsStructuredOutput,
+      });
+      const found = await provider.listModels();
+      if (!found.length) throw new Error("The endpoint returned no usable model IDs from /models.");
+      setRemoteModels(found);
+      if (!remoteModelId.trim() && found.length === 1) setRemoteModelId(found[0].modelUri || found[0].name);
+      setStatus("Connected. /models returned " + found.length + " model" + (found.length === 1 ? "" : "s") + ". This test did not send chat history or story content; choose the exact model ID before saving.");
+    } catch (e) {
+      setRemoteModels([]);
+      setError(e instanceof Error ? e.message : "Could not connect to the configured endpoint.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function save() {
+    if (providerMode === "remote") {
+      if (!remotePrivacyConsent) {
+        setError("Review and accept the remote-provider privacy notice before saving.");
+        return;
+      }
+      const endpoint = remoteBaseUrl.trim().replace(/\/+$/, "");
+      const selected = remoteModels.find(model => model.name === remoteModelId.trim() || model.modelUri === remoteModelId.trim());
+      if (!selected) {
+        setError("Test the endpoint and choose a model ID returned by that endpoint before saving.");
+        return;
+      }
+      onSave({
+        baseUrl: endpoint,
+        modelUri: selected.modelUri || selected.name,
+        apiKey: remoteApiKey.trim(),
+        allowInsecureLocalhost: remoteAllowInsecureLocalhost,
+        supportsVision: remoteSupportsVision,
+        supportsStructuredOutput: remoteSupportsStructuredOutput,
+      });
+      setStatus("Saved the configured endpoint. Kuro will check the selected model connection.");
+      closeSettings();
+      return;
+    }
     onSave(canonicalConfig);
     setStatus("Saved: Qwen3-0.6B · on-device · text-only.");
     closeSettings();

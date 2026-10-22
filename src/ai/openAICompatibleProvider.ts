@@ -16,6 +16,8 @@ export interface OpenAICompatibleProviderOptions {
   allowInsecureLocalhost?: boolean;
   /** Advertise image input only when the creator has verified the configured model supports it. */
   supportsVision?: boolean;
+  /** Enable OpenAI-compatible JSON mode only when the endpoint is known to support it. */
+  supportsStructuredOutput?: boolean;
   fetchImpl?: typeof fetch;
   /** Hard deadline for chat-completion requests. Defaults to 90 seconds. */
   requestTimeoutMs?: number;
@@ -71,6 +73,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private readonly requestTimeoutMs: number;
   private readonly modelListTimeoutMs: number;
   private readonly supportsVision: boolean;
+  private readonly supportsStructuredOutput: boolean;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     this.id = options.providerId?.trim() || "openai-compatible";
@@ -78,6 +81,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     this.baseUrl = normalizedBaseUrl(options.baseUrl, options.allowInsecureLocalhost === true);
     this.apiKey = options.apiKey?.trim() || undefined;
     this.supportsVision = options.supportsVision === true;
+    this.supportsStructuredOutput = options.supportsStructuredOutput === true;
     this.fetchImpl = options.fetchImpl ?? fetch;
     const boundedTimeout = (value: number | undefined, fallback: number) =>
       typeof value === "number" && Number.isFinite(value) ? Math.min(300_000, Math.max(1, Math.floor(value))) : fallback;
@@ -97,9 +101,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
       return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
         const modelName = item.id!;
         const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
-        const capabilities = this.supportsVision
-          ? ["chat", "structured-output", "vision"] as const
-          : ["chat", "structured-output"] as const;
+        const capabilities = [
+          "chat" as const,
+          ...(this.supportsStructuredOutput ? ["structured-output" as const] : []),
+          ...(this.supportsVision ? ["vision" as const] : []),
+        ];
         const advertisedRoles = this.supportsVision ? [...roles, "vision" as const] : [...roles];
         const hostname = new URL(this.baseUrl).hostname;
         return {
@@ -131,6 +137,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
     if (model.providerId !== this.id) throw new Error("This model belongs to a different provider.");
     if (request.signal?.aborted) return this.cancelledResponse(model);
+    const includesImageInput = request.messages.some(message => Array.isArray(message.content)
+      && message.content.some(part => part.type === "image_url"));
+    if (includesImageInput && (!this.supportsVision || !model.capabilities.includes("vision"))) {
+      throw new Error("Image input is disabled for this model. Only enable vision after confirming the endpoint and selected model accept image_url content.");
+    }
     const remoteModelName = model.modelUri || model.name;
     const body: Record<string, unknown> = {
       model: remoteModelName,
@@ -139,7 +150,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       max_tokens: request.maxOutputTokens,
       stream: false,
     };
-    if (request.responseFormat === "json") body.response_format = { type: "json_object" };
+    if (request.responseFormat === "json" && this.supportsStructuredOutput) body.response_format = { type: "json_object" };
 
     try {
       return await this.withDeadline(request.signal, this.requestTimeoutMs, async signal => {

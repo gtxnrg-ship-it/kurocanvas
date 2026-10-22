@@ -101,6 +101,7 @@ export default function App(){
  useEffect(()=>()=>{liveVoiceEnabledRef.current=false;try{stopKuroVoice();}catch{};try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;},[]);
  useEffect(()=>{if(mode!=='live'&&liveVoiceEnabledRef.current)endLiveVoiceSession('Voice session stopped when leaving Live Creation.');},[mode]);
  useEffect(()=>{const media=window.matchMedia('(max-width: 600px)');const update=()=>setCompactMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
+ useEffect(()=>{if(['live','canvas','read','research'].includes(mode))setWorkspaceToolsOpen(true);},[mode]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;try{speechRecognitionRef.current?.abort?.();}catch{}speechRecognitionRef.current=null;},[]);
  useEffect(()=>{

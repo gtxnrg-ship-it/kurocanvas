@@ -28,6 +28,9 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
   const appearanceSubject = /\b(?:the\s+)?(?:character|protagonist|hero|villain|girl|boy|woman|man|her|him|them|she|he|they|their|his)\b/i;
   const appearanceDetail = /\b(?:look|looks|appearance|appearances|hair|eyes|face|skin|scar|scars|injur(?:y|ies)|outfit|clothes|coat|dress|armor|armour|accessor(?:y|ies)|glasses|build|hairstyle|silhouette|color scheme|colour scheme)\b/i;
   const appearanceAction = /\b(?:make|change|update|adjust|redesign|revise|give|add|remove|put|show|depict|design|create|draw|sketch|illustrate|paint|render)\b/i;
+  const narrativeTargetOnly = /\b(?:add|include|write|mention|record)\b[^.!?\n]{0,100}\b(?:to|into|as\s+part\s+of|in)\s+(?:(?:the|her|his|their|character['’]s)\s+)?(?:character\s+)?(?:backstory|history|lore|personality|arc|theme|motivation|narrative|plot|characterization)\b/i;
+  // A backstory/history mention is narrative content, not a drawing request, unless an explicit canvas/drawing target matched above.
+  if (narrativeTargetOnly.test(text)) return false;
   const directAppearanceEdit = appearanceAction.test(text)
     && appearanceSubject.test(text)
     && appearanceDetail.test(text);

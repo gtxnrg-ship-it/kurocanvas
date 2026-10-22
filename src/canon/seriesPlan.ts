@@ -47,7 +47,7 @@ export function parseSeriesChapterPlan(value: unknown): ParsedSeriesChapter[] {
   const chapters: ParsedSeriesChapter[] = [];
   for (const line of lines) {
     const withoutBullet = line.replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, "");
-    const match = /^(chapter|episode|part|one[- ]shot)\s*(\d+)\s*[:.)-]\s*(.{12,})$/i.exec(withoutBullet);
+    const match = /^(chapter|episode|part|one[- ]shot)\s*(\d+)\s*[:.)-]\s*(.{40,})$/i.exec(withoutBullet);
     if (!match) return [];
     const number = Number(match[2]);
     if (!Number.isSafeInteger(number) || number < 1 || number > 500) return [];
@@ -86,7 +86,7 @@ export function validateSeriesPlan(fields: SeriesPlanFields): SeriesPlanIssue[] 
       if (numbers.some((number, index) => number !== expected[index])) {
         issues.push({ id: "chapter-order", message: "Chapter numbers must be unique, gap-free, and ordered from 1 through the finale. Renumber the complete outline before approval." });
       }
-      const declaredCount = /\\b(\\d{1,3})\\s*[- ]?\\s*(?:chapters?|episodes?|parts?|installments?)\\b/i.exec(scope);
+      const declaredCount = /\b(\d{1,3})\s*[- ]?\s*(?:chapters?|episodes?|parts?|installments?)\b/i.exec(scope);
       if (declaredCount && Number(declaredCount[1]) !== chapters.length) {
         issues.push({ id: "chapter-count", message: "The scope declares " + Number(declaredCount[1]) + " chapters/episodes, but the outline contains " + chapters.length + ". Add the missing entries or correct the intended length." });
       } else if (!declaredCount && /\\b(?:standalone|one[- ]shot)\\b/i.test(scope) && chapters.length !== 1) {

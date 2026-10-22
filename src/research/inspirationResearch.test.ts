@@ -14,6 +14,17 @@ describe("creative influence research intent", () => {
     expect(results.every(result => result.query === result.work)).toBe(true);
   });
 
+  it("recognizes inspired-by and take-this-from phrasing", () => {
+    const inspired = extractCreativeInfluenceResearch("I want to be inspired by Horimiya's relationship dynamics.");
+    expect(inspired.map(result => result.work)).toEqual(["Horimiya"]);
+    expect(inspired[0].aspect).toContain("character dynamics");
+
+    const borrowed = extractCreativeInfluenceResearch("Take the power system from Naruto and the art style from Bleach.");
+    expect(borrowed.map(result => result.work)).toEqual(["Naruto", "Bleach"]);
+    expect(borrowed[0].aspect).toMatch(/power system/i);
+    expect(borrowed[1].aspect).toMatch(/art style/i);
+  });
+
   it("supports quoted titles and titles containing connector words", () => {
     const results = extractCreativeInfluenceResearch(
       'Use the visual style from "The Apothecary Diaries" and draw inspiration from Lord of the Rings for worldbuilding.'

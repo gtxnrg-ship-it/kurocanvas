@@ -92,7 +92,7 @@ describe("LocalTinyModelProvider", () => {
   });
 
 
-  it("caps long creative plans at the declared local output budget", async () => {
+  it("keeps an individual local inference pass memory-bounded", async () => {
     const { worker, sent } = fakeWorker(true);
     const provider = new LocalTinyModelProvider(() => worker);
     const model = (await provider.listModels())[0];

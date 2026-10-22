@@ -431,6 +431,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setPlanProgress({ completed: 0, total: pendingPlan.commands.length, command: 'Preparing native tools' });
     let cancelled = false;
     let userCancelled = false;
+    let settled = false;
     let workingDocument: LocalDrawingDocument | undefined;
     let originalDocument: LocalDrawingDocument | undefined;
     const cancel = () => { cancelled = true; userCancelled = true; };
@@ -623,6 +624,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             setNotice('Drawing stopped; the original canvas was restored and verified.');
             if (userCancelled) {
               setPlanAction(transitionDrawingAction(running, { type: 'execution.cancel', actionId: runKey }));
+              settled = true;
               onPlanResult(pendingPlan.id, 'cancelled', 'Cancelled by the creator; original drawing restored and verified.');
             }
           } catch (restoreError) {
@@ -630,7 +632,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             setPlanSteps(currentSteps => settleDrawingPlanTimeline(currentSteps, 'stopped', 'Rollback could not be verified: ' + reason));
             setSaveState('error');
             setNotice('Drawing stopped, but restoring the original canvas could not be verified: ' + reason + '. The pre-plan version checkpoint remains available.');
-            if (userCancelled) onPlanResult(pendingPlan.id, 'error', 'Cancellation recovery failed: ' + reason);
+            if (userCancelled) { settled = true; onPlanResult(pendingPlan.id, 'error', 'Cancellation recovery failed: ' + reason); }
           }
           return;
         }
@@ -652,6 +654,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         setSaveState('saved');
         setNotice('Kuro finished drawing · ' + pendingPlan.commands.length + ' native actions applied and saved');
         setPlanAction(transitionDrawingAction(running, { type: 'execution.complete', actionId: runKey }));
+        settled = true;
         onPlanResult(pendingPlan.id, 'success', 'Applied progressively; every changed step and the final editable document were read back and verified in local storage.');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown drawing error';
@@ -686,6 +689,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
           setPlanProgress(null);
           setNotice('AI drawing failed: ' + message + recoveryMessage);
           setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: message + recoveryMessage }));
+          settled = true;
           onPlanResult(pendingPlan.id, 'error', message + recoveryMessage);
         }
       }
@@ -693,7 +697,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     return () => {
       // Route changes must settle the parent live session too. Treat unmount as a real
       // cancellation so the executor rolls back the batch and reports the verified result.
-      cancel();
+      if (!settled) cancel();
       if (cancelPlanExecutionRef.current === cancel) cancelPlanExecutionRef.current = null;
     };
   }, [pendingPlan, loaded, onPlanResult, drawingId, drawingName, planRunNonce]);

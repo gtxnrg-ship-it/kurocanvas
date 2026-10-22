@@ -4,7 +4,7 @@ This gate evaluates the one active model, **Qwen3-0.6B (quantized ONNX)**, and t
 
 ## 1. Prepare and verify the local runtime
 
-1. Either open Preferences and choose **Download & prepare Qwen3-0.6B**, or send the first chat message and explicitly accept the preparation confirmation. No model download may begin before that consent. Declining must leave the draft available without downloading; cancellation or failure must allow a safe retry.
+1. Either open Preferences and choose **Download & prepare Qwen3-0.6B**, or send the first ordinary chat, writing, planning, or drawing request and explicitly accept the preparation confirmation. Research and visual-reference searches should work without the local model. No model download may begin before that consent. Declining must leave the draft available without downloading; cancellation or failure must allow a safe retry.
 2. Confirm progress/errors are shown, preparation can be cancelled, and the model is reported as prepared only after the worker returns a ready result.
 3. Send a short prompt and confirm inference runs through the local worker after preparation.
 4. Reload the page. The live worker session should be considered unprepared again; prepare Qwen in the new session. The browser-managed cache may avoid a full download but is not durable installation storage.

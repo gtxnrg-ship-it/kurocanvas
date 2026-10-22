@@ -5,6 +5,7 @@ import {
   invalidateSeriesPlanApproval,
   isSeriesPlanApproved,
   parseSeriesChapterPlan,
+  resolveApprovedSeriesChapter,
   seriesPlanSignature,
   validateSeriesPlan,
   type SeriesPlanFields,
@@ -59,6 +60,17 @@ describe("whole-series plan contract", () => {
     expect(evaluateSeriesPlan(approved).approved).toBe(true);
     expect(isSeriesPlanApproved({ ...approved, seriesEnding: approved.seriesEnding + " Changed." })).toBe(false);
     expect(seriesPlanSignature(approved)).not.toBe(seriesPlanSignature({ ...approved, seriesScope: "A different scope" }));
+  });
+
+  it("retrieves the exact requested chapter only from an approved full-series plan", () => {
+    expect(resolveApprovedSeriesChapter(completeDraft, 2)).toBeUndefined();
+    const approved = approveSeriesPlan(completeDraft);
+    expect(resolveApprovedSeriesChapter(approved, 2)).toMatchObject({
+      number: 2,
+      summary: expect.stringContaining("missing observatory key"),
+    });
+    expect(resolveApprovedSeriesChapter(approved, 99)).toBeUndefined();
+    expect(resolveApprovedSeriesChapter(approved, undefined)).toBeUndefined();
   });
 
   it("invalidates approval explicitly whenever the creator edits the outline", () => {

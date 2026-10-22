@@ -16,7 +16,7 @@ describe("Kuro request-aware response quality", () => {
 
   it("gives continuation turns a deep budget unless the creator explicitly requests brevity", () => {
     expect(inferKuroResponseDepth("continue")).toBe("deep");
-    expect(getKuroResponseTokenBudget("continue", "kuro-local-browser")).toBe(1024);
+    expect(getKuroResponseTokenBudget("continue", "kuro-local-browser")).toBe(4096);
     expect(inferKuroResponseDepth("continue that in one sentence")).toBe("quick");
     expect(getKuroResponseTokenBudget("continue that in one sentence", "kuro-local-browser")).toBe(256);
   });
@@ -27,7 +27,9 @@ describe("Kuro request-aware response quality", () => {
   });
 
   it("bounds the experimental local model's requested output budget", () => {
-    expect(getKuroResponseTokenBudget("Write an exhaustive story bible.", "kuro-local-browser")).toBe(1024);
+    expect(getKuroResponseTokenBudget("Write an exhaustive story bible.", "kuro-local-browser")).toBe(6144);
+    expect(getKuroResponseTokenBudget("Explain this idea in detail.", "kuro-local-browser")).toBe(4096);
+    expect(getKuroResponseTokenBudget("Explain what this is.", "kuro-local-browser")).toBe(2048);
     expect(getKuroResponseTokenBudget("Hello", "kuro-local-browser")).toBe(256);
   });
 
@@ -58,7 +60,7 @@ describe("truthful model finish reporting", () => {
   it("tells the creator when the local output ceiling truncated a reply", () => {
     const response = formatKuroChatResponse("Here is the chapter outline…", "length");
     expect(response).toContain("Here is the chapter outline");
-    expect(response).toContain("Qwen3-0.6B's current output limit");
+    expect(response).toContain("Kuro reached the configured reply budget");
     expect(response).toContain("Say “continue”");
   });
 

@@ -708,3 +708,95 @@
 @media (orientation:landscape) and (min-width:560px){.kuro-launch-art{width:auto;max-width:100vw;height:100%;max-height:100svh}}
 
 .kuro-launch-progress{width:clamp(118px,28vw,210px);height:8px;border-radius:999px;overflow:hidden;background:#191320;box-shadow:0 0 18px rgba(255,44,190,.12)}.kuro-launch-progress i{display:block;width:100%;height:100%;border-radius:inherit;background:linear-gradient(100deg,#ff35bc,#a83aff 52%,#00d7f3);box-shadow:0 0 18px rgba(255,44,190,.55);transform-origin:left center;animation:kuro-launch-sweep 1.4s ease-in-out infinite alternate}@keyframes kuro-launch-sweep{from{transform:scaleX(.38);opacity:.68}to{transform:scaleX(1);opacity:1}}@media (orientation:landscape) and (min-width:560px){.kuro-launch-screen{flex-direction:row;gap:clamp(28px,6vw,96px)}.kuro-launch-art{width:min(44vh,42vw,460px);max-height:72svh}.kuro-launch-wordmark{font-size:clamp(26px,4vw,48px)}.kuro-launch-progress{position:absolute;left:50%;bottom:12%;transform:translateX(-50%)}}@media (prefers-reduced-motion:reduce){.kuro-launch-screen{transition:none}.kuro-launch-progress i{animation:none}}
+
+
+/* Dedicated live-creation workspace: a real editable canvas and inspectable batch history. */
+.live-studio{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;height:calc(100dvh - 88px);padding:18px 20px 14px;overflow:hidden;background:linear-gradient(180deg,rgba(13,10,22,.98),rgba(8,7,13,.98))}
+.live-studio-header{display:flex;align-items:center;justify-content:space-between;gap:18px;flex:0 0 auto}
+.live-studio-title small{display:block;font-size:9px;letter-spacing:1.5px;color:#f18ed9;font-weight:800}
+.live-studio-title h1{font:800 clamp(20px,2.2vw,29px)/1.15 Manrope,sans-serif;letter-spacing:-.8px;margin:6px 0}
+.live-studio-title p{font-size:11px;line-height:1.55;color:#9d94af;margin:0;max-width:720px}
+.live-studio-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.live-studio-actions button,.live-session-controls button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 12px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+.live-voice-button{background:#25152b;border:1px solid #984c8a;color:#f7dafa}
+.live-voice-button.is-active{background:#311b26;border-color:#ff66be;box-shadow:0 0 20px rgba(255,58,184,.15);color:#ffb9e5}
+.live-back-button{background:#15121d;border:1px solid #383044;color:#c8bfd7}
+.live-studio-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(255px,320px);gap:12px;flex:1;min-height:0;overflow:hidden}
+.live-canvas-pane{min-width:0;min-height:0;overflow:auto;border:1px solid #33283f;border-radius:14px;background:#100d17;scrollbar-color:#493653 #110e17;overscroll-behavior:contain}
+.live-canvas-pane .drawing-alt{width:100%;max-width:none;margin:0;padding:12px}
+.live-canvas-pane .drawing-alt .althead{margin-bottom:10px}
+.live-canvas-pane .drawing-stage{height:clamp(350px,calc(100dvh - 355px),760px);max-height:none;min-height:320px;padding:16px;overflow:auto}
+.live-canvas-pane .draw-toolbar{gap:7px}
+.live-session-panel{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:auto;padding:14px;border:1px solid #2d2438;border-radius:14px;background:linear-gradient(155deg,#17111f,#100d16);scrollbar-color:#493653 #110e17;overscroll-behavior:contain}
+.live-session-status{display:flex;align-items:center;gap:10px;padding:0 0 12px;border-bottom:1px solid #2d2438}
+.live-session-status b,.live-session-status small{display:block}
+.live-session-status b{font-size:12px;color:#f1e9fa}
+.live-session-status small{margin-top:5px;font-size:9px;color:#958ba4}
+.live-session-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;background:#9270ba;box-shadow:0 0 12px currentColor}
+.live-session-dot.status-planning{background:#c5a4ff}.live-session-dot.status-drawing{background:#ff58c3}.live-session-dot.status-complete{background:#5ee3bd}.live-session-dot.status-paused{background:#f5bd64}.live-session-dot.status-error{background:#ff737a}
+.live-autocontinue{display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.5;color:#d5cadf;cursor:pointer}
+.live-autocontinue input{margin:2px 0 0;accent-color:#e45db7;flex:0 0 auto}
+.live-session-hint{padding:10px;border-radius:9px;border:1px solid #2c2437;background:#120f19;color:#9a91a8;font-size:9px;line-height:1.65}
+.live-timeline-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:1px}
+.live-timeline-heading b{font-size:11px;color:#eee4f7}
+.live-timeline-heading span{display:grid;place-items:center;min-width:23px;height:23px;padding:0 5px;border:1px solid #3b2a48;border-radius:8px;background:#211729;color:#e7b8e0;font-size:9px}
+.live-session-timeline{margin:0;padding:0 0 0 3px;list-style:none;display:grid;gap:10px;overflow:visible}
+.live-session-timeline li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;align-items:start;padding:9px;border:1px solid #2b2335;border-radius:9px;background:rgba(11,9,16,.6)}
+.live-session-timeline li.live-log-working{border-color:#7d396d;background:#211421}
+.live-session-timeline li.live-log-done{border-color:#2d5149}
+.live-session-timeline li.live-log-error{border-color:#6f343e;background:#211216}
+.live-session-timeline li.live-log-paused{border-color:#615039;background:#1e1a14}
+.live-log-state{display:grid;place-items:center;width:21px;height:21px;border-radius:7px;background:#30213b;color:#e9c0ea;font-size:11px;font-weight:800}
+.live-log-done .live-log-state{background:#18342e;color:#8be8ce}
+.live-log-error .live-log-state{background:#45202a;color:#ff9fa5}
+.live-log-paused .live-log-state{background:#3a2d1b;color:#ffdc98}
+.live-session-timeline p{margin:0;color:#ded4e8;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.live-session-timeline small{display:block;margin-top:4px;color:#887e96;font-size:8px}
+.live-error{padding:9px;margin:0;background:#2c1419;border:1px solid #632f3d;border-radius:8px;color:#ffb8bd;font-size:10px;line-height:1.5}
+.live-voice-status{display:flex;align-items:flex-start;gap:7px;padding:8px 9px;background:#241624;border:1px solid #63355b;border-radius:8px;color:#ffc0e8;font-size:9px;line-height:1.55;margin:0}
+.live-voice-status svg{flex:0 0 auto;margin-top:1px}
+.live-session-controls{display:grid;gap:7px;margin-top:auto;padding-top:6px}
+.live-primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 13px;border:1px solid #a74795;border-radius:10px;background:linear-gradient(105deg,#6c275a,#46286c);color:#fff0ff;font-weight:800;font-size:10px}
+.live-primary:disabled{opacity:.5;cursor:not-allowed}
+.live-secondary{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 12px;border:1px solid #403346;border-radius:9px;background:#17121d;color:#c1b5cb;font-size:9px}
+.live-composer{display:grid;gap:8px;flex:0 0 auto;padding:11px 12px;border:1px solid #30263a;border-radius:12px;background:#130f1a}
+.live-composer>label{font-size:10px;font-weight:700;color:#e4d5ed}
+.live-composer-row{display:flex;align-items:stretch;gap:9px}
+.live-composer-row textarea{flex:1;min-width:0;min-height:54px;max-height:140px;resize:vertical;padding:11px 12px;border:1px solid #403247;border-radius:10px;background:#0c0a12;color:#f5edf9;font-size:11px;line-height:1.6;outline:none}
+.live-composer-row textarea:focus{border-color:#bd5da7;box-shadow:0 0 0 2px rgba(209,92,174,.13)}
+.live-composer-row .live-primary{align-self:stretch;max-width:220px;white-space:normal}
+.live-composer-foot{display:flex;justify-content:space-between;gap:12px;color:#82778f;font-size:8px;line-height:1.5}
+.messages{scrollbar-width:thin;scrollbar-color:#47324e #11101a;overscroll-behavior:contain}
+@media(max-width:1000px){.live-studio{padding:13px 12px 88px;height:auto;min-height:calc(100dvh - 130px);overflow:visible}.live-studio-layout{grid-template-columns:minmax(0,1fr);overflow:visible;flex:none}.live-canvas-pane{overflow:visible}.live-session-panel{max-height:none;overflow:visible}.live-studio-header{align-items:flex-start}.live-studio-title p{max-width:500px}.live-canvas-pane .drawing-stage{height:calc(75dvh - 180px);min-height:310px}}
+@media(max-width:600px){.live-studio{padding:12px 10px 96px;gap:10px}.live-studio-header{display:grid;gap:12px}.live-studio-actions{width:100%}.live-studio-actions button{flex:1}.live-studio-title h1{font-size:23px}.live-studio-title p{font-size:10px}.live-studio-layout{gap:10px}.live-canvas-pane .drawing-alt{padding:8px}.live-canvas-pane .drawing-alt .althead{display:grid;gap:7px}.live-canvas-pane .drawing-stage{height:58dvh;min-height:280px;padding:8px}.live-session-panel{padding:11px}.live-composer{position:sticky;bottom:76px;z-index:40;padding:9px;background:rgba(19,15,26,.97);backdrop-filter:blur(12px)}.live-composer-row{display:grid;grid-template-columns:minmax(0,1fr)}.live-composer-row textarea{min-height:54px}.live-composer-row .live-primary{max-width:none;min-height:42px}.live-composer-foot{display:grid;gap:3px}.live-composer-foot span:nth-child(2){max-width:95%;}.home-hero-actions .home-live-creation{border-color:#a74795;background:linear-gradient(115deg,#3b1c3d,#2a2255);color:#ffd7f5;box-shadow:0 0 21px rgba(241,83,186,.09)}}
+@media(prefers-reduced-motion:reduce){.live-session-dot{box-shadow:none}}
+
+
+/* Local speech controls. Voice preparation is explicit and progress is always visible. */
+.kuro-speech-settings{display:grid;gap:10px;margin:12px 0 16px;padding:13px;border:1px solid #45314c;border-radius:12px;background:linear-gradient(145deg,#1b1220,#12101a)}
+.kuro-speech-settings legend{padding:0 6px;color:#f0bbdf;font-size:11px;font-weight:800}
+.kuro-speech-settings label{display:grid;gap:6px;color:#d6c9e0;font-size:10px}
+.kuro-speech-settings label span{font-variant-numeric:tabular-nums;color:#f1bfe6}
+.kuro-speech-settings select,.kuro-speech-settings input[type=password]{width:100%;min-width:0;box-sizing:border-box;padding:9px;border:1px solid #423047;border-radius:8px;background:#0d0b12;color:#f5ebfb;font:inherit}
+.kuro-speech-settings input[type=range]{width:100%;accent-color:#ee66c4}
+.kuro-speech-settings p{font-size:9px;line-height:1.6;color:#a59aae;margin:0;overflow-wrap:anywhere}
+.kuro-speech-settings p a{color:#f4aee1;text-underline-offset:3px}
+.kuro-speech-settings .speech-model-id{font-size:8px;line-height:1.5;color:#8d809b;overflow-wrap:anywhere}
+.kuro-speech-settings .speech-model-links{line-height:1.8}
+.speech-actions{display:flex;gap:8px;flex-wrap:wrap}
+.speech-actions .provider-secondary{flex:1 1 140px}
+.speech-download-progress{width:100%;height:5px;accent-color:#e866bd}
+
+
+/* Audio-reactive meters: levels are sampled from the microphone and Kuro's actual Web Audio playback. */
+.live-audio-visualizer{display:grid;gap:7px;margin:12px 0;padding:12px;border:1px solid rgba(186,139,235,.2);border-radius:13px;background:linear-gradient(145deg,rgba(24,18,37,.96),rgba(14,12,22,.98));box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.live-audio-row{display:grid;grid-template-columns:38px minmax(0,1fr) 34px;align-items:center;gap:8px;min-height:36px}
+.live-audio-label{font-size:9px;font-weight:850;letter-spacing:1.2px;color:#b7a8c9}
+.live-audio-percent{font-size:9px;text-align:right;font-variant-numeric:tabular-nums;color:#8c809b}
+.live-audio-bars{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0;height:36px;overflow:hidden}
+.live-audio-bars i{display:block;flex:1 1 3px;max-width:5px;min-width:2px;min-height:3px;border-radius:5px;transition:height 70ms linear;will-change:height}
+.live-audio-bars.input-level i{background:linear-gradient(180deg,#8be9f3,#4f84d8);box-shadow:0 0 7px rgba(97,193,241,.18)}
+.live-audio-bars.output-level i{background:linear-gradient(180deg,#ffc0ef,#bb6de9);box-shadow:0 0 8px rgba(211,113,238,.2)}
+.live-audio-visualizer.is-active .live-audio-label{color:#d8c5f5}
+.live-audio-caption{min-height:15px;margin:2px 0 0;text-align:center;color:#b9a9cb;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:600px){.live-audio-visualizer{margin:8px 0;padding:9px}.live-audio-row{grid-template-columns:34px minmax(0,1fr) 31px;gap:6px}.live-audio-bars{gap:2px}}

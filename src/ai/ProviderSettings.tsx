@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import ModelAdvisor from "./ModelAdvisor";
 import { createConfiguredProvider, isLocalTinyModelPrepared, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI, prepareLocalTinyModel } from "./providerFactory";
 import type { ModelDescriptor } from "./modelRegistry";
-import type { KuroVoiceIntensity } from "./kuroPersona";
 import { getKuroVoiceGuidance, KURO_PERSONA_CORE } from "./kuroPersona";
 import { createLocalModelBenchmark, loadLocalModelBenchmark, localBenchmarkRatingLabel, saveLocalModelBenchmark, type LocalModelBenchmark } from "./modelBenchmark";
 import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
+import { KURO_FISH_VOICES, KURO_SPEECH_MODEL_ID, KURO_SPEECH_VOICES, prepareKuroVoice, readKuroSpeechPreferences, saveKuroSpeechPreferences, speakKuroVoice, type KuroSpeechEngine, type KuroSpeechPreferences } from "./kuroSpeech";
 
 export interface ActiveProviderConfig {
   /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
@@ -20,8 +20,6 @@ interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
   initialSupportsVision?: boolean;
-  voiceIntensity: KuroVoiceIntensity;
-  onVoiceIntensityChange: (intensity: KuroVoiceIntensity) => void;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
@@ -33,12 +31,16 @@ const canonicalConfig: ActiveProviderConfig = {
   supportsVision: false,
 };
 
-export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChange, onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({ onSave, onClose }: ProviderSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [voiceTesting, setVoiceTesting] = useState(false);
   const [voicePreview, setVoicePreview] = useState("");
+  const [speechPreferences,setSpeechPreferences] = useState<KuroSpeechPreferences>(()=>readKuroSpeechPreferences());
+  const [speechPreparing,setSpeechPreparing] = useState(false);
+  const [speechProgress,setSpeechProgress] = useState(0);
+  const [speechStatus,setSpeechStatus] = useState("");
   const [modelProgress, setModelProgress] = useState(0);
   const [localModelPrepared, setLocalModelPrepared] = useState(() => isLocalTinyModelPrepared());
   const [localModelPreparing, setLocalModelPreparing] = useState(false);
@@ -185,14 +187,27 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       const response = await provider.generate({
         role: "reasoning",
         messages: [
-          { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance(voiceIntensity) },
+          { role: "system", content: KURO_PERSONA_CORE + "\n\n" + getKuroVoiceGuidance() },
           { role: "user", content: "Reply naturally to a manga creator who feels overwhelmed and does not know where to start drawing a scene. Be playfully tsundere if it fits, then offer one useful first step. Keep it to 2–4 sentences." },
         ],
         temperature: 0.75,
         maxOutputTokens: 220,
         signal: controller.signal,
       }, selected);
-      setVoicePreview(response.text.trim() || "The model returned an empty reply. Try again after checking model preparation.");
+      const preview=response.text.trim();
+      setVoicePreview(preview || "The model returned an empty reply. Try again after checking model preparation.");
+      if(preview){
+        setSpeechStatus(speechPreferences.engine==="kokoro"?"Preparing Kuro's local Kokoro voice…":"Using the device's speech voice…");
+        try{
+          await speakKuroVoice(preview,speechPreferences,progress=>{
+            setSpeechProgress(progress.percent);
+            setSpeechStatus(progress.status+(progress.percent>0?" · "+progress.percent+"%":""));
+          });
+          setSpeechStatus("Voice preview finished.");
+        }catch(voiceError){
+          setSpeechStatus("Text preview succeeded, but speech playback failed: "+(voiceError instanceof Error?voiceError.message:"unknown voice error"));
+        }
+      }
     } catch (e) {
       if (controller.signal.aborted) setStatus("Kuro's voice preview was cancelled.");
       else setError(e instanceof Error ? e.message : "Kuro's voice preview failed.");
@@ -203,6 +218,40 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
     }
   }
 
+  async function previewSelectedVoice(){
+    setSpeechPreparing(true);setSpeechProgress(0);setSpeechStatus("Preparing a short voice test…");
+    try{
+      await speakKuroVoice(
+        "Hey… it's Kuro. Okay, let's think this through together. I have a few ideas, and we can take them one step at a time.",
+        speechPreferences,
+        progress=>{setSpeechProgress(progress.percent);setSpeechStatus(progress.status+(progress.percent>0?" · "+progress.percent+"%":""));},
+      );
+      setSpeechStatus("Voice test finished.");
+    }catch(error){
+      setSpeechStatus("Voice test failed: "+(error instanceof Error?error.message:"unknown voice error"));
+    }finally{setSpeechPreparing(false);}
+  }
+
+  async function prepareSpeechEngine(){
+    setSpeechPreparing(true);setSpeechProgress(0);setError("");
+    try{
+      if(speechPreferences.engine==="kokoro"){
+        setSpeechStatus("Preparing the local Kokoro model · first use needs a download…");
+        await prepareKuroVoice(progress=>{setSpeechProgress(progress.percent);setSpeechStatus(progress.status+(progress.percent>0?" · "+progress.percent+"%":""));});
+        setSpeechStatus("Kokoro Local is prepared in this session. Browser cache may preserve files for later use.");
+      }else if(speechPreferences.engine==="fish"){
+        if(!speechPreferences.apiKey.trim())throw new Error("Add your own Fish Audio API key below. The key has not been validated until a real voice request succeeds.");
+        setSpeechStatus("Fish Audio is configured. This check does not send text or spend generation credits; use “Test selected voice” to verify the key and voice.");
+      }else{
+        if(!("speechSynthesis" in window))throw new Error("This device does not expose speech synthesis.");
+        setSpeechStatus("Device speech synthesis is available. Voice quality and voice choices depend on the operating system.");
+      }
+    }catch(error){setSpeechStatus("Voice setup failed: "+(error instanceof Error?error.message:"unknown error"));}
+    finally{setSpeechPreparing(false);}
+  }
+  function updateSpeechPreferences(next:KuroSpeechPreferences){
+    setSpeechPreferences(next);saveKuroSpeechPreferences(next);setSpeechStatus("");
+  }
   function save() {
     onSave(canonicalConfig);
     setStatus("Saved: Qwen3-0.6B · on-device · text-only.");
@@ -231,20 +280,47 @@ export default function ProviderSettings({ voiceIntensity, onVoiceIntensityChang
       <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
     </div>
-    <fieldset className="kuro-voice-settings">
-      <legend>Kuro's personality</legend>
-      <label>Tsundere intensity<select value={voiceIntensity} onChange={e => onVoiceIntensityChange(e.target.value as KuroVoiceIntensity)}>
-        <option value="subtle">Subtle · dry wit, gentle warmth</option>
-        <option value="playful">Balanced · playful teasing</option>
-        <option value="expressive">Expressive · dramatic anime energy</option>
+    <fieldset className="kuro-speech-settings">
+      <legend>Spoken voice · audio output</legend>
+      <label>Speech engine<select value={speechPreferences.engine} onChange={event=>{
+        const engine=event.target.value as KuroSpeechEngine;
+        const voice=engine==="fish"?KURO_FISH_VOICES[0].id:engine==="kokoro"?"af_bella":speechPreferences.voice;
+        updateSpeechPreferences({...speechPreferences,engine,voice});
+      }}>
+        <option value="fish">Fish Audio Drama 3 · Sakura / Chiaki / Mitsuri</option>
+        <option value="kokoro">Kokoro Local · private, on-device neural speech</option>
+        <option value="system">Device voice · system speech synthesis</option>
       </select></label>
-      <p>Her personality stays natural and context-aware. When you're genuinely upset or discussing something serious, she puts the teasing aside.</p>
-      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Trying her voice…" : "Preview Kuro's voice"}</button>
+      {speechPreferences.engine==="fish"&&<>
+        <label>Kuro's voice<select value={speechPreferences.voice} onChange={event=>updateSpeechPreferences({...speechPreferences,voice:event.target.value})}>
+          {KURO_FISH_VOICES.map(voice=><option value={voice.id} key={voice.id}>{voice.label}</option>)}
+        </select></label>
+        <label>Fish Audio API key<input type="password" autoComplete="off" spellCheck={false} value={speechPreferences.apiKey} onChange={event=>updateSpeechPreferences({...speechPreferences,apiKey:event.target.value})} placeholder="Paste your Fish Audio API key"/></label>
+        <p>Voice audio is generated by Fish Audio, not on this device. Fish Audio receives the text Kuro reads aloud (which can include details from this conversation or story), the selected voice profile ID, and your API key. This integration does not send the whole chat or Vault separately, but any private detail included in spoken text is shared with the speech provider. The key is kept in this browser session's sessionStorage (not encrypted) and is not intentionally persisted across sessions. Close the app/browser session to clear it; device/browser behavior can vary. Drama 3 API usage may be billed; check current pricing and the model/voice terms before using or distributing generated audio. <a href="https://fish.audio/developers/" target="_blank" rel="noreferrer">Get an API key</a> · <a href="https://fish.audio/pricing/" target="_blank" rel="noreferrer">Check pricing</a> · <a href="https://huggingface.co/fishaudio/drama-3" target="_blank" rel="noreferrer">Drama 3 license</a>.</p>
+        <p className="speech-model-links">Listen to the <a href={KURO_FISH_VOICES[0].sampleUrl} target="_blank" rel="noreferrer">SAKURA sample</a>, <a href={KURO_FISH_VOICES[1].sampleUrl} target="_blank" rel="noreferrer">Chiaki sample</a>, or <a href={KURO_FISH_VOICES[2].sampleUrl} target="_blank" rel="noreferrer">Mitsuri sample</a>.</p>
+      </>}
+      {speechPreferences.engine==="kokoro"&&<label>Kuro's voice<select value={speechPreferences.voice} onChange={event=>updateSpeechPreferences({...speechPreferences,voice:event.target.value})}>
+        {KURO_SPEECH_VOICES.map(voice=><option value={voice.id} key={voice.id}>{voice.label}</option>)}
+      </select></label>}
+      <label>Speaking pace <span>{speechPreferences.rate.toFixed(2)}×</span><input type="range" min="0.8" max="1.2" step="0.05" value={speechPreferences.rate} onChange={event=>updateSpeechPreferences({...speechPreferences,rate:Number(event.target.value)})}/></label>
+      <p>{speechPreferences.engine==="fish"?"Fish Audio's Drama 3 engine applies the chosen profile to English text and uses native prosody speed control, so the pace slider does not simply raise the recording's pitch. Accent and expressiveness can vary on English; test all three profiles with your own sample and choose the one you prefer.":speechPreferences.engine==="kokoro"?"Kokoro is an open-source, quantized local speech model. First use downloads its voice weights; later availability depends on the browser cache and device memory. Its included voices are not Japanese-accented.":"The device voice uses the operating system's speech engine. Available voices, realism, network needs and languages vary by Android/browser."}</p>
+      {speechPreferences.engine==="kokoro"&&<small className="speech-model-id">Model: {KURO_SPEECH_MODEL_ID} · Apache-2.0 · quantized ONNX</small>}
+      <div className="speech-actions">
+        <button type="button" className="provider-secondary" onClick={()=>void prepareSpeechEngine()} disabled={speechPreparing||voiceTesting}>{speechPreparing?"Preparing voice · "+speechProgress+"%":speechPreferences.engine==="kokoro"?"Prepare local Kokoro voice":speechPreferences.engine==="fish"?"Check Fish Audio setup":"Check device voice"}</button>
+        <button type="button" className="provider-secondary" onClick={()=>void previewSelectedVoice()} disabled={speechPreparing||voiceTesting}>Test selected voice</button>
+      </div>
+      {speechStatus&&<p className="provider-status" role="status" aria-live="polite">{speechStatus}</p>}
+      {speechPreferences.engine==="kokoro"&&speechPreparing&&<progress className="speech-download-progress" value={speechProgress} max="100" aria-label="Local voice model preparation progress"/>}
+    </fieldset>
+    <fieldset className="kuro-voice-settings">
+      <legend>Kuro's personality · fixed</legend>
+      <p>Kuro has one consistent personality across every voice option: thoughtful, highly engaged, curious, warm, naturally playful and lightly tsundere when it fits. She adapts to context instead of changing into a different character; serious moments come before teasing. Changing SAKURA, Chiaki or Mitsuri changes the vocal performance, not who Kuro is.</p>
+      <button type="button" className="provider-secondary" onClick={previewVoice} disabled={busy || voiceTesting || !localModelPrepared}>{voiceTesting ? "Generating and speaking…" : "Generate & speak Kuro sample"}</button>
       {voicePreview && <blockquote className="kuro-voice-preview" aria-live="polite">{voicePreview}</blockquote>}
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">No hosted provider or API key is configured by this screen, and no remote model fallback is used. If local inference is unavailable, Kuro reports the problem rather than sending your prompts or project data elsewhere. Image understanding is not supported by Qwen3-0.6B here.</p>
+    <p className="provider-warning">Kuro’s chat and project-memory paths remain local to the configured Qwen model. If Fish Audio is selected for speech, the spoken text and your API key are sent to Fish Audio for audio generation. No remote chat-model fallback is used. Image understanding is not supported by Qwen3-0.6B here.</p>
     <div className="provider-actions">
       <button className="provider-secondary" onClick={closeSettings}>Close</button>
       <button onClick={save} disabled={busy || voiceTesting}>Use Qwen3-0.6B</button>

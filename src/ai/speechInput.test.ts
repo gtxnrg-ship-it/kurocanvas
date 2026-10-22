@@ -3,6 +3,7 @@ import {
   createBrowserSpeechRecognition,
   describeSpeechRecognitionError,
   transcriptFromSpeechEvent,
+  finalTranscriptFromSpeechEvent,
   normalizeSpokenPunctuation,
   type BrowserSpeechRecognition,
   type BrowserSpeechResultEvent,
@@ -43,6 +44,18 @@ describe("optional browser speech input", () => {
       ],
     } as BrowserSpeechResultEvent;
     expect(transcriptFromSpeechEvent(event)).toBe("Make a character with a red coat and black boots.");
+  });
+
+  it("returns only new final chunks for live hands-free turns", () => {
+    const event = {
+      resultIndex: 1,
+      results: [
+        { isFinal: true, 0: { transcript: "Older phrase" } },
+        { isFinal: false, 0: { transcript: "interim word" } },
+        { isFinal: true, 0: { transcript: "draw a city period" } },
+      ],
+    } as BrowserSpeechResultEvent;
+    expect(finalTranscriptFromSpeechEvent(event)).toBe("Draw a city.");
   });
 
   it("turns spoken punctuation commands into readable dictation", () => {

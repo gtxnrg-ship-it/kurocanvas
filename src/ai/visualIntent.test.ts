@@ -7,6 +7,9 @@ describe("canvas visual intent", () => {
     "Sketch the character from the side",
     "Create a composition of the palace",
     "Put a speech bubble on the canvas",
+    "After we brainstorm, create the characters and their overall looks",
+    "Design my main character's visual design and outfit",
+    "Make a character sheet for the protagonist",
   ])("recognizes drawing request: %s", text => {
     expect(isDrawingIntent(text)).toBe(true);
   });
@@ -20,6 +23,12 @@ describe("canvas visual intent", () => {
   ])("recognizes visual inspection request: %s", text => {
     expect(isCanvasVisualIntent(text)).toBe(true);
     expect(shouldAttachCanvasPreview(text, ["chat", "vision"])).toBe(true);
+  });
+
+  it("routes visual character design without misrouting ordinary story brainstorming", () => {
+    expect(isDrawingIntent("Let's create a character with a scarred face and a long coat")).toBe(true);
+    expect(isDrawingIntent("Create a backstory for my main character")).toBe(false);
+    expect(isDrawingIntent("Let's brainstorm how the protagonist changes across the story")).toBe(false);
   });
 
   it("does not attach canvas previews for ordinary story chat", () => {

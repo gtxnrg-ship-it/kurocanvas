@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createProject } from "./project";
-import { createKuroPackage, downloadKuroPackage, parseKuroPackage, serializeKuroPackage } from "./package";
+import { createKuroPackage, downloadKuroArchive, downloadKuroPackage, parseKuroPackage, serializeKuroPackage } from "./package";
 
 describe("portable Kuro packages", () => {
   it("round-trips Story Vault and editable drawing assets", () => {
@@ -56,6 +56,36 @@ describe("portable Kuro packages", () => {
 });
 
 describe("native Kuro ZIP packages", () => {
+  it("attaches archive download links and revokes the temporary URL after dispatch", () => {
+    const click = vi.fn();
+    const remove = vi.fn();
+    const appendChild = vi.fn();
+    const anchor = { href: "", download: "", click, remove };
+    const createObjectURL = vi.fn(() => "blob:kuro-archive-test");
+    const revokeObjectURL = vi.fn();
+
+    vi.useFakeTimers();
+    vi.stubGlobal("document", { body: { appendChild }, createElement: vi.fn(() => anchor) });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      downloadKuroArchive(new Uint8Array([1, 2, 3]), "Rain City");
+      expect(appendChild).toHaveBeenCalledWith(anchor);
+      expect(click).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(anchor.download).toBe("Rain-City.kuro");
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(999);
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:kuro-archive-test");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+
   it("round-trips project metadata and every packaged asset", async () => {
     const { parseKuroArchive, serializeKuroArchive } = await import("./package");
     const project = createProject("Rain City");

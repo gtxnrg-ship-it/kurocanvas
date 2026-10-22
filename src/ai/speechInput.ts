@@ -116,7 +116,7 @@ export function normalizeSpokenPunctuation(value: string): string {
     .replace(/“[ \t]+/g, "“")
     .replace(/[ \t]+”/g, "”")
     .replace(/(^|[.!?]\s+|\n\s*)([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase())
-    .replace(/(^|\s)i(?=\s|$|[,.!?])/g, (_match, prefix: string) => prefix + "I")
+    .replace(/(^|[\s([{])i(?=(?:['’](?:m|ve|ll|d)\b|\s|$|[,.!?]))/g, (_match, prefix: string) => prefix + "I")
     .trim();
   return text;
 }

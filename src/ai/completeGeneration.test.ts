@@ -50,7 +50,7 @@ describe("complete local chat generation", () => {
     expect(generate.mock.calls[0]?.[0].maxOutputTokens).toBe(1024);
     expect(generate.mock.calls[1]?.[0].maxOutputTokens).toBe(1024);
     expect(generate.mock.calls[1]?.[0].messages[generate.mock.calls[1]?.[0].messages.length - 1]?.content).toContain("Continue the answer");
-    expect(generate.mock.calls[1]?.[0].messages.at(-1)?.content).toContain("Original user request");
+    expect(generate.mock.calls[1]?.[0].messages[generate.mock.calls[1]?.[0].messages.length - 1]?.content).toContain("Original user request");
     expect(result.text).toContain("The first part explains the main idea");
     expect(result.text).toContain("this is the next unfinished section");
     expect(result.finishReason).toBe("stop");

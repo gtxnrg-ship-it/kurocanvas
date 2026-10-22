@@ -13,14 +13,14 @@ Never mark a feature complete because its component, type, or README description
 
 ## Current verification snapshot
 
-Last verified evidence reviewed: **22 October 2026**. Current application source: [430ac5619f](https://github.com/gtxnrg-ship-it/kurocanvas/commit/430ac5619fd6afaed4363afc37378502f1b8542b).
+Last verified evidence reviewed: **22 October 2026**. Current application source: [e63427e9c89c](https://github.com/gtxnrg-ship-it/kurocanvas/commit/e63427e9c89c4fe6428ef5126fbe2b512c85b5c8).
 
-- Exact-source [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39769587865) and [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39769587850) passed on this SHA. Project checks recorded **71 test files / 542 tests passed**, TypeScript passed, and the Vite production build succeeded.
-- The [development-preview build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39769588010) passed on this SHA. This proves that the preview bundle builds; it does not prove that the public Pages URL is deployed or available.
-- The [Android APK build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39769587758) passed for this SHA and updated the rolling [debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest). The exact source commit is `430ac5619fd6afaed4363afc37378502f1b8542b` and the uploaded APK SHA-256 is `d5b6bebb7469147898a4ad845104ba7c5b690d4522eca3f4cd314d7a6d3bf4bc`.
-- The permanent web and Android workflows use pinned npm and install from the committed `package-lock.json` via `npm ci`.
+- Exact-source [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39772248698) and [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39772248656) passed on this SHA. Project checks recorded **72 test files / 547 tests passed**, TypeScript passed, and the Vite production build succeeded.
+- The [development-preview build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39772248593) passed on this SHA. This proves that the preview bundle builds; it does not prove that a public Pages URL is deployed or available.
+- The [Android APK build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39772248736) is running for this SHA. The rolling [debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) may still point to the previous successful build from source `9440748f25d63a9866a8d9e431b47cbecc97d198`, SHA-256 `c84ec930f8ac2b2a7f58e75bfc8477992be762312f1da817d0b706544854a0b6`. Check release provenance before installing and do not label the old APK as built from `e63427e9c89c`.
+- Permanent web/Android workflows use pinned npm dependencies and install from the committed `package-lock.json` via `npm ci`.
 - The rolling APK is debug-signed, not a production or Play Store package. Physical installation, microphone/file permissions, offline behavior, resource use and low-end Android performance remain unverified.
-- Merged improvements now include chat-first navigation/universe isolation, natural visual-request routing, per-project Live Creation recovery, voice delivery/dictation fixes, a project-scoped character-design-to-Vault hand-off, chronology protection for appearance revisions, separate chapter/story-order filtering for non-linear timelines, and a safer delayed revoke for downloaded JSON package blobs.
+- Merged code now includes chat-first navigation and first-send model-preparation consent; per-project Live Creation recovery; natural visual-request routing; voice delivery/dictation fixes; proposed character-design-to-Vault hand-off and revision chronology protection; chapter vs in-world story-order filtering; safe JSON export timing; universe-creation rollback; and mobile approval/rendering of validated native drawing plans.
 - Green automation proves reproducible type/test/build success—not the entire creative journey, provider/voice behavior on Android, professional-level artwork, or chapter continuity. The full release acceptance below remains open.
 ## Existing implementation foundations — not blanket completion claims
 
@@ -38,8 +38,8 @@ Last verified evidence reviewed: **22 October 2026**. Current application source
 | Research queue | Persistent tasks, progress/state, cancellation, Wikipedia extracts, Crossref bibliographic metadata/DOI links, bounded abstract excerpts, cross-tab leases and source-aware notifications | Crossref is metadata discovery, not full-text search, a literature review, primary-source discovery or automatic fact verification |
 | Project packages | Native `.kuro` ZIP archive with manifest and CRC-checked entries; legacy `.kuro.json` import; universe/transcript/canon/memory/research/drawing/revision serialization | 50 MB limit, no compression yet, asset coverage and full cross-device round-trip need testing; unlinked canvases and binary reference images are excluded |
 | Project lifecycle | Scoped project deletion, research-task cleanup, and compensation if primary deletion fails; unit tests cover lifecycle ordering and recovery | Active-task/multi-tab deletion and real-browser storage-failure recovery still need hands-on testing |
-| Android | A rolling debug-signed test APK is published from successful CI: [download APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [release provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) | The published APK source is `430ac5619fd6`; SHA-256 `d5b6bebb7469147898a4ad845104ba7c5b690d4522eca3f4cd314d7a6d3bf4bc`. Physical-device install, permissions, offline behavior, memory use and low-end-phone performance remain unverified |
-| Deployment | Main-branch web checks and development-preview build pass on source SHA `430ac5619fd6` | The live GitHub Pages site still requires repository Pages settings and a successful Pages deployment; a build artifact alone is not a live site |
+| Android | A rolling debug-signed test APK is published from successful CI: [download APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [release provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest) | Build for `e63427e9c89c` is in progress; the last known successful APK is from `9440748f25d6` with SHA-256 `c84ec930f8ac2b2a7f58e75bfc8477992be762312f1da817d0b706544854a0b6`. Physical-device install, permissions, offline behavior, memory use and low-end-phone performance remain unverified |
+| Deployment | Main-branch web checks and development-preview build pass on source SHA `e63427e9c89c` | The live GitHub Pages site still requires repository Pages settings and a successful Pages deployment; a build artifact alone is not a live site |
 
 ## Release blockers — finish in this order
 
@@ -48,8 +48,8 @@ Last verified evidence reviewed: **22 October 2026**. Current application source
 - [x] Re-run source CI with real hosted runners and capture actual test/build output; earlier runner-less failures were superseded by successful runs on later exact SHAs.
 - [x] Generate and commit `package-lock.json` from the same Node/npm/peer-dependency policy used in CI; remove the temporary bootstrap workflow.
 - [x] Switch the permanent web and Android CI workflows to the committed lockfile with `npm ci`; successful runs on SHA `617719e0bc22` confirm locked installation.
-- [x] Run the exact-main automated acceptance sequence on source SHA `430ac5619fd6`: 71 test files / 542 tests passed; TypeScript and production build succeeded. Hands-on release acceptance remains open.
-- [x] Run `npm run typecheck && npm test && npm run build` on source SHA `430ac5619fd6`: 71 test files / 542 tests passed and the production build succeeded.
+- [x] Run the exact-main automated acceptance sequence on source SHA `e63427e9c89c`: 72 test files / 547 tests passed; TypeScript and production build succeeded. Hands-on release acceptance remains open.
+- [x] Run `npm run typecheck && npm test && npm run build` on source SHA `e63427e9c89c`: 72 test files / 547 tests passed and the production build succeeded.
 - [x] Build and publish a debug-signed APK with a SHA-256 digest and source-commit provenance.
 - [ ] Install and launch the published APK on a real Android device and record the device/OS smoke-test outcome.
 - [ ] Record the exact source SHA, workflow run, test results and APK checksum; do not use an old artifact as evidence for newer code.
@@ -98,7 +98,7 @@ Last verified evidence reviewed: **22 October 2026**. Current application source
 ### P1 — Finish Android distribution and device quality
 
 - [x] Publish a debug APK only after the locked acceptance sequence and Gradle assembly pass; label debug signing and release provenance clearly.
-- [x] Build and publish the APK from exact main SHA `430ac5619fd6`; validate source commit and SHA-256 against the Android workflow log. Physical-device smoke test remains open.
+- [ ] Build and publish the APK from exact main SHA `e63427e9c89c`; validate source commit and SHA-256 against the Android workflow log. Physical-device smoke test remains open.
 - [ ] Test startup, chat without a provider, local drawing offline, IndexedDB migrations, resume/recovery, notifications, orientation, keyboard/safe areas and file import/export on-device.
 - [ ] Profile memory, GPU/3D resource disposal, canvas responsiveness and long sessions on a low-resource Android phone.
 - [ ] Audit external requests, provider credential handling, imported packages, service-worker caches and any stored creative/private data.

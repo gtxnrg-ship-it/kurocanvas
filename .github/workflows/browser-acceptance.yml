@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: kuro-browser-acceptance-\${{ github.ref }}
+  group: kuro-browser-acceptance-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

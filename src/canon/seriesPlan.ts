@@ -1,4 +1,8 @@
 export interface SeriesPlanFields {
+  /** Narrative identity that the approved series outline is based on. */
+  title?: string;
+  premise?: string;
+  genres?: string;
   seriesScope?: string;
   seriesArcPlan?: string;
   seriesChapterPlan?: string;
@@ -34,6 +38,9 @@ const clean = (value: unknown): string => typeof value === "string" ? value.trim
  */
 export function seriesPlanSignature(fields: SeriesPlanFields): string {
   return JSON.stringify([
+    clean(fields.title),
+    clean(fields.premise),
+    clean(fields.genres),
     clean(fields.seriesScope),
     clean(fields.seriesArcPlan),
     clean(fields.seriesChapterPlan).replace(/\r\n?/g, "\n").trim(),

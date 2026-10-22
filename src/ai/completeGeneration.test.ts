@@ -95,6 +95,22 @@ describe("complete local chat generation", () => {
     expect(result.text).toBe("Remote response");
   });
 
+  it("reports cancellation instead of a model error when a continuation is aborted", async () => {
+    const { provider, generate } = providerWith([
+      { text: "Useful opening.", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },
+    ]);
+    generate.mockImplementationOnce(async () => ({
+      text: "Useful opening.", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId,
+    })).mockRejectedValueOnce(new Error("Local model request cancelled."));
+    const controller = new AbortController();
+    const pending = generateCompleteLocalReply(provider, { ...request, signal: controller.signal }, model);
+    // Abort after the first length-limited pass has resolved.
+    await Promise.resolve();
+    controller.abort();
+    const result = await pending;
+    expect(result.finishReason).toBe("cancelled");
+  });
+
   it("preserves useful partial output if a later pass fails", async () => {
     const { provider, generate } = providerWith([
       { text: "Useful opening.", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },

@@ -559,6 +559,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   chatAbortControllerRef.current=preparationController;
   const preparationGeneration=++chatRequestGenerationRef.current;
   const preparationIsCurrent=()=>!preparationController.signal.aborted&&chatRequestGenerationRef.current===preparationGeneration;
+  stopVoiceInputForWorkspaceSwitch();
   setTools(false);
   setPreparingModel(true);
   setWorking(true);

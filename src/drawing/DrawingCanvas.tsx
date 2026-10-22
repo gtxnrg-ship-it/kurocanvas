@@ -17,6 +17,7 @@ import { drawingGuardSignature } from './drawingGuard';
 import { getBrushProfile, pressureWidth, type BrushPreset } from './brushProfiles';
 import { resolveBrushPressure } from './brushDynamics';
 import { buildFloodFillOverlay, MAX_FLOOD_FILL_PIXELS } from './floodFill';
+import { getStrokeBounds } from './strokeGeometry';
 
 type Tool = 'brush' | 'eraser' | 'pan' | 'line' | 'rectangle' | 'ellipse' | 'text' | 'select' | 'panel' | 'bubble' | 'eyedropper' | 'fill';
 type PanelLayoutPreset = 'two-rows' | 'three-columns' | 'grid-2x2' | 'hero-sidebar' | 'webtoon-stack';
@@ -154,20 +155,6 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   ctx.restore();
 }
 
-function getStrokeBounds(stroke: Stroke) {
-  const points = stroke.points;
-  const pad = Math.max(6, stroke.size);
-  const minX = Math.min(...points.map(point => point.x));
-  const minY = Math.min(...points.map(point => point.y));
-  const maxX = Math.max(...points.map(point => point.x));
-  const maxY = Math.max(...points.map(point => point.y));
-  const textLines = (stroke.text ?? '').split('\n');
-  const textWidth = stroke.shape === 'text' ? Math.max(12, ...textLines.map(line => line.length * stroke.size * 0.62)) : 0;
-  const textHeight = stroke.shape === 'text' ? textLines.length * stroke.size * 1.3 : 0;
-  const bubbleWidth = stroke.shape === 'bubble' ? Math.max(8, (maxX - minX) * 0.12) : 0;
-  const bubbleHeight = stroke.shape === 'bubble' ? Math.max(8, (maxY - minY) * 0.22) : 0;
-  return { x: minX - pad, y: minY - pad, width: Math.max(1, maxX - minX, textWidth) + pad * 2 + bubbleWidth, height: Math.max(1, maxY - minY, textHeight) + pad * 2 + bubbleHeight };
-}
 
 function createSurface(width: number, height: number): HTMLCanvasElement | null {
   if (typeof document === 'undefined') return null;

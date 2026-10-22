@@ -27,6 +27,12 @@ describe("Kuro request-aware response quality", () => {
     expect(getKuroResponseTokenBudget("Fully finish the entire system, all edge cases included.", "kuro-local-browser")).toBe(12288);
   });
 
+  it("recognizes short creative-format requests as substantial production tasks", () => {
+    expect(inferKuroResponseDepth("Let's make a doujin.")).toBe("deep");
+    expect(getKuroResponseTokenBudget("Let's make a doujin.", "kuro-local-browser")).toBe(8192);
+    expect(inferKuroResponseDepth("What is a doujin?")).toBe("balanced");
+  });
+
   it("bounds the experimental local model's requested output budget", () => {
     expect(getKuroResponseTokenBudget("Write an exhaustive story bible.", "kuro-local-browser")).toBe(12288);
     expect(getKuroResponseTokenBudget("Explain this idea in detail.", "kuro-local-browser")).toBe(8192);

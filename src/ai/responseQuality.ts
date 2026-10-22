@@ -12,6 +12,7 @@ const QUICK_REQUEST = /\b(?:quick(?:ly)?|brief(?:ly)?|short answer|one sentence|
 const CONTINUATION_REQUEST = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i;
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
 const HUGE_REQUEST = /\b(?:exhaustive|comprehensive|every single detail|leave nothing out|full specification|production[- ]ready|fully finish|end to end|entire system|all edge cases)\b/i;
+const CREATIVE_FORMAT_REQUEST = /\\b(?:write|draft|make|create|plan|outline|develop|produce|script|storyboard|design)\\b.{0,80}\\b(?:manga|doujin|manhua|webtoon|comics?|panel(?:s| script)?|page[- ]by[- ]page)\\b/i;
 
 /** Exact composer text used by Kuro's visible Continue answer control. */
 export const KURO_CONTINUE_ANSWER_PROMPT =
@@ -50,7 +51,7 @@ export function inferKuroResponseDepth(message: string): KuroResponseDepth {
   if (HUGE_REQUEST.test(text)) return "exhaustive";
   if (QUICK_REQUEST.test(text) && text.length < 500 && !DEEP_REQUEST.test(text)) return "quick";
   if (CONTINUATION_REQUEST.test(text)) return "deep";
-  if (DEEP_REQUEST.test(text) || text.length >= 420 || (text.match(/[?;]/g)?.length ?? 0) >= 3) return "deep";
+  if (DEEP_REQUEST.test(text) || CREATIVE_FORMAT_REQUEST.test(text) || text.length >= 420 || (text.match(/[?;]/g)?.length ?? 0) >= 3) return "deep";
   return "balanced";
 }
 

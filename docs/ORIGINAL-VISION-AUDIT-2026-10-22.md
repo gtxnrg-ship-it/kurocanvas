@@ -55,9 +55,11 @@ The audit branch now stores each Live Creation session under a project-scoped lo
 
 The current session also has a bounded batch count. Verify that hitting the limit produces a clear “paused for review / continue” state rather than making the user believe the entire request is finished.
 
-### P1 — Approval and canon linkage need one end-to-end test
+### P1 — Character-to-world handoff has implementation; end-to-end continuity is still unverified
 
-The product contract requires proposed versus approved canon, stable character identities, temporal details, provenance and explicit handling of contradictions/retcons. Individual World Bible, character-model, story-memory and drawing tools exist, but source-level presence is not proof that the accepted visual character is linked to the correct character record and can be reused in later scenes. Test project isolation, approval, revision, undo, alias lookup, scars/injuries/outfit changes, and cross-chapter retrieval together.
+PR #155 adds a post-creation **Save design** action. It links the saved drawing to a proposed story-memory visual reference, adds a proposed character entity for a new character, and adds a proposed visual state to the active project's style bible. It supports a new appearance for an existing character without replacing that character's approved identity. The handoff asks for creator-confirmed appearance details, protects project scope, blocks duplicate drawing links, and attempts rollback if the three storage writes fail partway. These entries are proposals, never auto-approved canon.
+
+This removes the manual asset-linking gap in source, but doesn't prove that approved details are consistently retrieved during chapter writing. Browser/Android acceptance must still verify World & Vault shows the record, approval state persists after reload, the linked drawing opens, retcon/revision works, and the next chapter uses the approved name, age, outfit, scars, injuries and timeline state.
 
 ### P1 — The “simple on a phone” requirement is still a device acceptance task
 
@@ -65,7 +67,7 @@ Mobile CSS intentionally makes the canvas non-interactive in the compact compani
 
 ### P1 — Voice is not ready to be called integrated until hardware checks pass
 
-At baseline, voice-related work remains in open PRs: [#151](https://github.com/gtxnrg-ship-it/kurocanvas/pull/151) and [#152](https://github.com/gtxnrg-ship-it/kurocanvas/pull/152). PR #151 reports successful automated acceptance but still needs real-device/API-key checks. PR #152 was reported non-mergeable against current main and needs reconciliation. Fish Audio requires the user's API key/network and receives spoken reply text; browser speech recognition may process audio off-device. The user's chosen voice profiles are delivery references for one Kuro personality, not separate personalities or a guaranteed accent. Confirm consent, key handling, English intelligibility, stop/interruption behavior, mic permissions, background/resume and audio playback on Android.
+Voice profile/accent and speech-input reliability improvements are merged through [PR #154](https://github.com/gtxnrg-ship-it/kurocanvas/pull/154) and passed both automated workflows before merge. The older [PR #152](https://github.com/gtxnrg-ship-it/kurocanvas/pull/152) is still non-mergeable and must not be blindly merged; the current main already contains the live audio visualizer/session path, so compare its unique delta before closing or replacing it. Fish Audio requires the user's own API key/network and receives spoken reply text; browser speech recognition may process audio off-device. The selected voice profiles share one Kuro personality, and accent choices are prompt-level directions, not guaranteed acoustic results. Physical Android checks for consent, key handling, English intelligibility, interruption, permissions, background/resume and audio playback are still required.
 
 ### P1 — Project portability and failure recovery remain release blockers
 
@@ -77,7 +79,7 @@ The top of `ROADMAP.md` still described its last evidence as 21 October and refe
 
 ## Baseline checks observed
 
-At the time of this review, baseline `main` was `b4e0c632cc08522cfe71c1e1e80f5a3178ac6e63`. The repository reported successful main-branch runs for [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39737569830), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39737569170), and [Android APK build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39737569467). These are build/test automation results; they do not prove real-device usability, the full creative journey, voice quality, or autonomous art quality.
+After PR #154, baseline `main` was `e2d2e30ca06abad814060b4c394da935ccfb05b7`. Exact-commit runs passed for [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769604), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769669), [Android APK build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769911), and [development preview](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769932). These are build/test automation results; they do not prove real-device usability, the full creative journey, voice quality, or autonomous art quality.
 
 ## Required release acceptance run
 
@@ -86,7 +88,7 @@ Do not declare the original vision complete until these exact-user-flow checks p
 1. **Fresh start:** tap “Talk to Kuro”, approve the first local-model preparation, see real progress, and send the original message without retyping. Decline/cancel/fail safely and preserve the draft.
 2. **Scope clarity:** “New universe” creates a new isolated world; “New conversation” creates another transcript inside the current world. Switching universes isolates messages, canon, drawings and research.
 3. **Brainstorm and research:** discuss a premise naturally, ask for research, inspect source URLs/excerpts and uncertainty, approve only selected facts into canon.
-4. **Character to world:** after brainstorming in Chat, ask “create this character on the canvas” or “make me a character sheet”; confirm Kuro enters Live Creation without manually opening the tools menu, produces incremental native edits with per-step status, pauses/revises/undoes correctly, then adds the approved design to the right character/world/vault record.
+4. **Character to world:** after brainstorming in Chat, ask “create this character on the canvas” or “make me a character sheet”; confirm Kuro enters Live Creation without manually opening the tools menu, produces incremental native edits with per-step status, pauses/revises/undoes correctly, saves the completed design from the Live Creation handoff, approves the proposed character/appearance records in World & Vault, reloads, and confirms the linked drawing and approved visual state are used in a subsequent chapter.
 5. **Writing:** ask for an outline and first chapter; the output uses approved canon and preserves aliases, age/timeline, look, outfit, scars, injuries, character knowledge, and prior chapter state.
 6. **Recovery:** reload or background the app during a long task; resume or accurately explain what was interrupted; verify saved drawings/canon/messages are intact.
 7. **Visual and platform:** inspect the real production build at phone/tablet/desktop sizes, test keyboard/safe areas/accessibility, then install and smoke-test the exact APK on a physical Android device.
@@ -98,7 +100,7 @@ Any failure above is a real release blocker, not a future-polish item. Keep the 
 
 ### P1 — First-run model preparation can overwrite edits made while downloading
 
-In the first-run path in `src/App.tsx`, `send()` captures the submitted text before awaiting `prepareLocalTinyModel()`. The initial implementation left the composer editable during that await, so it could send the older captured text and clear newer edits. **Audit-branch fix:** the composer, attach/tools control and microphone are now disabled during model preparation, and the tools popover is closed before the download starts. The copy no longer implies that the consent prompt itself is one-time. CI must still verify the updated branch, and regression coverage for the preparation state remains required.
+In the first-run path in `src/App.tsx`, `send()` captures the submitted text before awaiting `prepareLocalTinyModel()`. The initial implementation left the composer editable during that await, so it could send the older captured text and clear newer edits. **Fix merged to main:** the composer, attach/tools control and microphone are disabled during model preparation, and the tools popover is closed before the download starts. The copy no longer implies that the consent prompt itself is one-time. Exact-commit TypeScript, tests and production build passed; direct Android preparation/cancel/retry behavior still needs device verification.
 
 ### P2 — The “one-time-per-session” consent description does not match the implementation
 

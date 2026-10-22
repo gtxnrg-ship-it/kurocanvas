@@ -20,8 +20,8 @@ export const KURO_SPEECH_VOICES = [
 /** Public Fish Audio community profiles chosen after listening to the user's references. */
 export const KURO_FISH_VOICES = [
   { id: "84644c87811b4279940848ec184e0ffe", label: "SAKURA · bright, expressive Japanese voice style", sampleUrl: "https://fish.audio/ja/m/84644c87811b4279940848ec184e0ffe/" },
-  { id: "46063b8e2f754955b60c1fe78e14304f", label: "Chiaki Nanami · gentle, soft-spoken, conversational", sampleUrl: "https://fish.audio/m/46063b8e2f754955b60c1fe78e14304f/" },
-  { id: "7f4b9a6850dc4a138c78b3028f4f30ed", label: "Mitsuri Kanroji · affectionate, bright, expressive", sampleUrl: "https://fish.audio/m/7f4b9a6850dc4a138c78b3028f4f30ed/" },
+  { id: "8f5b0abbfa464c3fab065588dbfd48de", label: "Chiaki Nanami · gentle, soft-spoken, conversational", sampleUrl: "https://fish.audio/m/8f5b0abbfa464c3fab065588dbfd48de/" },
+  { id: "d232d2eaced04adda979c042e1e1e34b", label: "Mitsuri Kanroji · affectionate, bright, expressive", sampleUrl: "https://fish.audio/m/d232d2eaced04adda979c042e1e1e34b/" },
 ] as const;
 export const KURO_FISH_AUDIO_MODEL = "drama-3";
 export const KURO_FISH_AUDIO_TTS_ENDPOINT = "https://api.fish.audio/v1/tts";

@@ -24,6 +24,21 @@ export const KURO_FISH_VOICES = [
 ] as const;
 export const KURO_FISH_AUDIO_MODEL = "drama-3";
 export const KURO_FISH_AUDIO_TTS_ENDPOINT = "https://api.fish.audio/v1/tts";
+
+/** Keep the same core voice while letting delivery respond gently to the meaning of the text. */
+export function kuroFishPerformanceDirection(text: string): string {
+  const serious = /\b(sorry|apolog(?:y|ize|ise)|that sounds painful|i'm sorry|i am sorry|grief|lost someone|overwhelmed|scared|afraid|hurt|frustrat|exhausted|worried|anxious|hard day|tough time|struggling)\b/i.test(text);
+  const upbeat = /\b(hell yeah|awesome|fantastic|that worked|great news|congratulations|love this|excited|amazing|we did it|nailed it|perfect)\b/i.test(text);
+  const curious = /\?\s*$/.test(text.trim()) || /\b(what if|let's explore|i'm curious|interesting question|why do you think)\b/i.test(text);
+  const mood = serious
+    ? "gentle, sincere and calm, with unhurried natural pauses"
+    : upbeat
+      ? "bright, lively and warmly expressive without sounding overexcited"
+      : curious
+        ? "curious, attentive and conversational, with an interested rising tone where natural"
+        : "natural, warm and conversational, lightly playful when it fits";
+  return "[speaking fluent English with a subtle Japanese-influenced accent; " + mood + "; natural anime voice, expressive but never exaggerated]";
+}
 export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "" };
 
 export function readKuroSpeechPreferences(): KuroSpeechPreferences {
@@ -233,9 +248,12 @@ async function speakFishChunk(
       // Drama 3 supports bracketed performance directions; the voice profile remains the
       // same while the delivery is guided toward the user's requested English accent and tone.
       body: JSON.stringify({
-        text: "[speaking English with a subtle Japanese-influenced accent; natural, warm, conversational anime voice; expressive but not exaggerated] " + text,
+        text: kuroFishPerformanceDirection(text) + " " + text,
         reference_id: preferences.voice,
         format: "mp3",
+        language: "en",
+        prosody: { speed: preferences.rate, volume: 0, normalize_loudness: true },
+        latency: "balanced",
       }),
       signal: controller.signal,
     });
@@ -254,7 +272,8 @@ async function speakFishChunk(
     const buffer = await context.decodeAudioData(audioBytes.slice(0));
     if (requestGeneration !== playbackGeneration) return;
     onProgress?.({ status: "Speaking with the selected Fish Audio voice", percent: 100 });
-    await playAudioBuffer(buffer, preferences.rate, requestGeneration, onActivity);
+    // Speech pace is already applied by Drama 3; change the output playback rate only if needed for local engines.
+    await playAudioBuffer(buffer, 1, requestGeneration, onActivity);
   } catch (error) {
     if (requestGeneration !== playbackGeneration) return;
     if (error instanceof DOMException && error.name === "AbortError") return;

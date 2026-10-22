@@ -73,6 +73,11 @@ describe("optional browser speech input", () => {
       .toBe("Hello. How are you? I am okay!\nMake another note");
   });
 
+  it("capitalizes first-person English contractions during dictation", () => {
+    expect(normalizeSpokenPunctuation("i'm ready and i've checked it, but i'll try again"))
+      .toBe("I'm ready and I've checked it, but I'll try again");
+  });
+
   it("does not continuously restart when microphone or recognition service errors are terminal", () => {
     for (const error of ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"]) {
       expect(shouldEndLiveSpeechSession(error)).toBe(true);

@@ -10,7 +10,7 @@ import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAu
 import CharacterDesignHandoff from './canon/CharacterDesignHandoff';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
-import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, pauseLiveCreationBeforeApply, restoreLiveCreationSession, settleLiveCreationBatch, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
+import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, pauseLiveCreationBeforeApply, restoreLiveCreationSession, settleLiveCreationBatch, settleLiveCreationPlanning, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from './ai/responseQuality';
 import { generateCompleteLocalReply } from './ai/completeGeneration';
@@ -571,7 +571,7 @@ async function renameCurrentConversation(){
    setHistoryNotice('Renamed this conversation to “'+title+'”.');
   }catch(error){setHistoryNotice(error instanceof Error?error.message:'Could not rename the conversation.');}
 }
-function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;if(!controller)return;controller.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);setPreparingModel(false);setWorkingLabel('');setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I stopped the current request. Any already completed and approved work remains; an unapproved drawing plan was not applied. Check the model status before the next AI request; cancelling local inference may mean Qwen needs to be prepared again in Preferences.'}]);}
+function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;if(!controller)return;controller.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;const current=liveSessionRef.current;if(current?.status==='planning'){const settled=settleLiveCreationPlanning(current,'cancelled','The creator cancelled inference before any native drawing batch began.',modeRef.current==='live');liveSessionRef.current=settled;setLiveSession(settled);}setWorking(false);setPreparingModel(false);setWorkingLabel('');setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I stopped the current request. Any already completed and approved work remains; an unapproved drawing plan was not applied. Check the model status before the next AI request; cancelling local inference may mean Qwen needs to be prepared again in Preferences.'}]);}
  async function send(messageOverride?:string, continuationSourceOverride?:string){
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
@@ -903,7 +903,7 @@ if(activeProjectId && captureStory){
     if(requestIsCurrent())setMessages(m=>[...m,{role:'kuro',text:'I could not complete the automatic continuity-capture pass: '+(error instanceof Error?error.message:'unknown extraction error')+'. Nothing from this pass was approved; you can record details directly in Creative Vault.'}]);
   }
 }
-}}catch(e){if(requestIsCurrent()){setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
+}}catch(e){if(requestIsCurrent()){const failureMessage=e instanceof Error?e.message:'Unknown provider error';const current=liveSessionRef.current;if(requestIsLive&&current?.status==='planning'){const settled=settleLiveCreationPlanning(current,'error',failureMessage,modeRef.current==='live');liveSessionRef.current=settled;setLiveSession(settled);}setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+failureMessage+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
  sendRef.current=send;
  const handleDrawingPlanResult=useCallback((id:string,result:'success'|'error'|'cancelled',message:string)=>{
   setCanvasRequest(current=>current?.id===id?null:current);setPlanNotice(message);

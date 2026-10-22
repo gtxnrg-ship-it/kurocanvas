@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, getCreativeFormatSpec, describeCreativeFormats, resolveCreativeFormatChoice } from "./creativeFormats";
+import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, getCreativeFormatSpec, describeCreativeFormats, resolveCreativeFormatChoice, buildCreativeProductionPrompt } from "./creativeFormats";
 
 describe("creative format routing", () => {
   it("recognizes comic and visual-story forms with format-appropriate canvases", () => {
@@ -65,6 +65,20 @@ describe("creative format routing", () => {
     expect(resolveCreativeFormatChoice("visual-novel")).toMatchObject({
       id: "visual-novel", layout: "wide-scene", width: 1600, height: 900,
     });
+  });
+
+  it("keeps a picked format explicit in prompts saved for later creation batches", () => {
+    const webtoonPrompt = buildCreativeProductionPrompt("webtoon", "Let's write the first chapter.");
+    expect(webtoonPrompt).toContain("Create a Webtoon.");
+    expect(detectCreativeProductionRequest(webtoonPrompt)).toMatchObject({ id: "webtoon" });
+
+    const pictureBookPrompt = buildCreativeProductionPrompt("picture-book", "Let's make the first story.");
+    expect(detectCreativeProductionRequest(pictureBookPrompt)).toMatchObject({ id: "picture-book" });
+
+    const customPrompt = buildCreativeProductionPrompt("custom-storyboard", "Create a new scene.");
+    expect(detectCreativeProductionRequest(customPrompt)).toMatchObject({ id: "custom-storyboard" });
+
+    expect(buildCreativeProductionPrompt("auto", "  Continue this scene.  ")).toBe("Continue this scene.");
   });
 
   it("exposes available formats and guardrails", () => {

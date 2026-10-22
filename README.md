@@ -94,8 +94,8 @@ After the app opens, use this checklist to test the most important paths rather 
 
 - [ ] Create a new universe and confirm its first conversation opens.
 - [ ] Open Preferences, check or prepare Qwen3-0.6B, then send a message. Confirm model errors are reported plainly and no hosted fallback is attempted.
-- [ ] Open Preferences → Spoken voice, add your own Fish Audio API key, and test SAKURA, Chiaki Nanami and Mitsuri with English text. Verify that only the chosen speech text is sent to Fish Audio and that the selected profile speaks successfully.
-- [ ] Start Live Creation voice mode, speak an English sentence, and check that the microphone meter reacts to your speech and Kuro's meter reacts to actual playback. Stop the session and leave Live Creation; confirm microphone capture and playback are stopped.
+- [ ] Open Preferences → Spoken voice, add your own Fish Audio API key, and test SAKURA, Chiaki Nanami and Mitsuri with English text. Try all three English-accent directions (natural, subtle Japanese-inflected, more noticeable Japanese-inflected), then verify the selected profile actually speaks as expected; prompt direction is not proof of the resulting accent. Verify that only the chosen speech text is sent to Fish Audio.
+- [ ] Start Live Creation voice mode, speak an English sentence, and check that the microphone meter reacts to your speech and Kuro's meter reacts to actual playback. While Kuro is speaking, use “Interrupt Kuro” and speak the next thought; confirm speech stops and recognition resumes. Stop the session and leave Live Creation; confirm microphone capture and playback are stopped.
 - [ ] Change the speech engine to Kokoro Local or Device voice and confirm the app never requires a Fish Audio key for those alternatives.
 - [ ] Open the canvas, draw a few strokes, change tools/layers, and wait for the save indicator.
 - [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.

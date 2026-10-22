@@ -234,7 +234,7 @@ function speakSystemChunk(text: string, rate: number, requestGeneration: number)
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = rate;
     utterance.pitch = 1.04;
-    utterance.lang = navigator.language || "en-US";
+    utterance.lang = "en-US";
     utterance.onend = () => resolve();
     utterance.onerror = event => {
       if (requestGeneration !== playbackGeneration || event.error === "canceled" || event.error === "interrupted") resolve();
@@ -251,7 +251,9 @@ export async function speakKuroVoice(
 ): Promise<void> {
   const chunks = speechChunks(text, preferences.engine === "fish" ? 900 : 280);
   if (!chunks.length) return;
-  const requestGeneration = ++playbackGeneration;
+  // One Kuro utterance at a time: stop stale audio and abort any previous cloud request.
+  stopKuroVoice();
+  const requestGeneration = playbackGeneration;
   try {
     if (preferences.engine === "system") {
       for (const chunk of chunks) {

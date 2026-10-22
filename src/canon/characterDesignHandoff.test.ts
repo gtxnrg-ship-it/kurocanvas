@@ -49,6 +49,48 @@ describe("character design to World & Vault handoff", () => {
     expect(result.storyMemory.assetRefs).toEqual(["drawing:drawing-1"]);
   });
 
+  it("uses the chapter number as a provisional order when no explicit story order is given", () => {
+    const result = createCharacterDesignHandoff({ ...baseInput, chapterNumber: 7 }, makeExisting(), { createId: () => "chapter-seven" });
+    expect(result.visualState).toMatchObject({
+      chapterNumber: 7,
+      storyOrder: 7,
+      chapterLabel: "Chapter 7 · proposed visual design",
+      status: "proposed",
+    });
+    expect(result.storyMemory.summary).toContain("Proposed for chapter 7");
+  });
+
+  it("requires chronology for a later design of a character with existing visual history", () => {
+    const existing = makeExisting();
+    const character = { id: "char-mira", projectId: "project-1", kind: "character", name: "Mira", aliases: [], status: "approved" as const };
+    existing.canon = { ...existing.canon, entities: [character] };
+    existing.styleBible = {
+      ...existing.styleBible,
+      characterStates: [{
+        id: "mira-chapter-1",
+        characterName: "Mira",
+        storyOrder: 1,
+        chapterLabel: "Chapter 1",
+        chapterNumber: 1,
+        hair: "black hair",
+        status: "approved",
+      }],
+    };
+    expect(() => createCharacterDesignHandoff({ ...baseInput, existingEntityId: character.id }, existing))
+      .toThrow(/chapter number or story order/i);
+
+    const later = createCharacterDesignHandoff({
+      ...baseInput,
+      existingEntityId: character.id,
+      chapterNumber: 8,
+    }, existing, { createId: () => "later-version" });
+    expect(later.visualState).toMatchObject({
+      storyOrder: 8,
+      chapterNumber: 8,
+      chapterLabel: "Chapter 8 · proposed visual design",
+    });
+  });
+
   it("rejects duplicate character names instead of silently creating two canon records", () => {
     const existing = makeExisting();
     existing.canon = { ...existing.canon, entities: [{ id: "char-mira", projectId: "project-1", kind: "character", name: "Mira", aliases: [], status: "approved" }] };

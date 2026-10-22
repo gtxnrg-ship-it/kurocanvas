@@ -97,11 +97,11 @@ Any failure above is a real release blocker, not a future-polish item. Keep the 
 
 ### P1 — First-run model preparation can overwrite edits made while downloading
 
-In the new first-run path in `src/App.tsx`, `send()` captures the submitted text before awaiting `prepareLocalTinyModel()`. The composer remains editable during that await. On success the handler calls `send(text, ...)`, and the normal send path clears the composer. If a user edits the draft while the model downloads, the app sends the older captured text and can clear the newer edits. Either lock the composer during preparation with explicit status, or preserve edits and clear only the exact draft that was submitted. Add a regression test.
+In the first-run path in `src/App.tsx`, `send()` captures the submitted text before awaiting `prepareLocalTinyModel()`. The initial implementation left the composer editable during that await, so it could send the older captured text and clear newer edits. **Audit-branch fix:** the composer, attach/tools control and microphone are now disabled during model preparation, and the tools popover is closed before the download starts. The copy no longer implies that the consent prompt itself is one-time. CI must still verify the updated branch, and regression coverage for the preparation state remains required.
 
 ### P2 — The “one-time-per-session” consent description does not match the implementation
 
-The current code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. Align the behavior and copy: either say confirmation occurs before each attempt, or implement a clear session policy that never starts a download after a decline without a new user action.
+The code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. **Audit-branch copy fix:** the prompt now asks whether to start preparing the model, without describing the confirmation as one-time. This is intentional repeated consent per attempt; declining starts no download. Keep this behavior covered by the first-run acceptance tests.
 
 ### P1 — “New chat” semantics conflict with the architecture document
 

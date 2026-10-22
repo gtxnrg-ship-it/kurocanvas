@@ -135,6 +135,8 @@ Kuro is intended to be a persistent creative partner for long-running manga, man
 
 The target workflow is:
 
+**Whole-series approval gate:** Before Kuro starts a chapter, the project's Art Direction area must contain the intended format/scope, major story arcs and character journeys, one numbered outline entry for every chapter/episode from the opening through the finale, and a finale/payoff map. The creator explicitly approves the complete plan. Approval is bound to the exact outline contents; editing a plan field invalidates approval and requires a fresh review. A standalone one-shot can use a one-chapter plan. Brainstorming, research, and planning the whole series remain available before chapter production is approved.
+
 1. **Develop the universe.** Discuss themes, world rules, characters, relationships, arcs, reveals, foreshadowing and visual style.
 2. **Build reliable canon.** Preserve source conversations, evidence, temporal history and explicit approved/proposed/inferred/contradicted/superseded states.
 3. **Plan a chapter.** Turn an approved brief into an outline, scene breakdown, dialogue and panel-by-panel composition.

@@ -8,7 +8,7 @@ export interface SeriesPlanFields {
 }
 
 export interface SeriesPlanIssue {
-  id: "scope" | "arcs" | "chapters" | "ending" | "chapter-order" | "approval";
+  id: "scope" | "arcs" | "chapters" | "ending" | "chapter-order" | "chapter-count" | "approval";
   message: string;
 }
 
@@ -79,12 +79,18 @@ export function validateSeriesPlan(fields: SeriesPlanFields): SeriesPlanIssue[] 
     const lines = chapterText.split(/\n/).map(line => line.trim()).filter(Boolean);
     const chapters = parseSeriesChapterPlan(chapterText);
     if (!chapters.length || chapters.length !== lines.length) {
-      issues.push({ id: "chapters", message: "Use one line per chapter in the form “Chapter 1: a meaningful summary of events and character change”. Label every line; summaries need at least 12 characters." });
+      issues.push({ id: "chapters", message: "Use one line per chapter in the form “Chapter 1: a meaningful summary of events and character change”. Label every line; summaries need at least 40 characters." });
     } else {
       const numbers = chapters.map(chapter => chapter.number);
       const expected = Array.from({ length: numbers.length }, (_, index) => index + 1);
       if (numbers.some((number, index) => number !== expected[index])) {
         issues.push({ id: "chapter-order", message: "Chapter numbers must be unique, gap-free, and ordered from 1 through the finale. Renumber the complete outline before approval." });
+      }
+      const declaredCount = /\\b(\\d{1,3})\\s*[- ]?\\s*(?:chapters?|episodes?|parts?|installments?)\\b/i.exec(scope);
+      if (declaredCount && Number(declaredCount[1]) !== chapters.length) {
+        issues.push({ id: "chapter-count", message: "The scope declares " + Number(declaredCount[1]) + " chapters/episodes, but the outline contains " + chapters.length + ". Add the missing entries or correct the intended length." });
+      } else if (!declaredCount && /\\b(?:standalone|one[- ]shot)\\b/i.test(scope) && chapters.length !== 1) {
+        issues.push({ id: "chapter-count", message: "A standalone one-shot must have exactly one numbered chapter entry." });
       }
     }
   }

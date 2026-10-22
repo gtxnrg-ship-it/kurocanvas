@@ -98,6 +98,8 @@ export function normalizeSpokenPunctuation(value: string): string {
     .replace(/[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
+    .replace(/“[ \t]+/g, "“")
+    .replace(/[ \t]+”/g, "”")
     .trim();
   return text;
 }

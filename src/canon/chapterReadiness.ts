@@ -136,11 +136,11 @@ export function requiresApprovedStoryFoundations(message: string): boolean {
 
   // An explicit deferral is not a request to start production. A later positive clause can
   // still request a different deliverable (e.g. "don't write yet, but plan the opening scene").
-  const deferredAction = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,80}?\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.exec(text);
+  const deferredAction = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,80}?\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan|show|give|include|add|depict|feature|put)\b/i.exec(text);
   if (deferredAction) {
     const remainder = text.slice(deferredAction.index + deferredAction[0].length);
     const contrastingClause = remainder.match(/\b(?:but|instead|just|actually|rather|however)\b([\s\S]{0,160})/i)?.[1] ?? "";
-    if (!/\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(contrastingClause)) {
+    if (!/\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan|show|give|include|add|depict|feature|put)\b/i.test(contrastingClause)) {
       return false;
     }
   }

@@ -530,3 +530,5 @@
 .saved.save-state-error{color:#ffb6bf}.saved.save-state-error i{background:#ff7f91;box-shadow:0 0 0 3px #ff7f9118}
 .topbar section button.save-retry{border:1px solid #70404a;border-radius:7px;background:#321b23;padding:5px 8px;color:#ffc5cd;font-size:9px;font-weight:700}
 .topbar section button.save-retry:hover{background:#48212c;border-color:#a85c69}
+
+.workspace-loading{display:grid;place-items:center;min-height:55vh;color:var(--muted);font-size:13px}

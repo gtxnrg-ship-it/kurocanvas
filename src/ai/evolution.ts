@@ -124,6 +124,15 @@ export function canPromoteSkill(
   return { allowed: reasons.length === 0, reasons };
 }
 
+/** Persistence is local storage; sharing is a separate, stricter eligibility decision. */
+export function canPersistMemory(memory: KuroMemory, policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY): boolean {
+  return validateMemory(memory)
+    && (memory.scope !== "shared"
+      || (policy.sharedLearningEnabled
+        && (!policy.requirePrivacyReviewForShared || memory.privacyReviewed)
+        && memory.provenance.length > 0));
+}
+
 export function canShareMemory(memory: KuroMemory, policy: EvolutionPolicy = DEFAULT_EVOLUTION_POLICY): boolean {
   return validateMemory(memory)
     && policy.sharedLearningEnabled

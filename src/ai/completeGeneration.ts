@@ -1,11 +1,12 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
+import { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS } from "./localTinyModelConfig";
 
 /**
  * Qwen runs in browser/WASM memory, so each inference pass stays bounded.
  * The user-facing answer may span multiple passes; the pass limit is not a
  * whole-response limit.
  */
-export const KURO_LOCAL_MAX_TOKENS_PER_PASS = 1024;
+export const KURO_LOCAL_MAX_TOKENS_PER_PASS = KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS;
 export const KURO_LOCAL_MAX_TOKENS_PER_REPLY = 12288;
 const LOCAL_PROVIDER_ID = "kuro-local-browser";
 const COMPLETE_SENTINEL = "[KURO_REPLY_COMPLETE]";

@@ -98,7 +98,17 @@ export async function generateCompleteLocalReply(
         messages: passMessages,
         maxOutputTokens: Math.min(KURO_LOCAL_MAX_TOKENS_PER_PASS, remainingBudget),
       }, model);
-    } catch {
+    } catch (error) {
+      if (request.signal?.aborted || (error instanceof Error && /cancel/i.test(error.message))) {
+        if (lastResponse && parts.length) return withCombinedText(lastResponse, parts, "cancelled", outputTokens);
+        return {
+          text: "",
+          modelId: model.id,
+          providerId: provider.id,
+          finishReason: "cancelled",
+          usage: { outputTokens },
+        };
+      }
       if (lastResponse && parts.length) return withCombinedText(lastResponse, parts, "error", outputTokens);
       throw new Error("Kuro's local generation failed before a reply was produced. Check the model status in Preferences and try again.");
     }

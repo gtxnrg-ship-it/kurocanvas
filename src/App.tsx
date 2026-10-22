@@ -692,7 +692,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   const details=visibleResults.map((item,index)=>(index+1)+'. '+item.title+' — '+item.creator+'; '+item.license+'. Source: '+item.sourceUrl).join('\n');
   setMessages(m=>[...m,{role:'kuro',text:summary+(details?'\n\n'+details:''),tool:'Wikimedia Commons · visual-reference lookup',...(visibleResults.length?{references:visibleResults,referenceProjectId:activeProjectId}:{} )}]);
   setProviderNotice(localModelReadinessLabel());
-  return;
+  if(!explicitResearchIntent&&!creativeInfluences.length)return;
  }
  const researchIntent=explicitResearchIntent;
  if(researchIntent||creativeInfluences.length){

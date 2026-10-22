@@ -575,7 +575,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
  const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
-  const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. The first download is about 370 MB and requires an internet connection; your browser may cache it, but storage can be evicted. Start preparing it now?");
+  const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");
   if(!accepted){
    setProviderNotice(localModelReadinessLabel());
    setMessages(m=>[...m,{role:'kuro',text:'No download started. Kuro needs the local model prepared before she can answer this request. Your message is still in the composer; tap Send when you are ready, or open Preferences to prepare the model there.'}]);

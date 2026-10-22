@@ -41,6 +41,13 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Make her personality more confident.")).toBe(false);
   });
 
+  it("keeps narrative-only appearance references in chat unless drawing is explicitly requested", () => {
+    expect(shouldStartLiveCreationFromChat("Add a scar to her backstory.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Include her old injury in the character history.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Add a scar to her appearance and draw it on the canvas.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Make her hair shorter and explain how it fits the story.")).toBe(true);
+  });
+
   it("keeps ordinary brainstorming and research in chat", () => {
     expect(shouldStartLiveCreationFromChat("Let's discuss the protagonist's character design.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Research visual references for a character sheet.")).toBe(false);

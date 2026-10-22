@@ -25,6 +25,17 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Sketch the character.")).toBe(true);
     expect(shouldStartLiveCreationFromChat("Don't draw her yet; let's keep brainstorming.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("No need to create a character sheet yet.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't change her outfit yet; let's keep discussing it.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("I don't want you to draw her yet.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Let's discuss how her scar affects her confidence.")).toBe(false);
+  });
+
+  it("routes natural appearance edits directly into visual creation", () => {
+    expect(shouldStartLiveCreationFromChat("Make her look older and give her a scar over the left eye.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Change his outfit to a long black coat.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Add glasses to the protagonist and shorten her hair.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Show me what she looks like now.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Make her personality more confident.")).toBe(false);
   });
 
   it("keeps ordinary brainstorming and research in chat", () => {

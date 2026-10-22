@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createProject } from "./project";
-import { createKuroPackage, parseKuroPackage, serializeKuroPackage } from "./package";
+import { createKuroPackage, downloadKuroPackage, parseKuroPackage, serializeKuroPackage } from "./package";
 
 describe("portable Kuro packages", () => {
   it("round-trips Story Vault and editable drawing assets", () => {
@@ -17,6 +17,36 @@ describe("portable Kuro packages", () => {
     const result = parseKuroPackage(serializeKuroPackage(createKuroPackage(project, assets)));
     expect(result.project.name).toBe("The Silver Oath");
     expect(result.assets).toEqual(assets);
+  });
+
+  it("keeps the JSON export blob alive until the browser has had time to start downloading", () => {
+    const project = createProject("Download Test");
+    const click = vi.fn();
+    const remove = vi.fn();
+    const appendChild = vi.fn();
+    const anchor = { href: "", download: "", click, remove };
+    const createObjectURL = vi.fn(() => "blob:kuro-test");
+    const revokeObjectURL = vi.fn();
+
+    vi.useFakeTimers();
+    vi.stubGlobal("document", { body: { appendChild }, createElement: vi.fn(() => anchor) });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    try {
+      downloadKuroPackage(project);
+      expect(appendChild).toHaveBeenCalledWith(anchor);
+      expect(click).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(anchor.download).toBe("Download-Test.kuro.json");
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(999);
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:kuro-test");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects invalid asset entries", () => {

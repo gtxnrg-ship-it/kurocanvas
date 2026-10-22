@@ -69,8 +69,15 @@ export function downloadKuroPackage(project: KuroProject, assets: Record<string,
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = project.name.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") + KURO_PACKAGE_EXTENSION;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  // Attach the download link for stricter browser/WebView implementations, then
+  // defer revocation so the browser can consume the blob after click dispatch.
+  document.body.appendChild(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
 
 export const KURO_ARCHIVE_EXTENSION = ".kuro";

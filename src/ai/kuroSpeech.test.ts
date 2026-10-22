@@ -114,6 +114,13 @@ describe("Kuro Fish Audio delivery direction", () => {
     expect(direction).toContain("gentle, sincere and calm");
   });
 
+  it("keeps Kuro's voice personality direction stable across voice-profile choices", () => {
+    const direction = kuroFishPerformanceDirection("Let's talk about your new idea.");
+    expect(direction).toContain("keep Kuro’s established personality consistent across SAKURA, Chiaki Nanami, and Mitsuri profiles");
+    expect(direction).toContain("clear, bright, engaging feminine voice");
+    expect(direction).toContain("lively but intelligible articulation");
+  });
+
   it("lets the accent strength vary without changing Kuro's underlying delivery direction", () => {
     expect(kuroFishPerformanceDirection("Let's work through this together.", "natural"))
       .toContain("no instructed accent");

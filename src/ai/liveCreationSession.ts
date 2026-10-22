@@ -97,3 +97,67 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
     return null;
   }
 }
+
+
+export type LiveCreationBatchResult = "success" | "error" | "cancelled";
+
+export interface SettledLiveCreationBatch {
+  session: LiveCreationSession;
+  canContinue: boolean;
+  hitLimit: boolean;
+  wantsMore: boolean;
+}
+
+/**
+ * Settle only a batch owned by this session. A failed/cancelled attempt is not counted
+ * as a verified batch, and leaving the live workspace suppresses automatic continuation.
+ */
+export function settleLiveCreationBatch(
+  current: LiveCreationSession,
+  batchId: string,
+  result: LiveCreationBatchResult,
+  message: string,
+  allowAutomaticContinuation: boolean,
+): SettledLiveCreationBatch | null {
+  if (!current.log.some(entry => entry.kind === "batch" && entry.id === batchId)) return null;
+
+  const nextLog = current.log.map(entry => entry.kind === "batch" && entry.id === batchId
+    ? {
+        ...entry,
+        status: result === "success" ? "done" as const : result === "cancelled" ? "paused" as const : "error" as const,
+        label: entry.label + " · " + (result === "success" ? "saved and verified" : result === "cancelled" ? "cancelled and rolled back" : "failed"),
+      }
+    : entry);
+
+  const wantsMore = result === "success" && /^CONTINUE:/i.test(current.activeSummary.trim());
+  const canContinue = wantsMore && current.autoContinue && allowAutomaticContinuation && current.batches < current.maxBatches;
+  const hitLimit = wantsMore && current.autoContinue && current.batches >= current.maxBatches;
+  const status: LiveCreationSession["status"] = result === "error"
+    ? "error"
+    : result === "cancelled"
+      ? "paused"
+      : canContinue
+        ? "planning"
+        : hitLimit || wantsMore
+          ? "paused"
+          : "complete";
+  const batchNumber = current.batches;
+  const resultLabel = result === "success"
+    ? "Batch " + batchNumber + " saved and verified · " + message
+    : result === "cancelled"
+      ? "Batch " + batchNumber + " cancelled · " + message
+      : "Batch " + batchNumber + " failed · " + message;
+  const nextSession: LiveCreationSession = {
+    ...current,
+    batches: result === "success" ? current.batches : Math.max(0, current.batches - 1),
+    status,
+    lastError: result === "error" ? message : "",
+    log: [...nextLog, {
+      id: "settled-" + batchId,
+      kind: "status" as const,
+      label: resultLabel,
+      status: (result === "success" ? "done" : result === "cancelled" ? "paused" : "error") as LiveCreationLogEntry["status"],
+    }].slice(-24),
+  };
+  return { session: nextSession, canContinue, hitLimit, wantsMore };
+}

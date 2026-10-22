@@ -698,6 +698,77 @@ export async function enqueueResearchTask(input: { projectId: string; query: str
   return task;
 }
 
+export interface PrioritizeResearchResult {
+  task: ResearchTaskRecord;
+  alreadyHighest: boolean;
+}
+
+/** Atomically move a queued task to the front of its project queue. */
+export async function prioritizeResearchTask(id: string, projectId: string): Promise<PrioritizeResearchResult> {
+  if (!id.trim() || !projectId.trim()) throw new Error("Choose a queued research task in the active project.");
+  const db = await openDatabase();
+  try {
+    return await new Promise<PrioritizeResearchResult>((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      let result: PrioritizeResearchResult | undefined;
+      let failure: Error | undefined;
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const all = request.result as ResearchTaskRecord[];
+        const task = all.find(item => item.id === id && item.projectId === projectId);
+        if (!task) {
+          failure = new Error("This research task no longer exists in the selected project.");
+          transaction.abort();
+          return;
+        }
+        if (task.status !== "queued") {
+          failure = new Error("Only queued research tasks can be prioritized. Running and finished tasks keep their current state.");
+          transaction.abort();
+          return;
+        }
+        const queued = all.filter(item => item.id !== SETTINGS_ID && item.projectId === projectId && item.status === "queued")
+          .sort(compareQueuedResearchTasks);
+        if (queued[0]?.id === task.id) {
+          result = { task, alreadyHighest: true };
+          return;
+        }
+        const highestPriority = queued.reduce((highest, item) => Math.max(highest, item.priority ?? 0), 0);
+        if (!Number.isSafeInteger(highestPriority + 1)) {
+          failure = new Error("Research priority values exceeded the safe integer range.");
+          transaction.abort();
+          return;
+        }
+        const updated = { ...task, priority: highestPriority + 1, updatedAt: new Date().toISOString() };
+        const errors = validateResearchTask(updated, projectId);
+        if (errors.length) {
+          failure = new Error("Research priority update failed validation: " + errors.join(" "));
+          transaction.abort();
+          return;
+        }
+        store.put(updated);
+        result = { task: updated, alreadyHighest: false };
+      };
+      request.onerror = () => {
+        failure = request.error instanceof Error ? request.error : new Error("Could not read the research queue.");
+        reject(failure);
+      };
+      transaction.oncomplete = () => {
+        if (!result) {
+          reject(failure ?? new Error("Research priority update completed without a result."));
+          return;
+        }
+        if (!result.alreadyHighest) announce();
+        resolve(result);
+      };
+      transaction.onerror = () => reject(failure ?? transaction.error ?? new Error("Could not prioritize this research task."));
+      transaction.onabort = () => reject(failure ?? transaction.error ?? new Error("Research priority update was cancelled."));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function cancelResearchTask(id: string, projectId: string): Promise<void> {
   const task = await researchTaskStorage.get(id);
   if (!task || task.projectId !== projectId || task.status === "completed" || task.status === "failed") return;

@@ -1,3 +1,5 @@
+import { detectCreativeProductionRequest } from "./creativeFormats";
+
 /**
  * Detect clear visual-production requests that should leave chat and enter Live Creation.
  * Keep ordinary brainstorming in chat, but accept natural language about changing a character's visible appearance.
@@ -18,6 +20,7 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
   const text = message.normalize("NFKC").trim();
   if (!text) return false;
   if (isMangaChapterProductionRequest(text)) return true;
+  if (detectCreativeProductionRequest(text)) return true;
 
   // Respect a clear request to defer visual work, but do not let a negated clause
   // cancel a separate positive instruction such as "don't change her outfit, just shorten her hair".

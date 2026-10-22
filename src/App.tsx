@@ -3,6 +3,7 @@ import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettin
 import MessageRenderer from './chat/MessageRenderer';
 import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
+import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, transcriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
 import { buildKuroConversationTurns } from './ai/conversationContext';
@@ -83,7 +84,7 @@ async function canvasDocumentPreviewDataUrl(drawing: LocalDrawingDocument): Prom
  } finally { URL.revokeObjectURL(objectUrl); }
 }
 export default function App(){
- const [mode,setMode]=useState<Mode>('home'); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const persistedMessageCount=useRef(0); const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [workingLabel,setWorkingLabel]=useState(''); const [voiceInputActive,setVoiceInputActive]=useState(false); const speechRecognitionRef=useRef<BrowserSpeechRecognition|null>(null); const speechDraftBaseRef=useRef(''); const speechStatusRef=useRef(''); const [conversationMenuOpen,setConversationMenuOpen]=useState(false); const [helpOpen,setHelpOpen]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const [kuroVoiceIntensity,setKuroVoiceIntensity]=useState<KuroVoiceIntensity>(()=>{try{const value=localStorage.getItem('kuro-voice-intensity');if(value==='subtle'||value==='playful'||value==='expressive')return value;}catch{}return 'playful';}); const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
+ const [mode,setMode]=useState<Mode>('home'); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const messagesRef=useRef(messages); messagesRef.current=messages; const persistedMessageCount=useRef(0); const messagePersistenceGenerationRef=useRef(0); const messagePersistencePromiseRef=useRef<Promise<void>|null>(null); const [localSaveStatus,setLocalSaveStatus]=useState<'saved'|'saving'|'error'>('saved'); const [saveRetryNonce,setSaveRetryNonce]=useState(0); const [saveDrainNonce,setSaveDrainNonce]=useState(0); const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [workingLabel,setWorkingLabel]=useState(''); const [voiceInputActive,setVoiceInputActive]=useState(false); const speechRecognitionRef=useRef<BrowserSpeechRecognition|null>(null); const speechDraftBaseRef=useRef(''); const speechStatusRef=useRef(''); const [conversationMenuOpen,setConversationMenuOpen]=useState(false); const [helpOpen,setHelpOpen]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const [kuroVoiceIntensity,setKuroVoiceIntensity]=useState<KuroVoiceIntensity>(()=>{try{const value=localStorage.getItem('kuro-voice-intensity');if(value==='subtle'||value==='playful'||value==='expressive')return value;}catch{}return 'playful';}); const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
  useEffect(()=>{try{localStorage.setItem('kuro-voice-intensity',kuroVoiceIntensity);}catch{}},[kuroVoiceIntensity]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;try{speechRecognitionRef.current?.abort?.();}catch{}speechRecognitionRef.current=null;},[]);
@@ -125,7 +126,90 @@ export default function App(){
  try{localStorage.setItem('kuro-active-universe',universe.id);localStorage.setItem('kuro-active-conversation',selectedConversation);localStorage.setItem('kuro-active-project',universe.projectId);}catch{}
  setCanonNotice('Universe loaded · canon and assets are scoped to this workspace.');
  }catch(error){if(alive)setHistoryNotice('Could not restore local chat history: '+(error instanceof Error?error.message:'unknown storage error'));}finally{if(alive)setHistoryLoading(false);}})();return()=>{alive=false;};},[]);
- useEffect(()=>{if(!activeUniverseId||!activeConversationId||historyLoading)return;const start=persistedMessageCount.current;if(messages.length<start){persistedMessageCount.current=messages.length;return;}const pending=messages.slice(start);if(!pending.length)return;persistedMessageCount.current=messages.length;void (async()=>{try{for(const item of pending){await chatMessageStorage.save({id:crypto.randomUUID(),universeId:activeUniverseId,conversationId:activeConversationId,role:item.role,content:item.text,createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],metadata:{...(item.tool?{tool:item.tool}:{}),...(item.references?.length&&item.referenceProjectId?{references:item.references,referenceProjectId:item.referenceProjectId}:{}),...(item.researchTaskId&&item.researchProjectId?{researchTaskId:item.researchTaskId,researchProjectId:item.researchProjectId}:{})}});}const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);if(conversation){const updated={...conversation,updatedAt:new Date().toISOString()};await conversationStorage.save(updated);}const universe=await universeStorage.load(activeUniverseId);if(universe){await universeStorage.save({...universe,updatedAt:new Date().toISOString()});}const all=await universeStorage.list();setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));}catch(error){setHistoryNotice('A message could not be saved locally: '+(error instanceof Error?error.message:'storage error'));}})();},[messages,activeUniverseId,activeConversationId,historyLoading]);
+ async function drainCurrentConversationMessages():Promise<void>{
+ const universeId=activeUniverseId;
+ const conversationId=activeConversationId;
+ const generation=messagePersistenceGenerationRef.current;
+ if(!universeId||!conversationId||historyLoading)return;
+ if(messagePersistencePromiseRef.current)return messagePersistencePromiseRef.current;
+ if(persistedMessageCount.current>messagesRef.current.length){
+  throw new Error('The saved-transcript cursor is ahead of the active messages. Switching conversations is paused to protect the transcript.');
+ }
+ if(persistedMessageCount.current>=messagesRef.current.length)return;
+ setLocalSaveStatus('saving');
+ let failed=false;
+ let task!:Promise<void>;
+ task=(async()=>{
+  try{
+   while(generation===messagePersistenceGenerationRef.current){
+    const snapshot=messagesRef.current;
+    const start=persistedMessageCount.current;
+    if(start>=snapshot.length)break;
+    await persistMessageRange(snapshot,start,async item=>{
+     await chatMessageStorage.save({
+      id:crypto.randomUUID(),
+      universeId,
+      conversationId,
+      role:item.role,
+      content:item.text,
+      createdAt:new Date().toISOString(),
+      status:'complete',
+      approvedActionIds:[],
+      metadata:{
+       ...(item.tool?{tool:item.tool}:{}),
+       ...(item.references?.length&&item.referenceProjectId?{references:item.references,referenceProjectId:item.referenceProjectId}:{}),
+       ...(item.researchTaskId&&item.researchProjectId?{researchTaskId:item.researchTaskId,researchProjectId:item.researchProjectId}:{})
+      }
+     });
+    },nextIndex=>{
+     if(generation===messagePersistenceGenerationRef.current)persistedMessageCount.current=nextIndex;
+    });
+   }
+   if(generation!==messagePersistenceGenerationRef.current)return;
+   setLocalSaveStatus('saved');
+   try{
+    const conversation=await conversationStorage.load(conversationId,universeId);
+    if(!conversation)throw new Error('The active conversation no longer exists.');
+    const updatedConversation={...conversation,updatedAt:new Date().toISOString()};
+    await conversationStorage.save(updatedConversation);
+    const universe=await universeStorage.load(universeId);
+    if(!universe)throw new Error('The owning universe no longer exists.');
+    await universeStorage.save({...universe,updatedAt:new Date().toISOString()});
+    const all=await universeStorage.list();
+    setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
+    const groups=await Promise.all(all.map(async item=>({universe:item,conversations:await conversationStorage.list(item.id)})));
+    setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
+   }catch(error){
+    if(generation===messagePersistenceGenerationRef.current)setHistoryNotice('Your conversation messages were saved, but its recent-list metadata could not be refreshed: '+(error instanceof Error?error.message:'storage error'));
+   }
+  }catch(error){
+   failed=true;
+   if(generation===messagePersistenceGenerationRef.current){
+    setLocalSaveStatus('error');
+    setHistoryNotice('A conversation message could not be saved locally: '+(error instanceof Error?error.message:'storage error')+'. The last confirmed save cursor was preserved. Choose “Retry save” before switching workspaces.');
+   }
+   throw error;
+  }finally{
+   if(generation===messagePersistenceGenerationRef.current){
+    if(messagePersistencePromiseRef.current===task)messagePersistencePromiseRef.current=null;
+    if(!failed)setSaveDrainNonce(value=>value+1);
+   }
+  }
+ })();
+ messagePersistencePromiseRef.current=task;
+ return task;
+}
+useEffect(()=>{
+ if(!activeUniverseId||!activeConversationId||historyLoading)return;
+ if(persistedMessageCount.current>messages.length){
+  setLocalSaveStatus('error');
+  setHistoryNotice('The active transcript is shorter than its saved cursor. Kuro paused automatic persistence to avoid silently dropping messages.');
+  return;
+ }
+ if(persistedMessageCount.current>=messages.length)return;
+ void drainCurrentConversationMessages().catch(()=>{});
+},[messages,activeUniverseId,activeConversationId,historyLoading,saveRetryNonce,saveDrainNonce]);
+
  async function startNewUniverse(){
   setConversationMenuOpen(false);
   stopVoiceInputForWorkspaceSwitch();

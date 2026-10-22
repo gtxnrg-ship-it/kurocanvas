@@ -188,7 +188,13 @@ async function speakFishChunk(
         "Content-Type": "application/json",
         model: KURO_FISH_AUDIO_MODEL,
       },
-      body: JSON.stringify({ text, reference_id: preferences.voice, format: "mp3" }),
+      // Drama 3 supports bracketed performance directions; the voice profile remains the
+      // same while the delivery is guided toward the user's requested English accent and tone.
+      body: JSON.stringify({
+        text: "[speaking English with a subtle Japanese-influenced accent; natural, warm, conversational anime voice; expressive but not exaggerated] " + text,
+        reference_id: preferences.voice,
+        format: "mp3",
+      }),
       signal: controller.signal,
     });
     if (requestGeneration !== playbackGeneration) return;

@@ -100,7 +100,7 @@ export default function InlineReferenceResults({
                     onLoad={() => setImageStates(current => ({ ...current, [result.sourceUrl]: "loaded" }))}
                     onError={() => setImageStates(current => ({ ...current, [result.sourceUrl]: "error" }))}
                   />
-                  {imageStates[result.sourceUrl] !== "loaded" && <span className={"inline-reference-image-status" + (imageStates[result.sourceUrl] === "error" ? " is-error" : "")} aria-hidden="true"}>
+                  {imageStates[result.sourceUrl] !== "loaded" && <span className={"inline-reference-image-status" + (imageStates[result.sourceUrl] === "error" ? " is-error" : "")} aria-hidden="true">
                     {imageStates[result.sourceUrl] === "error" ? "Image unavailable" : "Fetching image…"}
                   </span>}
                 </>

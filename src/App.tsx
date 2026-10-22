@@ -10,7 +10,7 @@ import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAu
 import CharacterDesignHandoff from './canon/CharacterDesignHandoff';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
-import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, restoreLiveCreationSession, settleLiveCreationBatch, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
+import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, pauseLiveCreationBeforeApply, restoreLiveCreationSession, settleLiveCreationBatch, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from './ai/responseQuality';
 import { generateCompleteLocalReply } from './ai/completeGeneration';
@@ -779,7 +779,17 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
     setMessages(m=>[...m,{role:'kuro',text:'I withheld that drawing proposal because it names a character who is not available at the approved story point. Update the reveal timing in the Vault or choose a later chapter/timeline before generating this material.'}]);
     return;
   }
- if(!plan.commands.length){
+ 
+ if(requestIsLive && modeRef.current!=='live' && plan.commands.length>0){
+  const current=liveSessionRef.current;
+  if(current){
+   const paused=pauseLiveCreationBeforeApply(current);
+   liveSessionRef.current=paused;setLiveSession(paused);
+  }
+  setMessages(m=>[...m,{role:'kuro',text:'I prepared a drawing plan, but you left Live Creation before it could be applied. The plan was discarded and the canvas was not changed. Return to Live Creation and ask me to continue; I’ll re-check the saved drawing before proposing the next batch.'}]);
+  return;
+ }
+if(!plan.commands.length){
   const notice=plan.summary+' I did not change the canvas because no validated native drawing actions were returned.';
   setMessages(m=>[...m,{role:'kuro',text:notice}]);
   if(requestIsLive){const current=liveSessionRef.current;if(current){const failed:LiveCreationSession={...current,status:'error',lastError:'No editable drawing actions were produced for this batch.',log:current.log.map((item,index)=>index===current.log.length-1&&item.status==='working'?{...item,status:'error'}:item)};liveSessionRef.current=failed;setLiveSession(failed);}}

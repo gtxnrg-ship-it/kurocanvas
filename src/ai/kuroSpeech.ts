@@ -1,6 +1,9 @@
 export type KuroSpeechEngine = "kokoro" | "system" | "fish";
 export interface KuroSpeechPreferences { engine: KuroSpeechEngine; voice: string; rate: number; apiKey: string; }
 export interface KuroSpeechProgress { status: string; percent: number; file?: string; }
+export type KuroAudioActivityCallback = (level: number) => void;
+import { normalizedAudioLevel } from "./audioMeter";
+
 const STORAGE_KEY = "kuro-speech-preferences";
 export const KURO_SPEECH_MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
 export const KURO_SPEECH_MODEL_LICENSE = "Apache-2.0";
@@ -144,33 +147,71 @@ function speechChunks(value: string, maxChunkLength = 280): string[] {
   if (current) chunks.push(current);
   return chunks;
 }
-function playAudioBuffer(buffer: AudioBuffer, rate: number, requestGeneration: number): Promise<void> {
+function playAudioBuffer(
+  buffer: AudioBuffer,
+  rate: number,
+  requestGeneration: number,
+  onActivity?: KuroAudioActivityCallback,
+): Promise<void> {
   if (requestGeneration !== playbackGeneration) return Promise.resolve();
   const context = getAudioContext();
   return new Promise<void>((resolve, reject) => {
     const source = context.createBufferSource();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.72;
+    const samples = new Uint8Array(analyser.fftSize);
+    let frame = 0;
+    const measure = () => {
+      if (requestGeneration !== playbackGeneration) {
+        onActivity?.(0);
+        return;
+      }
+      analyser.getByteTimeDomainData(samples);
+      onActivity?.(normalizedAudioLevel(samples));
+      frame = requestAnimationFrame(measure);
+    };
     activeSource = source;
     source.buffer = buffer;
     source.playbackRate.value = Math.max(0.8, Math.min(1.2, rate));
-    source.connect(context.destination);
-    source.onended = () => { if (activeSource === source) activeSource = undefined; resolve(); };
-    try { source.start(); } catch (error) { reject(error); }
+    source.connect(analyser);
+    analyser.connect(context.destination);
+    source.onended = () => {
+      cancelAnimationFrame(frame);
+      if (activeSource === source) activeSource = undefined;
+      try { source.disconnect(); analyser.disconnect(); } catch { /* source may already be disconnected */ }
+      onActivity?.(0);
+      resolve();
+    };
+    frame = requestAnimationFrame(measure);
+    try { source.start(); } catch (error) {
+      cancelAnimationFrame(frame);
+      try { source.disconnect(); analyser.disconnect(); } catch { /* source may not have started */ }
+      reject(error);
+    }
   });
 }
-async function playSamples(samples: Float32Array, sampleRate: number, rate: number, requestGeneration: number): Promise<void> {
+async function playSamples(
+  samples: Float32Array,
+  sampleRate: number,
+  rate: number,
+  requestGeneration: number,
+  onActivity?: KuroAudioActivityCallback,
+): Promise<void> {
   if (requestGeneration !== playbackGeneration) return;
   const context = getAudioContext();
   if (context.state === "suspended") await context.resume();
   if (requestGeneration !== playbackGeneration) return;
   const buffer = context.createBuffer(1, samples.length, sampleRate);
   buffer.copyToChannel(samples, 0);
-  await playAudioBuffer(buffer, rate, requestGeneration);
+  await playAudioBuffer(buffer, rate, requestGeneration, onActivity);
 }
 async function speakFishChunk(
   text: string,
   preferences: KuroSpeechPreferences,
   requestGeneration: number,
   onProgress?: (value: KuroSpeechProgress) => void,
+  onActivity?: KuroAudioActivityCallback,
 ): Promise<void> {
   if (!preferences.apiKey.trim()) {
     throw new Error("Fish Audio is selected, but no API key is saved. Add your own Fish Audio API key in Settings → Spoken voice.");
@@ -213,7 +254,7 @@ async function speakFishChunk(
     const buffer = await context.decodeAudioData(audioBytes.slice(0));
     if (requestGeneration !== playbackGeneration) return;
     onProgress?.({ status: "Speaking with the selected Fish Audio voice", percent: 100 });
-    await playAudioBuffer(buffer, preferences.rate, requestGeneration);
+    await playAudioBuffer(buffer, preferences.rate, requestGeneration, onActivity);
   } catch (error) {
     if (requestGeneration !== playbackGeneration) return;
     if (error instanceof DOMException && error.name === "AbortError") return;
@@ -248,6 +289,7 @@ export async function speakKuroVoice(
   text: string,
   preferences: KuroSpeechPreferences = readKuroSpeechPreferences(),
   onProgress?: (value: KuroSpeechProgress) => void,
+  onActivity?: KuroAudioActivityCallback,
 ): Promise<void> {
   const chunks = speechChunks(text, preferences.engine === "fish" ? 900 : 280);
   if (!chunks.length) return;
@@ -265,7 +307,7 @@ export async function speakKuroVoice(
     if (preferences.engine === "fish") {
       for (const chunk of chunks) {
         if (requestGeneration !== playbackGeneration) return;
-        await speakFishChunk(chunk, preferences, requestGeneration, onProgress);
+        await speakFishChunk(chunk, preferences, requestGeneration, onProgress, onActivity);
       }
       return;
     }
@@ -275,7 +317,7 @@ export async function speakKuroVoice(
       const reply = await requestWorker({ type: "generate", text: chunk, voice: preferences.voice }, onProgress);
       if (requestGeneration !== playbackGeneration) return;
       if (reply.type !== "audio") throw new Error("Kuro's local voice model returned no audio.");
-      await playSamples(reply.samples, reply.sampleRate, preferences.rate, requestGeneration);
+      await playSamples(reply.samples, reply.sampleRate, preferences.rate, requestGeneration, onActivity);
     }
   } catch (error) {
     if (requestGeneration !== playbackGeneration) return;

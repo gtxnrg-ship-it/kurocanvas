@@ -136,17 +136,14 @@ export function requiresApprovedStoryFoundations(message: string): boolean {
 
   // An explicit deferral is not a request to start production. A later positive clause can
   // still request a different deliverable (e.g. "don't write yet, but plan the opening scene").
-  const deferredAction = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,80}?\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.exec(text);
+  const deferredAction = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,80}?\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan|show|give|include|add|depict|feature|put)\b/i.exec(text);
   if (deferredAction) {
     const remainder = text.slice(deferredAction.index + deferredAction[0].length);
     const contrastingClause = remainder.match(/\b(?:but|instead|just|actually|rather|however)\b([\s\S]{0,160})/i)?.[1] ?? "";
-    if (!/\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(contrastingClause)) {
+    if (!/\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan|show|give|include|add|depict|feature|put)\b/i.test(contrastingClause)) {
       return false;
     }
   }
-
-  const outputAction = /\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(text);
-  if (!outputAction) return false;
 
   const storyArtifact = /\b(?:chapter|scene|episode|page|panel|storyboard|comic|manga|webtoon|story|storyline|plot\s+beat|story\s+arc|story\s+sequence|sequence|narrative|script|dialogue|dialog|conversation|monologue|narration|prose|paragraph|opening|ending|prologue|epilogue|fight\s+sequence|fight\s+scene|battle\s+scene|character\s+entrance|first\s+meeting|encounter)\b/i.test(text);
   if (!storyArtifact) return false;
@@ -156,7 +153,12 @@ export function requiresApprovedStoryFoundations(message: string): boolean {
   const readerFacingArtifact = /\b(?:chapter|scene|episode|page|panel|storyboard|comic|manga|webtoon|prose|dialogue|dialog|conversation|monologue|narration|paragraph|opening|ending|prologue|epilogue|fight\s+sequence|fight\s+scene|battle\s+scene|character\s+entrance|first\s+meeting|encounter)\b/i.test(text);
   if (foundationDocument && !readerFacingArtifact) return false;
 
-  // Private brainstorming stays unrestricted unless the user explicitly requests an artifact.
+  const explicitOutputAction = /\b(?:write|draft|compose|script|generate|produce|continue|illustrate|draw|render|storyboard|start|begin|create|make|outline|plan)\b/i.test(text);
+  const presentArtifactAction = /\b(?:give|show|include|add|depict|feature|put)\b/i.test(text) && readerFacingArtifact;
+  const privateResearchOrBrainstorming = /\b(?:research|brainstorm|discuss|explore|ideas?|options?|possibilities|references?|sources?|talk\s+through|think\s+through|explain|compare|analy[sz]e)\b/i.test(text);
+  if (!explicitOutputAction && (!presentArtifactAction || privateResearchOrBrainstorming)) return false;
+
+  // We only stop reader-facing production, never private brainstorming or source discovery.
   return true;
 }
 

@@ -807,3 +807,18 @@
 .sidebar nav button.sidebar-tools-toggle .tools-chevron.is-open{transform:rotate(180deg)}
 .sidebar nav button.sidebar-tool-item{padding-left:24px;font-size:11px;color:#aaa0bd}
 .sidebar nav button.sidebar-tool-item.active{color:#eadfff}
+
+
+@media(max-width:600px){
+  .mobile-companion .mobile-plan-actions{
+    display:grid;
+    grid-template-columns:minmax(84px,.75fr) minmax(0,1.25fr);
+    gap:8px;
+  }
+  .mobile-companion .mobile-plan-actions button{
+    min-height:44px;
+    padding:10px 9px;
+    font-size:13px;
+    white-space:normal;
+  }
+}

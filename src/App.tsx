@@ -18,6 +18,7 @@ import ReaderWorkspace from './projects/ReaderWorkspace';
 import { artDirectionStorage, canonStorage, characterEvolutionStorage, characterModelStorage, chatMessageStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, type LocalDrawingDocument } from './core/storage';
 import { createChatUniverse } from './core/universe';
 import { createProject } from './core/project';
+import { persistSequentially, SequentialPersistenceError } from './core/sequentialPersistence';
 import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isAuthorDirectedFullScopeRequest, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint, resolveDefaultProductionPoint } from './canon/aiContext';
 import { resolveTemporalCharacterContext } from './canon/temporalCharacterContext';
 import { buildSvgDocument } from './drawing/svgExport';
@@ -81,7 +82,15 @@ async function canvasDocumentPreviewDataUrl(drawing: LocalDrawingDocument): Prom
  } finally { URL.revokeObjectURL(objectUrl); }
 }
 export default function App(){
- const [mode,setMode]=useState<Mode>('home'); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const persistedMessageCount=useRef(0); const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const [kuroVoiceIntensity,setKuroVoiceIntensity]=useState<KuroVoiceIntensity>(()=>{try{const value=localStorage.getItem('kuro-voice-intensity');if(value==='subtle'||value==='playful'||value==='expressive')return value;}catch{}return 'playful';}); const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
+ const [mode,setMode]=useState<Mode>('home'); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]);
+ const persistedMessageCountsRef=useRef(new Map<string,number>());
+ const pendingTranscriptSnapshotsRef=useRef(new Map<string,{universeId:string;conversationId:string;messages:Msg[]}>());
+ const messageRecordIdsRef=useRef(new WeakMap<object,string>());
+ const persistenceQueueRef=useRef(Promise.resolve());
+ const persistenceRetryNonceSeenRef=useRef(0);
+ const [persistenceRetryNonce,setPersistenceRetryNonce]=useState(0);
+ const [persistenceSaveError,setPersistenceSaveError]=useState('');
+ const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const [kuroVoiceIntensity,setKuroVoiceIntensity]=useState<KuroVoiceIntensity>(()=>{try{const value=localStorage.getItem('kuro-voice-intensity');if(value==='subtle'||value==='playful'||value==='expressive')return value;}catch{}return 'playful';}); const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
  useEffect(()=>{try{localStorage.setItem('kuro-voice-intensity',kuroVoiceIntensity);}catch{}},[kuroVoiceIntensity]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;},[]);
@@ -119,11 +128,83 @@ export default function App(){
  const [records,conversations]=await Promise.all([chatMessageStorage.list(universe.id,selectedConversation),conversationStorage.list(universe.id)]);
  if(!alive)return;
  setRecentUniverses(recent);setRecentConversations(conversationGroups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setUniverseConversations(conversations.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt})));setActiveUniverseId(universe.id);setActiveConversationId(selectedConversation);setActiveProjectId(universe.projectId);
- persistedMessageCount.current=records.length;setMessages(records.map(item=>restoreChatMessage(item,universe.projectId)));
+ const initialKey=JSON.stringify([universe.id,selectedConversation]);
+  const loadedMessages=records.map(item=>restoreChatMessage(item,universe.projectId));
+  const previousSnapshot=pendingTranscriptSnapshotsRef.current.get(initialKey);
+  const pendingTail=previousSnapshot&&previousSnapshot.messages.length>records.length?previousSnapshot.messages.slice(records.length):[];
+  const restoredMessages=[...loadedMessages,...pendingTail];
+  persistedMessageCountsRef.current.set(initialKey,records.length);
+  pendingTranscriptSnapshotsRef.current.set(initialKey,{universeId:universe.id,conversationId:selectedConversation,messages:restoredMessages});
+  setMessages(restoredMessages);
  try{localStorage.setItem('kuro-active-universe',universe.id);localStorage.setItem('kuro-active-conversation',selectedConversation);localStorage.setItem('kuro-active-project',universe.projectId);}catch{}
  setCanonNotice('Universe loaded · canon and assets are scoped to this workspace.');
  }catch(error){if(alive)setHistoryNotice('Could not restore local chat history: '+(error instanceof Error?error.message:'unknown storage error'));}finally{if(alive)setHistoryLoading(false);}})();return()=>{alive=false;};},[]);
- useEffect(()=>{if(!activeUniverseId||!activeConversationId||historyLoading)return;const start=persistedMessageCount.current;if(messages.length<start){persistedMessageCount.current=messages.length;return;}const pending=messages.slice(start);if(!pending.length)return;persistedMessageCount.current=messages.length;void (async()=>{try{for(const item of pending){await chatMessageStorage.save({id:crypto.randomUUID(),universeId:activeUniverseId,conversationId:activeConversationId,role:item.role,content:item.text,createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],metadata:{...(item.tool?{tool:item.tool}:{}),...(item.references?.length&&item.referenceProjectId?{references:item.references,referenceProjectId:item.referenceProjectId}:{}),...(item.researchTaskId&&item.researchProjectId?{researchTaskId:item.researchTaskId,researchProjectId:item.researchProjectId}:{})}});}const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);if(conversation){const updated={...conversation,updatedAt:new Date().toISOString()};await conversationStorage.save(updated);}const universe=await universeStorage.load(activeUniverseId);if(universe){await universeStorage.save({...universe,updatedAt:new Date().toISOString()});}const all=await universeStorage.list();setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));}catch(error){setHistoryNotice('A message could not be saved locally: '+(error instanceof Error?error.message:'storage error'));}})();},[messages,activeUniverseId,activeConversationId,historyLoading]);
+ useEffect(()=>{
+  if(!activeUniverseId||!activeConversationId||historyLoading)return;
+  const activeKey=JSON.stringify([activeUniverseId,activeConversationId]);
+  pendingTranscriptSnapshotsRef.current.set(activeKey,{universeId:activeUniverseId,conversationId:activeConversationId,messages:[...messages]});
+
+  const enqueueFlush=(targetKey:string)=>{
+   const job=persistenceQueueRef.current.catch(()=>undefined).then(async()=>{
+    const snapshot=pendingTranscriptSnapshotsRef.current.get(targetKey);
+    if(!snapshot)return;
+    const knownCount=persistedMessageCountsRef.current.get(targetKey)??0;
+    const start=Math.min(knownCount,snapshot.messages.length);
+    if(knownCount>snapshot.messages.length)persistedMessageCountsRef.current.set(targetKey,snapshot.messages.length);
+    const pending=snapshot.messages.slice(start);
+    if(!pending.length){
+     const stillPending=[...pendingTranscriptSnapshotsRef.current.entries()].some(([key,value])=>(persistedMessageCountsRef.current.get(key)??0)<value.messages.length);
+     if(!stillPending)setPersistenceSaveError('');
+     return;
+    }
+    let savedCount=0;
+    try{
+     savedCount=await persistSequentially(pending,async item=>{
+      let id=messageRecordIdsRef.current.get(item);
+      if(!id){id=crypto.randomUUID();messageRecordIdsRef.current.set(item,id);}
+      await chatMessageStorage.save({
+       id,universeId:snapshot.universeId,conversationId:snapshot.conversationId,role:item.role,content:item.text,
+       createdAt:new Date().toISOString(),status:'complete',approvedActionIds:[],
+       metadata:{
+        ...(item.tool?{tool:item.tool}:{}),
+        ...(item.references?.length&&item.referenceProjectId?{references:item.references,referenceProjectId:item.referenceProjectId}:{}),
+        ...(item.researchTaskId&&item.researchProjectId?{researchTaskId:item.researchTaskId,researchProjectId:item.researchProjectId}:{})
+       }
+      });
+     });
+     persistedMessageCountsRef.current.set(targetKey,start+savedCount);
+     try{
+      const conversation=await conversationStorage.load(snapshot.conversationId,snapshot.universeId);
+      if(conversation)await conversationStorage.save({...conversation,updatedAt:new Date().toISOString()});
+      const universe=await universeStorage.load(snapshot.universeId);
+      if(universe)await universeStorage.save({...universe,updatedAt:new Date().toISOString()});
+      const all=await universeStorage.list();
+      setRecentUniverses(all.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
+      const groups=await Promise.all(all.map(async universe=>({universe,conversations:await conversationStorage.list(universe.id)})));
+      setRecentConversations(groups.flatMap(group=>group.conversations.map(item=>({id:item.id,universeId:group.universe.id,universeTitle:group.universe.title,title:item.title,updatedAt:item.updatedAt,projectId:group.universe.projectId,homeConversationId:group.universe.homeConversationId}))).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
+     }catch(error){
+      setHistoryNotice('Chat messages were saved, but conversation metadata could not be refreshed: '+(error instanceof Error?error.message:'storage error'));
+     }
+     const stillPending=[...pendingTranscriptSnapshotsRef.current.entries()].some(([key,value])=>(persistedMessageCountsRef.current.get(key)??0)<value.messages.length);
+     if(!stillPending)setPersistenceSaveError('');
+    }catch(error){
+     const completed=error instanceof SequentialPersistenceError?error.savedCount:savedCount;
+     persistedMessageCountsRef.current.set(targetKey,Math.min(snapshot.messages.length,start+completed));
+     setPersistenceSaveError('Local chat history saved '+completed+' of '+pending.length+' new message(s). The remaining messages are still queued in this session. Retry saving before leaving Kuro Canvas.');
+     setHistoryNotice('');
+    }
+   });
+   persistenceQueueRef.current=job.then(()=>undefined,error=>{
+    setPersistenceSaveError('Chat history could not be saved: '+(error instanceof Error?error.message:'storage error')+'. Retry saving before leaving Kuro Canvas.');
+   });
+  };
+
+  enqueueFlush(activeKey);
+  if(persistenceRetryNonceSeenRef.current!==persistenceRetryNonce){
+   persistenceRetryNonceSeenRef.current=persistenceRetryNonce;
+   for(const key of pendingTranscriptSnapshotsRef.current.keys())if(key!==activeKey)enqueueFlush(key);
+  }
+ },[messages,activeUniverseId,activeConversationId,historyLoading,persistenceRetryNonce]);
  async function startNewUniverse(){
   chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
   try{
@@ -133,7 +214,10 @@ export default function App(){
    const bundle=createChatUniverse(title,project.id);await universeStorage.create(bundle);
    const universes=await universeStorage.list();
    setRecentUniverses(universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setRecentConversations(current=>[{id:bundle.homeConversation.id,universeId:bundle.universe.id,universeTitle:bundle.universe.title,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt,projectId:bundle.universe.projectId,homeConversationId:bundle.universe.homeConversationId},...current]);
-   persistedMessageCount.current=0;setMessages([]);setActiveUniverseId(bundle.universe.id);setActiveConversationId(bundle.homeConversation.id);setUniverseConversations([{id:bundle.homeConversation.id,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt}]);setActiveProjectId(bundle.universe.projectId);setDraft('');setMode('chat');
+   const newKey=JSON.stringify([bundle.universe.id,bundle.homeConversation.id]);
+   persistedMessageCountsRef.current.set(newKey,0);
+   pendingTranscriptSnapshotsRef.current.set(newKey,{universeId:bundle.universe.id,conversationId:bundle.homeConversation.id,messages:[]});
+   setMessages([]);setActiveUniverseId(bundle.universe.id);setActiveConversationId(bundle.homeConversation.id);setUniverseConversations([{id:bundle.homeConversation.id,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt}]);setActiveProjectId(bundle.universe.projectId);setDraft('');setMode('chat');
    try{localStorage.setItem('kuro-active-universe',bundle.universe.id);localStorage.setItem('kuro-active-conversation',bundle.homeConversation.id);localStorage.setItem('kuro-active-project',bundle.universe.projectId);}catch{}
    setCanonNotice('New isolated universe created. It cannot see other universes unless you explicitly connect them.');
   }catch(error){setHistoryNotice('Could not create a new universe: '+(error instanceof Error?error.message:'storage error'));}
@@ -146,7 +230,14 @@ export default function App(){
    const conversation=await conversationStorage.load(conversationId||item.homeConversationId,item.id);
    if(!conversation)throw new Error('The saved conversation could not be found in its universe.');
    const [records,conversations]=await Promise.all([chatMessageStorage.list(item.id,conversation.id),conversationStorage.list(item.id)]);setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));
-   persistedMessageCount.current=records.length;setMessages(records.map(record=>restoreChatMessage(record,item.projectId)));setActiveDrawingId('');
+   const resumeKey=JSON.stringify([item.id,conversation.id]);
+   const loadedMessages=records.map(record=>restoreChatMessage(record,item.projectId));
+   const previousSnapshot=pendingTranscriptSnapshotsRef.current.get(resumeKey);
+   const pendingTail=previousSnapshot&&previousSnapshot.messages.length>records.length?previousSnapshot.messages.slice(records.length):[];
+   const restoredMessages=[...loadedMessages,...pendingTail];
+   persistedMessageCountsRef.current.set(resumeKey,records.length);
+   pendingTranscriptSnapshotsRef.current.set(resumeKey,{universeId:item.id,conversationId:conversation.id,messages:restoredMessages});
+   setMessages(restoredMessages);setActiveDrawingId('');
    setActiveUniverseId(item.id);setActiveConversationId(conversation.id);setActiveProjectId(item.projectId);setDraft('');setMode('chat');
    try{localStorage.setItem('kuro-active-universe',item.id);localStorage.setItem('kuro-active-conversation',conversation.id);localStorage.setItem('kuro-active-project',item.projectId);}catch{}
    setCanonNotice('Resumed saved universe · conversation history restored.');
@@ -185,7 +276,10 @@ export default function App(){
   const conversation=await universeStorage.createConversation(activeUniverseId,'New conversation '+(universeConversations.length+1));
   const conversations=await conversationStorage.list(activeUniverseId);
   setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));const universe=await universeStorage.load(activeUniverseId);if(universe)setRecentConversations(current=>[...current.filter(value=>value.id!==conversation.id),{id:conversation.id,universeId:activeUniverseId,universeTitle:universe.title,title:conversation.title,updatedAt:conversation.updatedAt,projectId:universe.projectId,homeConversationId:universe.homeConversationId}].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
-  setMessages([]);persistedMessageCount.current=0;setActiveConversationId(conversation.id);setActiveDrawingId('');setDraft('');setProposedPlan(null);setCanvasRequest(null);setMode('chat');
+  const attachedKey=JSON.stringify([activeUniverseId,conversation.id]);
+  persistedMessageCountsRef.current.set(attachedKey,0);
+  pendingTranscriptSnapshotsRef.current.set(attachedKey,{universeId:activeUniverseId,conversationId:conversation.id,messages:[]});
+  setMessages([]);setActiveConversationId(conversation.id);setActiveDrawingId('');setDraft('');setProposedPlan(null);setCanvasRequest(null);setMode('chat');
   try{localStorage.setItem('kuro-active-conversation',conversation.id);}catch{}
   setCanonNotice('New conversation explicitly attached to this universe. Approved canon is shared; the transcript remains separate.');
  }catch(error){setHistoryNotice(error instanceof Error?error.message:'Could not create an attached conversation.');}
@@ -359,7 +453,7 @@ if(activeProjectId && captureStory){
   }
 }
 }}catch(e){if(requestIsCurrent()){setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent())setWorking(false);}}
- return <div className="app"><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New chat <span>⌘ K</span></button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat with Kuro'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse'],['vault',Library,'Creative vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
+ return <div className="app"><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New chat <span>⌘ K</span></button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat with Kuro'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse'],['vault',Library,'Creative vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}{persistenceSaveError&&<p className="history-notice" role="alert">{persistenceSaveError} <button type="button" onClick={()=>setPersistenceRetryNonce(n=>n+1)}>Retry saving</button></p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
  <main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className="saved"><i/> Saved locally</span><button aria-label="Help"><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
  {mode==='home'&&<section className="home-dashboard">
   <div className="home-eyebrow"><span className="home-orbit">✦</span> YOUR CREATIVE UNIVERSE</div>

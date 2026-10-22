@@ -60,7 +60,7 @@ export function kuroFishPerformanceDirection(
     : accent === "noticeable-japanese"
       ? "speaking fluent English with a clearly noticeable but still natural Japanese-influenced accent, especially in vowel colour and sentence cadence; remain intelligible and never caricature the accent"
       : "speaking fluent English with a subtle Japanese-influenced accent, gentle vowel colour and natural cadence; remain idiomatic, clear and never caricature the accent";
-  return "[" + accentDirection + "; " + mood + "; expressive anime-inspired voice, natural and never exaggerated]";
+  return "[" + accentDirection + "; " + mood + "; keep Kuro’s established personality consistent across SAKURA, Chiaki Nanami, and Mitsuri profiles; clear, bright, engaging feminine voice with lively but intelligible articulation and expressive anime-inspired delivery; adjust emotion to the meaning of each reply; natural and never exaggerated]";
 }
 
 export function buildKuroFishTtsPayload(

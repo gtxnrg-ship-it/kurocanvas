@@ -68,7 +68,7 @@ describe("complete local chat generation", () => {
   });
 
   it("caps the total local chat reply budget and reports when it is exhausted", async () => {
-    const responses = Array.from({ length: 6 }, (_, i) => ({
+    const responses = Array.from({ length: 12 }, (_, i) => ({
       text: "Part " + (i + 1),
       finishReason: "length" as const,
       usage: { outputTokens: 1024 },
@@ -78,12 +78,12 @@ describe("complete local chat generation", () => {
     const { provider, generate } = providerWith(responses);
     const result = await generateCompleteLocalReply(provider, { ...request, maxOutputTokens: 50_000 }, model);
 
-    expect(KURO_LOCAL_MAX_TOKENS_PER_REPLY).toBe(6144);
-    expect(generate).toHaveBeenCalledTimes(6);
-    expect(result.usage?.outputTokens).toBe(6144);
+    expect(KURO_LOCAL_MAX_TOKENS_PER_REPLY).toBe(12288);
+    expect(generate).toHaveBeenCalledTimes(12);
+    expect(result.usage?.outputTokens).toBe(12288);
     expect(result.finishReason).toBe("length");
     expect(result.text).toContain("Part 1");
-    expect(result.text).toContain("Part 6");
+    expect(result.text).toContain("Part 12");
   });
 
   it("does not change remote providers or requests that fit in one pass", async () => {

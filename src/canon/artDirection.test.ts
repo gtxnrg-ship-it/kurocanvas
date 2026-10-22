@@ -47,6 +47,24 @@ describe("project art direction bible", () => {
     expect(buildArtDirectionContext(approved, "series-1")).toContain("Chapter 3:");
   });
 
+  it("keeps the planned finale available before long chapter lists are truncated", () => {
+    const bible = createEmptyArtDirection("series-1");
+    Object.assign(bible, {
+      title: "Lantern Coast",
+      premise: "Two friends investigate a broken sky.",
+      genres: "Fantasy mystery",
+      seriesScope: "A 40-episode vertical fantasy mystery.",
+      seriesArcPlan: "A long-form mystery that escalates through four major arcs and pays off its early clues.",
+      seriesEnding: "FINAL CLUE: Mira returns the first lantern to the observatory and the sky heals because both friends tell the truth.",
+      seriesChapterPlan: Array.from({ length: 40 }, (_, index) =>
+        "Chapter " + (index + 1) + ": " + ("A lengthy chapter summary which preserves character motivation, reveals, visual continuity, and meaningful consequences. ").repeat(3)
+      ).join("\n"),
+    });
+    const context = buildArtDirectionContext(bible, "series-1", 1200);
+    expect(context).toContain("FINAL CLUE:");
+    expect(context).not.toContain("Chapter 40:");
+  });
+
   it("parses only editable fields from a structured synthesis draft", () => {
     const parsed = parseArtDirectionSynthesis(JSON.stringify({
       title: "Original urban romance",

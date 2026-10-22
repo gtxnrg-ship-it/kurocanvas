@@ -42,8 +42,8 @@ describe("Kuro speech preferences", () => {
     expect(KURO_FISH_AUDIO_MODEL).toBe("drama-3");
     expect(KURO_FISH_VOICES.map(voice => voice.id)).toEqual([
       "84644c87811b4279940848ec184e0ffe",
-      "46063b8e2f754955b60c1fe78e14304f",
-      "7f4b9a6850dc4a138c78b3028f4f30ed",
+      "8f5b0abbfa464c3fab065588dbfd48de",
+      "d232d2eaced04adda979c042e1e1e34b",
     ]);
   });
 

@@ -46,7 +46,7 @@ describe("optional browser speech input", () => {
 
   it("returns an empty transcript for empty or non-text recognition results", () => {
     expect(transcriptFromSpeechEvent({ resultIndex: 0, results: [] })).toBe("");
-    expect(transcriptFromSpeechEvent({ resultIndex: 0, results: [{ isFinal: true, 0: {} }] } as BrowserSpeechResultEvent)).toBe("");
+    expect(transcriptFromSpeechEvent({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: '   ' } }] } as BrowserSpeechResultEvent)).toBe("");
   });
 
   it("gives actionable explanations for common microphone and service failures", () => {

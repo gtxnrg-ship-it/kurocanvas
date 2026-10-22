@@ -75,6 +75,7 @@ describe("live creation session recovery", () => {
     expect(settled?.session.batches).toBe(1);
     expect(settled?.canContinue).toBe(false);
     expect(settled?.session.log.some(entry => entry.status === "working")).toBe(false);
+    expect(settleLiveCreationBatch(settled!.session, "batch-2", "cancelled", "duplicate callback", false)).toBeNull();
   });
 
   it("only auto-continues a successful batch while Live Creation remains active", () => {

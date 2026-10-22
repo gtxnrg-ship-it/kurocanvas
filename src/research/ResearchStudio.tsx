@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertCircle, Bell, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Pause, Play, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { AlertCircle, ArrowUp, Bell, BookOpen, CheckCircle2, ExternalLink, LoaderCircle, Pause, Play, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import {
-  cancelResearchTask, enqueueResearchTask, isResearchQueuePaused, pauseResearchQueue, requestResearchNotificationPermission,
+  cancelResearchTask, compareQueuedResearchTasks, enqueueResearchTask, isResearchQueuePaused, pauseResearchQueue, prioritizeResearchTask, requestResearchNotificationPermission,
   researchTaskStorage, resumeResearchQueue, retryResearchTask, type ResearchDepth, type ResearchSourceProvider, type ResearchTaskRecord,
 } from "./researchQueue";
 import "./researchStudio.css";
@@ -64,6 +64,11 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
     failed: tasks.filter(task => task.status === "failed").length,
   }), [tasks]);
   const activeProject = projects.find(project => project.id === projectId);
+  const queuedForPriority = useMemo(
+    () => tasks.filter(task => task.status === "queued").sort(compareQueuedResearchTasks),
+    [tasks],
+  );
+  const nextQueuedTaskId = queuedForPriority[0]?.id;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -85,6 +90,18 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
     if (result === "granted") setMessage("Notifications enabled. Kuro can notify you when a research task finishes while the app is allowed to run.");
     else if (result === "denied") setMessage("Notifications are blocked in browser settings. Research still saves to the queue and its result appears here.");
     else setMessage("This browser or page context does not support notifications. The saved queue still works while Kuro is open.");
+  }
+
+  async function prioritize(task: ResearchTaskRecord) {
+    try {
+      const result = await prioritizeResearchTask(task.id, projectId);
+      setMessage(result.alreadyHighest
+        ? "“" + task.query + "” is already next in the research queue."
+        : "Moved “" + task.query + "” to the front of the queued research tasks. A task already running will finish first.");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not prioritize this research task.");
+    }
   }
 
   async function retry(task: ResearchTaskRecord) {
@@ -124,15 +141,16 @@ export default function ResearchStudio({ projectId, projects, onAskKuro }: Props
         </div>
         <p className="research-source-note">Wikipedia provides encyclopedia extracts; Crossref provides scholarly publication metadata and abstracts only when deposited. Results are not a full literature review or automatic fact-check. Review the source, compare independent evidence, and approve canon changes yourself.</p>
       </form>
-      <div className="research-queue-head"><div><h3>Research queue</h3><span>{counts.queued} queued · {counts.running} running · {counts.completed} completed · {counts.failed} need attention</span></div>
+      <div className="research-queue-head"><div><h3>Research queue</h3><span>{counts.queued} queued · {counts.running} running · {counts.completed} completed · {counts.failed} need attention</span><small>Prioritize moves a queued topic to the front; a running lookup finishes first.</small></div>
         {paused ? <button type="button" onClick={() => { resumeResearchQueue(); setPaused(false); setMessage("Research queue resumed."); }}><Play size={14}/> Resume queue</button>
           : <button type="button" onClick={() => { pauseResearchQueue(); setPaused(true); setMessage("Research queue paused. Any in-flight lookup will return to the queue."); }}><Pause size={14}/> Pause queue</button>}
       </div>
       {tasks.length === 0 ? <div className="research-empty"><BookOpen size={18}/><span>No research tasks yet. Add a topic above; finished source material can later be included in Kuro's chat context.</span></div> :
         <div className="research-task-list">{tasks.map(task => <article className={"research-task research-task-"+task.status} key={task.id}>
           <div className="research-task-top">
-            <div><span className={"research-status research-status-"+task.status}>{task.status === "completed" ? <CheckCircle2 size={12}/> : task.status === "failed" ? <AlertCircle size={12}/> : task.status === "running" ? <LoaderCircle className="research-spin" size={12}/> : task.status === "cancelled" ? <X size={12}/> : <ClockStatus/>}{task.status}</span><small>{(task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref scholarly metadata" : "Wikipedia"} · {task.depth} · queued {timeLabel(task.createdAt)}</small></div>
+            <div><span className={"research-status research-status-"+task.status}>{task.status === "completed" ? <CheckCircle2 size={12}/> : task.status === "failed" ? <AlertCircle size={12}/> : task.status === "running" ? <LoaderCircle className="research-spin" size={12}/> : task.status === "cancelled" ? <X size={12}/> : <ClockStatus/>}{task.status}</span><small>{(task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref scholarly metadata" : "Wikipedia"} · {task.depth}{(task.priority ?? 0) > 0 ? " · priority " + task.priority : " · normal priority"} · queued {timeLabel(task.createdAt)}</small></div>
             <div className="research-task-actions">
+              {task.status === "queued" && <button type="button" disabled={task.id === nextQueuedTaskId} onClick={() => void prioritize(task)} title={task.id === nextQueuedTaskId ? "This is next in the queue" : "Move this task to the front of the queue"}><ArrowUp size={12}/>{task.id === nextQueuedTaskId ? "Next up" : "Prioritize"}</button>}
               {(task.status === "queued" || task.status === "running") && <button type="button" onClick={() => void cancel(task)}><X size={12}/> Cancel</button>}
               {task.status === "failed" && <button type="button" onClick={() => void retry(task)}><RefreshCw size={12}/> Retry</button>}
               {["completed","failed","cancelled"].includes(task.status) && <button type="button" onClick={() => void remove(task)} aria-label={"Remove "+task.query}><Trash2 size={12}/></button>}

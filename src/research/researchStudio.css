@@ -54,3 +54,8 @@
 .research-spin{animation:researchSpin .9s linear infinite}
 @keyframes researchSpin{to{transform:rotate(360deg)}}
 @media(max-width:640px){.research-studio{padding:12px}.research-studio-head{flex-direction:column}.research-head-actions{width:100%}.research-head-actions button{flex:1;justify-content:center}.research-compose-bottom{align-items:stretch;flex-direction:column}.research-compose-bottom label{min-width:0}.research-compose-bottom button,.research-ask-kuro{width:100%}.research-task-top{flex-direction:column}}
+
+.research-queue-head>div{min-width:0}
+.research-queue-head small{display:block;margin-top:5px;color:#9b90ac;font-size:9px;line-height:1.5}
+.research-task-actions button:disabled{opacity:.72;cursor:default;border-color:#655085;background:#241b34;color:#ddc9ff}
+.research-task-actions button:disabled svg{color:#c6a7ff}

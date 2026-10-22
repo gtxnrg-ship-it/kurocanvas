@@ -27,6 +27,7 @@ const ProjectManager = lazy(() => import('./projects/ProjectManager'));
 const ReaderWorkspace = lazy(() => import('./projects/ReaderWorkspace'));
 import { artDirectionStorage, canonStorage, characterEvolutionStorage, characterModelStorage, chatMessageStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, type LocalDrawingDocument } from './core/storage';
 import { createChatUniverse } from './core/universe';
+import { createProjectWithUniverse } from './core/universeCreation';
 import { createProject } from './core/project';
 import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnrevealedCharacterMention, isAuthorDirectedFullScopeRequest, isIntentionalForeshadowingRequest, isStoryProductionRequest, resolveApprovedRevealPoint, resolveDefaultProductionPoint } from './canon/aiContext';
 import { resolveTemporalCharacterContext } from './canon/temporalCharacterContext';
@@ -257,8 +258,17 @@ useEffect(()=>{
    setLocalSaveStatus('saved');
    setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');
    const count=recentUniverses.length+1;const title=count===1?'My first universe':'Universe '+count;
-   const project=createProject(title);await projectStorage.save(project);setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
-   const bundle=createChatUniverse(title,project.id);await universeStorage.create(bundle);
+   const project=createProject(title);
+   const {universe:bundle}=await createProjectWithUniverse(project,{
+    saveProject: value=>projectStorage.save(value),
+    createUniverse: async value=>{
+     const created=createChatUniverse(title,value.id);
+     await universeStorage.create(created);
+     return created;
+    },
+    removeProject: id=>projectStorage.remove(id),
+   });
+   setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
    const universes=await universeStorage.list();
    setRecentUniverses(universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setRecentConversations(current=>[{id:bundle.homeConversation.id,universeId:bundle.universe.id,universeTitle:bundle.universe.title,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt,projectId:bundle.universe.projectId,homeConversationId:bundle.universe.homeConversationId},...current]);
    persistedMessageCount.current=0;setMessages([]);setActiveUniverseId(bundle.universe.id);setActiveConversationId(bundle.homeConversation.id);setUniverseConversations([{id:bundle.homeConversation.id,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt}]);setActiveProjectId(bundle.universe.projectId);setDraft('');setMode('chat');

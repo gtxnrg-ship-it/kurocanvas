@@ -63,7 +63,7 @@ describe("whole-series plan contract", () => {
 
   it("invalidates approval explicitly whenever the creator edits the outline", () => {
     const approved = approveSeriesPlan(completeDraft);
-    const invalidated = { ...approved, ...invalidateSeriesPlanApproval(approved), seriesChapterPlan: approved.seriesChapterPlan + "\nChapter 4: The finale returns the city to the sea of stars." };
+    const invalidated = { ...approved, ...invalidateSeriesPlanApproval(approved), seriesChapterPlan: approved.seriesChapterPlan!.replace("Mira discovers a lantern", "Mira follows a faint lantern") };
     expect(isSeriesPlanApproved(invalidated)).toBe(false);
     expect(evaluateSeriesPlan(invalidated).issues.map(issue => issue.id)).toContain("approval");
   });

@@ -71,21 +71,33 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
     gaps.push({ id: "art-direction", message: "Complete the project's title, premise, genres, and unified visual style in Art Direction." });
   }
 
-  const approvedVisualState = (input.styleBible?.characterStates ?? []).some(state => {
-    if (state.status !== "approved" || !approvedCharacterNames.has(normalize(state.characterName))) return false;
-    const describedTraits = VISUAL_TRAITS.filter(key => clean(state[key])).length;
-    return describedTraits >= 3;
-  });
-  if (!approvedVisualState) {
-    gaps.push({ id: "character-design", message: "Approve a character visual state in Style Bible with at least three established traits (such as hair, eyes, outfit, age, or silhouette)." });
+  const visualizedNames = new Set((input.styleBible?.characterStates ?? [])
+    .filter(state => state.status === "approved" && VISUAL_TRAITS.filter(key => clean(state[key])).length >= 3)
+    .map(state => normalize(state.characterName))
+    .filter(name => approvedCharacterNames.has(name)));
+  const charactersWithoutVisualDesign = approvedCharacters.filter(character =>
+    ![character.name, ...(character.aliases ?? [])].some(name => visualizedNames.has(normalize(name)))
+  );
+  if (charactersWithoutVisualDesign.length > 0) {
+    const names = charactersWithoutVisualDesign.slice(0, 5).map(character => character.name).join(", ");
+    gaps.push({
+      id: "character-design",
+      message: "Approve a Style Bible visual state with at least three established traits (such as hair, eyes, outfit, age, or silhouette) for every approved character. Still missing: " + names + (charactersWithoutVisualDesign.length > 5 ? ", and " + (charactersWithoutVisualDesign.length - 5) + " more." : "."),
+    });
   }
 
-  const approvedTimeline = (input.characterTimelines ?? []).some(state =>
-    state.status === "approved" && approvedCharacterIds.has(state.characterId) &&
-    clean(state.timelineId).length > 0 && Number.isFinite(state.storyOrder) && state.storyOrder >= 0
-  );
-  if (!approvedTimeline) {
-    gaps.push({ id: "timeline", message: "Approve at least one character state with a timeline and story order in Character Timeline." });
+  const timelineCharacterIds = new Set((input.characterTimelines ?? [])
+    .filter(state => state.status === "approved" && clean(state.timelineId).length > 0 &&
+      Number.isFinite(state.storyOrder) && state.storyOrder >= 0)
+    .map(state => state.characterId)
+    .filter(id => approvedCharacterIds.has(id)));
+  const charactersWithoutTimeline = approvedCharacters.filter(character => !timelineCharacterIds.has(character.id));
+  if (charactersWithoutTimeline.length > 0) {
+    const names = charactersWithoutTimeline.slice(0, 5).map(character => character.name).join(", ");
+    gaps.push({
+      id: "timeline",
+      message: "Approve a timeline state with story order for every approved character in Character Timeline. Still missing: " + names + (charactersWithoutTimeline.length > 5 ? ", and " + (charactersWithoutTimeline.length - 5) + " more." : "."),
+    });
   }
 
   const approvedRelationships = (input.relationships ?? []).filter(record =>

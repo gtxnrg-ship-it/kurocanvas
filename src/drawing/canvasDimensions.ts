@@ -3,6 +3,7 @@ export const CANVAS_PRESETS: Record<string, [number, number]> = {
   portrait: [1200, 1800],
   square: [1600, 1600],
   webtoon: [900, 3000],
+  "long-webtoon": [900, 6000],
   manga: [1800, 2700],
   a4: [2480, 3508],
 };

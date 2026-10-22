@@ -2,9 +2,22 @@
  * Detect clear visual-production requests that should leave chat and enter Live Creation.
  * Keep ordinary brainstorming in chat, but accept natural language about changing a character's visible appearance.
  */
+/**
+ * Chapter-production requests intentionally switch from chat into the live storyboard workspace.
+ * Casual discussion about chapters remains ordinary chat, and explicit deferrals win.
+ */
+export function isMangaChapterProductionRequest(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  if (!text) return false;
+  const deferred = /\b(?:don't|do not|never|not yet|hold off on|wait to|no need to|let's not)\b[\s\S]{0,80}\b(?:write|start|begin|draft|outline|plan|produce|create|build|storyboard)\b[\s\S]{0,80}\b(?:(?:the )?(?:very )?(?:first|next|opening) chapter|chapter (?:one|1|[2-9]\d*))\b/i;
+  if (deferred.test(text)) return false;
+  return /\b(?:write|start|begin|make|create|build|plan|draft|outline|produce|storyboard)\b[^.!?\n]{0,70}\b(?:(?:the )?(?:very )?(?:first|next|opening) chapter|chapter (?:one|1|[2-9]\d*))\b/i.test(text);
+}
+
 export function shouldStartLiveCreationFromChat(message: string): boolean {
   const text = message.normalize("NFKC").trim();
   if (!text) return false;
+  if (isMangaChapterProductionRequest(text)) return true;
 
   // Respect a clear request to defer visual work, but do not let a negated clause
   // cancel a separate positive instruction such as "don't change her outfit, just shorten her hair".

@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { shouldStartLiveCreationFromChat } from "./liveCreationIntent";
 
 describe("chat-to-live-creation intent", () => {
+  it("opens Live Creation for explicit chapter-production commands, not casual chapter discussion", () => {
+    expect(shouldStartLiveCreationFromChat("Let's write the first chapter.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Let's write chapter one as a manga storyboard.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Please outline the next chapter.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Let's discuss what happens in chapter one.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't start the first chapter yet; let's finish the worldbuilding.")).toBe(false);
+  });
+
   it("routes clear canvas requests into Live Creation", () => {
     expect(shouldStartLiveCreationFromChat("Okay, create this character in the canvas now.")).toBe(true);
     expect(shouldStartLiveCreationFromChat("Sketch the city layout on the live canvas.")).toBe(true);
@@ -52,7 +60,7 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Let's discuss the protagonist's character design.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Research visual references for a character sheet.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Create a character with a complicated past.")).toBe(false);
-    expect(shouldStartLiveCreationFromChat("Write chapter one with a cinematic manga-panel feel.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Write chapter one with a cinematic manga-panel feel.")).toBe(true);
   });
 
   it("does not activate on an empty request", () => {

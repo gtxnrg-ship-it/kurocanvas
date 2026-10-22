@@ -665,9 +665,12 @@
   .mobile-companion .home-hero-actions .home-secondary{display:none}
   .mobile-companion .home-bottom-grid .home-feature:first-child{display:none}
   .mobile-companion .home-hero-actions .home-primary{width:100%;min-height:48px}
-  .mobile-companion .drawing-alt .draw-toolbar,
-  .mobile-companion .drawing-project-controls{display:none}
-  .mobile-companion .drawing-paper canvas{pointer-events:none;touch-action:pan-y;cursor:default}
+  /* Phone layout remains a real editor: compact the controls, never disable touch drawing. */
+  .mobile-companion .drawing-alt .draw-toolbar{display:flex;gap:6px;padding:7px}
+  .mobile-companion .drawing-project-controls{display:flex;gap:6px}
+  .mobile-companion .draw-toolgroup,.mobile-companion .draw-actions,.mobile-companion .draw-colors{flex-wrap:wrap;min-width:0;max-width:100%}
+  .mobile-companion .draw-toolgroup button,.mobile-companion .draw-actions button{min-width:36px;min-height:36px;justify-content:center}
+  .mobile-companion .drawing-paper canvas{pointer-events:auto;touch-action:none;cursor:crosshair}
   .mobile-companion .drawing-stage{touch-action:pan-y;min-height:240px}
   .mobile-studio-hint{
     margin:12px 0 0;padding:12px 13px;
@@ -879,3 +882,131 @@ a:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* The canon scope chip contains a disabled native select; keep it themed and shrinkable. */
+.context {
+  max-width: 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.context select {
+  min-width: 0;
+  max-width: 180px;
+  padding: 4px 7px;
+  border: 1px solid #3a304b;
+  border-radius: 6px;
+  background: #1a1727;
+  color: #cfc4e2;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 9px;
+  opacity: 1;
+}
+
+.context select:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: #cfc4e2;
+}
+
+.context small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .context {
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .context select {
+    max-width: min(180px, 55vw);
+  }
+
+  .context small {
+    flex: 1 1 145px;
+  }
+
+  .context button {
+    min-height: 32px;
+    margin-left: auto;
+    padding: 6px 8px;
+  }
+}
+
+/* Keep local drawing document controls legible on the dark studio surface. */
+.drawing-project-controls select,
+.drawing-project-controls button {
+  border-color: #3a304b;
+  background: #171421;
+  color: #cfc4e2;
+}
+
+.drawing-project-controls select:focus-visible,
+.drawing-project-controls button:focus-visible {
+  outline: 2px solid var(--purple, #a78bfa);
+  outline-offset: 2px;
+}
+
+.drawing-project-controls button:hover:not(:disabled) {
+  border-color: #6f579d;
+  background: #242034;
+}
+
+.drawing-project-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The desktop drawing toolbar contains a long tool group. Let that group wrap at tablet widths. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .drawing-alt {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    padding-inline: 16px;
+  }
+
+  .drawing-alt .draw-toolbar {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-toolgroup {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-toolgroup button {
+    white-space: normal;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-colors,
+  .drawing-alt .draw-toolbar > .draw-actions {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .drawing-alt .drawing-stage {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .drawing-alt .drawing-paper {
+    width: min(100%, 960px);
+    max-width: 100%;
+  }
+}
+
+
+/* Keep the drawing route constrained by the app column at every desktop breakpoint. */
+.drawing-alt{width:100%;min-width:0;max-width:1400px}
+.drawing-alt .draw-toolbar{width:100%;min-width:0;max-width:100%}
+.drawing-alt .draw-toolgroup,.drawing-alt .draw-colors,.drawing-alt .draw-actions{min-width:0;max-width:100%;flex-wrap:wrap}
+.drawing-alt .althead>div{min-width:0;max-width:100%}

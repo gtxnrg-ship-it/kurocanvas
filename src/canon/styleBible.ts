@@ -99,7 +99,6 @@ export function buildStyleBibleContext(
   const conflicts = findStyleConflicts(bible);
   const explicitStoryOrder = targetStoryOrder;
   const requestedChapter = explicitStoryOrder === undefined ? targetOrderFromMessage(userMessage) : undefined;
-  const requestedOrder = explicitStoryOrder ?? requestedChapter;
   const lines = [
     "PROJECT STYLE BIBLE — APPROVED CONTINUITY ONLY",
     "Never drift between chapters. The approved project style summary and approved rules control every panel and character depiction.",
@@ -138,7 +137,7 @@ export function buildStyleBibleContext(
   }
   if (explicitStoryOrder !== undefined) lines.push("Target story order: " + explicitStoryOrder + ". Future visual states are forbidden in this request.");
   else if (requestedChapter !== undefined) lines.push("Target chapter: " + requestedChapter + ". Future visual states are forbidden in this request.");
-  if (resolved.size) lines.push("RESOLVED APPROVED CHARACTER STATES AT OR BEFORE THE REQUESTED STORY ORDER (unchanged traits persist forward)");
+  if (resolved.size) lines.push("RESOLVED APPROVED CHARACTER STATES AT OR BEFORE THE " + (requestedChapter !== undefined && explicitStoryOrder === undefined ? "REQUESTED CHAPTER" : "REQUESTED STORY ORDER") + " (unchanged traits persist forward)");
   for (const { latest, traits: resolvedTraits } of resolved.values()) {
     const traits = traitKeys.filter(key => resolvedTraits[key]).map(key => key + ": " + resolvedTraits[key]);
     lines.push("- " + latest.characterName + " (" + latest.chapterLabel + ", order " + latest.storyOrder + "): " + (traits.join("; ") || "No detailed visual traits recorded."));

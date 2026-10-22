@@ -42,6 +42,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
 | Qwen3-0.6B local model | Experimental | The only active text-only model; runs in a browser worker with cancellation and local speed benchmark. Quality, download reliability and Android performance still need real-device verification |
 | Replaceable model adapter | Implemented | Future upgrades use the `ModelProvider` seam and require tests/benchmarks; no model carousel or silent remote fallback |
+| Live voice session (experimental on this branch) | Fish Audio Drama 3 output with SAKURA, Chiaki Nanami and Mitsuri voice profiles; local Kokoro/device alternatives; microphone and playback level meters; one stable Kuro personality | Fish Audio requires your own API key and a network connection. Spoken reply text (which may contain story details) is sent to Fish Audio. English accent quality, Android WebView recognition and full-device behavior need hands-on testing. The session is turn-based; talking over Kuro does not yet provide reliable full-duplex interruption. |
 | Portable project/export workflows | Native `.kuro` ZIP archive export with a manifest and CRC-checked asset entries; legacy `.kuro.json` imports remain supported | 50 MB cap, STORE/no compression, unlinked canvases and binary reference images are not included; full browser round-trip and corruption recovery still need hands-on verification |
 | Android APK | Rolling debug-signed APK published | The release page records the source commit and SHA-256; install/launch and low-end Android validation still need a physical-device test |
 | Production readiness | **Not ready** | Needs broader end-to-end, accessibility, performance, security and real-device validation |
@@ -93,6 +94,9 @@ After the app opens, use this checklist to test the most important paths rather 
 
 - [ ] Create a new universe and confirm its first conversation opens.
 - [ ] Open Preferences, check or prepare Qwen3-0.6B, then send a message. Confirm model errors are reported plainly and no hosted fallback is attempted.
+- [ ] Open Preferences → Spoken voice, add your own Fish Audio API key, and test SAKURA, Chiaki Nanami and Mitsuri with English text. Verify that only the chosen speech text is sent to Fish Audio and that the selected profile speaks successfully.
+- [ ] Start Live Creation voice mode, speak an English sentence, and check that the microphone meter reacts to your speech and Kuro's meter reacts to actual playback. Stop the session and leave Live Creation; confirm microphone capture and playback are stopped.
+- [ ] Change the speech engine to Kokoro Local or Device voice and confirm the app never requires a Fish Audio key for those alternatives.
 - [ ] Open the canvas, draw a few strokes, change tools/layers, and wait for the save indicator.
 - [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.
 - [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.

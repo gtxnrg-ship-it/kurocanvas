@@ -42,6 +42,8 @@ export interface ArtDirectionBible {
 
 export type ArtDirectionField = Exclude<keyof ArtDirectionBible, "schemaVersion" | "projectId" | "updatedAt" | "influences" | "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature">;
 
+const cleanText = (value: unknown): string => typeof value === "string" ? value.trim() : "";
+
 export const ART_DIRECTION_FIELDS: Array<{ key: ArtDirectionField; label: string; hint: string }> = [
   { key: "title", label: "Art direction name", hint: "A concise name for this project's unified creative identity." },
   { key: "premise", label: "Story premise and intended feeling", hint: "What the story is about and what readers should feel." },

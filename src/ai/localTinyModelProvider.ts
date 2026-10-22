@@ -1,10 +1,10 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
-import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+import { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+export { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-/** Upper bound for mobile-friendly native-tool plans and longer creative responses. */
-export const KURO_LOCAL_MAX_OUTPUT_TOKENS = 1024;
+/** Backward-compatible alias for one memory-bounded inference pass, not a whole chat reply. */
+export const KURO_LOCAL_MAX_OUTPUT_TOKENS = KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS;
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =

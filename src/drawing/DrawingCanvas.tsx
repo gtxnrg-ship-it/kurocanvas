@@ -539,7 +539,19 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
         originalDocument = latestAtStart ?? current;
         workingDocument = originalDocument;
         await drawingRevisionStorage.create(drawingId, 'Before Kuro plan · ' + new Date().toLocaleString(), originalDocument);
-        if (cancelled) { await restoreOriginal(); return; }
+        if (cancelled) {
+          await restoreOriginal();
+          setPlanSteps(currentSteps => settleDrawingPlanTimeline(currentSteps, 'rolled-back', 'Cancelled before the first native action; original canvas restored and verified.'));
+          setPlanProgress(null);
+          setSaveState('saved');
+          setNotice('Drawing stopped before the first native action; the original canvas was restored and verified.');
+          if (userCancelled && !settled) {
+            setPlanAction(transitionDrawingAction(running, { type: 'execution.cancel', actionId: runKey }));
+            settled = true;
+            onPlanResult(pendingPlan.id, 'cancelled', 'Cancelled before the first native action; original drawing restored and verified.');
+          }
+          return;
+        }
 
         let anyChanged = false;
         for (let index = 0; index < pendingPlan.commands.length; index++) {
@@ -685,7 +697,23 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
             ? 'Original canvas restored and verified after plan failure.'
             : 'Plan stopped; automatic rollback was skipped or could not be verified. ' + recoveryMessage,
         ));
-        if (!cancelled) {
+        if (cancelled && userCancelled && !settled) {
+          setPlanProgress(null);
+          if (recoveryMessage.includes('original canvas was restored and verified')) {
+            setSaveState('saved');
+            setNotice('Drawing stopped; the original canvas was restored and verified.');
+            setPlanAction(transitionDrawingAction(running, { type: 'execution.cancel', actionId: runKey }));
+            settled = true;
+            onPlanResult(pendingPlan.id, 'cancelled', 'Cancelled by the creator; original drawing restored and verified.');
+          } else {
+            const recoveryFailure = 'Cancellation recovery could not be verified: ' + message + recoveryMessage;
+            setSaveState('error');
+            setNotice('Drawing stopped, but recovery could not be verified. ' + recoveryFailure);
+            setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: recoveryFailure }));
+            settled = true;
+            onPlanResult(pendingPlan.id, 'error', recoveryFailure);
+          }
+        } else if (!cancelled) {
           setPlanProgress(null);
           setNotice('AI drawing failed: ' + message + recoveryMessage);
           setPlanAction(transitionDrawingAction(running, { type: 'execution.fail', actionId: runKey, error: message + recoveryMessage }));

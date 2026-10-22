@@ -119,14 +119,6 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     ["Aging/scars", bible.agingAndScars], ["Outfit/prop continuity", bible.outfitContinuity],
     ["Locked visual invariants", bible.visualInvariants], ["Avoid", bible.avoid],
   ];
-  const lines = [
-    "PROJECT ART-DIRECTION BIBLE — PROJECT-LOCKED CONSTRAINTS",
-    "This is the controlling art direction for the active project. Preserve it across every chapter, panel, character sheet, model sheet, and revision.",
-    "Never silently change the style, character proportions, hair length/parting, palette, linework, shading, scars, age, or outfit state. Check approved canon and chronological character history first.",
-    "A scar, haircut, age, injury, accessory, or outfit changes only when supported by the current scene or approved chronological history. Persistent changes carry forward after their introduction unless canon records a later change.",
-    "Treat each inspiration below as a narrow reference for its named craft dimension only. Synthesize broad qualities into an original cohesive project style; do not reproduce exact characters, signature designs, panels, dialogue, compositions, or branding from a referenced work.",
-    "If a locked detail is missing or contradictory, ask for clarification or mark it unknown instead of inventing a replacement.",
-  ];
   const seriesPlan: SeriesPlanFields = {
     title: bible.title, premise: bible.premise, genres: bible.genres,
     seriesScope: bible.seriesScope ?? "", seriesArcPlan: bible.seriesArcPlan ?? "",
@@ -134,16 +126,32 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     seriesPlanApproved: bible.seriesPlanApproved ?? false,
     seriesPlanApprovalSignature: bible.seriesPlanApprovalSignature ?? "",
   };
-  if ([seriesPlan.seriesScope, seriesPlan.seriesArcPlan, seriesPlan.seriesChapterPlan, seriesPlan.seriesEnding].some(value => cleanText(value))) {
-    lines.push(isSeriesPlanApproved(seriesPlan)
+  const hasSeriesPlan = [seriesPlan.seriesScope, seriesPlan.seriesArcPlan, seriesPlan.seriesChapterPlan, seriesPlan.seriesEnding]
+    .some(value => cleanText(value));
+  // Put the compact narrative contract first. The chapter list may be long enough to
+  // exceed one model pass, but the scope, arc direction, and finale should survive truncation.
+  const seriesPriorityLines: string[] = [];
+  if (hasSeriesPlan) {
+    seriesPriorityLines.push(isSeriesPlanApproved(seriesPlan)
       ? "WHOLE-SERIES PLAN — CREATOR-APPROVED. Preserve this plan through the finale. Chapter production must follow the numbered sequence; do not silently skip, reorder, or invent payoff outcomes."
       : "WHOLE-SERIES PLAN — DRAFT ONLY, NOT APPROVED. Help the creator revise it, but do not treat it as locked canon or start chapter writing/drawing.");
-    if (cleanText(seriesPlan.seriesScope)) lines.push("Series scope and format: " + cleanText(seriesPlan.seriesScope));
-    if (cleanText(seriesPlan.seriesArcPlan)) lines.push("Series arcs and character journeys: " + cleanText(seriesPlan.seriesArcPlan));
-    // Keep the finale visible before a potentially very long episode list is truncated
-    // by the model's bounded input context. Chapter-level detail remains retrievable elsewhere.
-    if (cleanText(seriesPlan.seriesEnding)) lines.push("Planned finale and payoff map: " + cleanText(seriesPlan.seriesEnding));
-    if (cleanText(seriesPlan.seriesChapterPlan)) lines.push("Complete chapter/episode sequence (one numbered entry per chapter):\n" + cleanText(seriesPlan.seriesChapterPlan));
+    if (cleanText(seriesPlan.seriesScope)) seriesPriorityLines.push("Series scope and format: " + cleanText(seriesPlan.seriesScope));
+    if (cleanText(seriesPlan.seriesArcPlan)) seriesPriorityLines.push("Series arcs and character journeys: " + cleanText(seriesPlan.seriesArcPlan));
+    if (cleanText(seriesPlan.seriesEnding)) seriesPriorityLines.push("Planned finale and payoff map: " + cleanText(seriesPlan.seriesEnding));
+  }
+  const lines = [
+    ...seriesPriorityLines,
+    "PROJECT ART-DIRECTION BIBLE — PROJECT-LOCKED CONSTRAINTS",
+    "This is the controlling art direction for the active project. Preserve it across every chapter, panel, character sheet, model sheet, and revision.",
+    "Never silently change the style, character proportions, hair length/parting, palette, linework, shading, scars, age, or outfit state. Check approved canon and chronological character history first.",
+    "A scar, haircut, age, injury, accessory, or outfit changes only when supported by the current scene or approved chronological history. Persistent changes carry forward after their introduction unless canon records a later change.",
+    "Treat each inspiration below as a narrow reference for its named craft dimension only. Synthesize broad qualities into an original cohesive project style; do not reproduce exact characters, signature designs, panels, dialogue, compositions, or branding from a referenced work.",
+    "If a locked detail is missing or contradictory, ask for clarification or mark it unknown instead of inventing a replacement.",
+  ];
+  // Preserve the complete outline after the compact contract, where longer prompts can
+  // include as much of the chapter map as fits. Chapter-specific retrieval is separate.
+  if (cleanText(seriesPlan.seriesChapterPlan)) {
+    lines.push("COMPLETE CHAPTER/EPISODE SEQUENCE (one numbered entry per chapter):\n" + cleanText(seriesPlan.seriesChapterPlan));
   }
   for (const [label, value] of entries) if (value.trim()) lines.push(label + ": " + value.trim());
   const influences = bible.influences.filter(item => item.work.trim() && item.aspect.trim());

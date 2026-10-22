@@ -34,6 +34,18 @@ const clean = (value: unknown): string => typeof value === "string" ? value.trim
 const normalize = (value: string): string => value.normalize("NFKC").toLocaleLowerCase().trim();
 const WORLD_FACT_PREDICATE = /world|setting|rule|location|history|timeline|culture|power|faction|geograph|technolog|conflict|government|magic|religion|school|nation|era|city|kingdom|country|economy|language|politic|climate|calendar|species|system|tradition|law|custom/i;
 const VISUAL_TRAITS = ["age", "hair", "eyes", "scars", "outfit", "body", "accessories", "injuries", "other"] as const;
+/**
+ * A whole-series outline is foundation work, not chapter production. Keep it in
+ * chat even when a format detector notices words like Webtoon, episode, or chapter.
+ */
+export function isWholeSeriesPlanningRequest(message: string): boolean {
+  const text = message.normalize("NFKC").trim();
+  if (!text) return false;
+  const plansWholeWork = /\b(?:whole|entire|full|complete)\s+(?:creative\s+)?(?:series|story|season|saga|narrative)\b|\ball\s+(?:planned\s+)?(?:chapters|episodes)\b|\bfrom\s+(?:chapter\s+1|the\s+first\s+chapter|the\s+beginning)\s+(?:through|to|until)\s+(?:the\s+)?(?:finale|ending|last\s+chapter|last\s+episode)\b/i.test(text);
+  const planningAction = /\b(?:plan|outline|map|structure|architect|brainstorm|develop)\b/i.test(text);
+  return plansWholeWork && planningAction;
+}
+
 
 /**
  * Deterministic preflight for sequential chapter production. Discussion remains open at every
@@ -147,6 +159,7 @@ export function evaluateChapterReadiness(input: ChapterReadinessInput): ChapterR
 export function requiresApprovedStoryFoundations(message: string): boolean {
   const text = message.normalize("NFKC").trim();
   if (!text) return false;
+  if (isWholeSeriesPlanningRequest(text)) return false;
 
   // An explicit deferral is not a request to start production. A later positive clause can
   // still request a different deliverable (e.g. "don't write yet, but plan the opening scene").

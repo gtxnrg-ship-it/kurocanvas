@@ -42,6 +42,8 @@ jobs:
               vulnerabilities: items
             }, null, 2));
           '
+      - name: Required shipped-dependency security gate
+        run: npm audit --omit=dev
       - name: Required acceptance sequence (typecheck, tests, production build)
         run: npm run typecheck && npm test && npm run build
       - name: Upload testable web build

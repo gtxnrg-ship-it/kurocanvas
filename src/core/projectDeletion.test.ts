@@ -33,6 +33,20 @@ describe("project deletion manifest", () => {
     });
   });
 
+  it("never deletes a foreign-universe message because its conversation reference is corrupt", () => {
+    const manifest = buildProjectDeletionManifest("project-a", {
+      ...empty,
+      universes: [{ id: "universe-a", projectId: "project-a" }, { id: "universe-b", projectId: "project-b" }],
+      conversations: [{ id: "conversation-a", universeId: "universe-a" }],
+      messages: [
+        { id: "valid-a", universeId: "universe-a", conversationId: "conversation-a" },
+        { id: "corrupt-foreign", universeId: "universe-b", conversationId: "conversation-a" },
+        { id: "corrupt-local", universeId: "universe-a", conversationId: "conversation-missing" },
+      ],
+    });
+    expect(manifest.messageIds).toEqual(["valid-a"]);
+  });
+
   it("rejects a missing project identity instead of risking a broad delete", () => {
     expect(() => buildProjectDeletionManifest("  ", empty)).toThrow(/Choose a project/);
   });

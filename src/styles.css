@@ -1080,3 +1080,19 @@ a:focus-visible,
 .format-picker-row select:disabled{opacity:.55;cursor:not-allowed}
 .format-picker-row span{font-size:9px;color:#716a80}
 @media(max-width:600px){.format-picker-row{gap:7px;margin-bottom:8px}.format-picker-row label{font-size:8px}.format-picker-row select{flex:1;min-width:0;font-size:11px;min-height:36px}.format-picker-row span{flex-basis:100%;padding-left:2px;line-height:1.35}}
+
+
+/* Explicit model routing: local stays default; hosted endpoints require informed opt-in. */
+.provider-connection-settings,.provider-remote-settings{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid #40344f;border-radius:12px;background:linear-gradient(145deg,#1b1726,#111019);min-width:0}
+.provider-connection-settings legend,.provider-remote-settings legend{padding:0 6px;color:#c6b0ff;font-size:11px;font-weight:800}
+.provider-connection-settings label,.provider-remote-settings label{display:grid;gap:6px;color:#d9cfe7;font-size:10px;min-width:0}
+.provider-connection-settings p,.provider-remote-settings p{margin:0;color:#a59aae;font-size:9px;line-height:1.6;overflow-wrap:anywhere}
+.provider-remote-settings .provider-check{display:flex;align-items:flex-start;gap:8px;line-height:1.55;cursor:pointer}
+.provider-remote-settings .provider-check input[type=checkbox]{flex:0 0 17px;width:17px;height:17px;margin:1px 0 0;accent-color:#b69aff}
+.provider-remote-settings .provider-check span{min-width:0}
+.provider-remote-privacy{display:grid;gap:6px;padding:10px;border:1px solid #47384f;border-radius:9px;background:#130f1b}
+.provider-remote-privacy strong{color:#f2d6ff;font-size:10px}
+.provider-remote-privacy p{font-size:9px;line-height:1.6}
+.provider-remote-settings .provider-privacy-consent{padding:10px;border:1px solid #69538b;border-radius:9px;background:#21182e;color:#efe3ff;font-weight:650}
+.provider-remote-settings .provider-status{overflow-wrap:anywhere}
+@media(max-width:560px){.provider-settings{padding:13px}.provider-remote-settings,.provider-connection-settings{padding:11px}.provider-remote-settings .provider-actions button{width:100%;min-height:40px}.provider-remote-settings input:not([type=checkbox]),.provider-remote-settings select{font-size:16px;min-height:42px}}

@@ -1,4 +1,5 @@
 import { parseModelJson } from "../ai/structuredOutput";
+import { isSeriesPlanApproved, type SeriesPlanFields } from "./seriesPlan";
 
 export interface ArtDirectionInfluence {
   id: string;
@@ -28,11 +29,18 @@ export interface ArtDirectionBible {
   outfitContinuity: string;
   visualInvariants: string;
   avoid: string;
+  /** A complete outline covering every numbered chapter through the intended finale. */
+  seriesScope?: string;
+  seriesArcPlan?: string;
+  seriesChapterPlan?: string;
+  seriesEnding?: string;
+  seriesPlanApproved?: boolean;
+  seriesPlanApprovalSignature?: string;
   influences: ArtDirectionInfluence[];
   updatedAt: string;
 }
 
-export type ArtDirectionField = Exclude<keyof ArtDirectionBible, "schemaVersion" | "projectId" | "updatedAt" | "influences">;
+export type ArtDirectionField = Exclude<keyof ArtDirectionBible, "schemaVersion" | "projectId" | "updatedAt" | "influences" | "seriesScope" | "seriesArcPlan" | "seriesChapterPlan" | "seriesEnding" | "seriesPlanApproved" | "seriesPlanApprovalSignature">;
 
 export const ART_DIRECTION_FIELDS: Array<{ key: ArtDirectionField; label: string; hint: string }> = [
   { key: "title", label: "Art direction name", hint: "A concise name for this project's unified creative identity." },
@@ -62,7 +70,9 @@ export function createEmptyArtDirection(projectId: string): ArtDirectionBible {
     relationshipDynamics: "", humorAndDialogue: "", groupDynamics: "", visualStyle: "",
     linework: "", rendering: "", palette: "", lighting: "", proportions: "",
     hairAndSilhouette: "", agingAndScars: "", outfitContinuity: "", visualInvariants: "",
-    avoid: "", influences: [], updatedAt: new Date(0).toISOString(),
+    avoid: "", seriesScope: "", seriesArcPlan: "", seriesChapterPlan: "", seriesEnding: "",
+    seriesPlanApproved: false, seriesPlanApprovalSignature: "",
+    influences: [], updatedAt: new Date(0).toISOString(),
   };
 }
 
@@ -81,6 +91,10 @@ export function validateArtDirection(value: unknown, projectId?: string): string
       break;
     }
   }
+  for (const key of ["seriesScope", "seriesArcPlan", "seriesChapterPlan", "seriesEnding", "seriesPlanApprovalSignature"] as const) {
+    if (bible[key] !== undefined && typeof bible[key] !== "string") errors.push("Series-plan field " + key + " must be text.");
+  }
+  if (bible.seriesPlanApproved !== undefined && typeof bible.seriesPlanApproved !== "boolean") errors.push("Series-plan approval must be a boolean.");
   if (typeof bible.updatedAt !== "string") errors.push("Art direction needs an update timestamp.");
   return errors;
 }
@@ -111,6 +125,21 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     "Treat each inspiration below as a narrow reference for its named craft dimension only. Synthesize broad qualities into an original cohesive project style; do not reproduce exact characters, signature designs, panels, dialogue, compositions, or branding from a referenced work.",
     "If a locked detail is missing or contradictory, ask for clarification or mark it unknown instead of inventing a replacement.",
   ];
+  const seriesPlan: SeriesPlanFields = {
+    seriesScope: bible.seriesScope ?? "", seriesArcPlan: bible.seriesArcPlan ?? "",
+    seriesChapterPlan: bible.seriesChapterPlan ?? "", seriesEnding: bible.seriesEnding ?? "",
+    seriesPlanApproved: bible.seriesPlanApproved ?? false,
+    seriesPlanApprovalSignature: bible.seriesPlanApprovalSignature ?? "",
+  };
+  if ([seriesPlan.seriesScope, seriesPlan.seriesArcPlan, seriesPlan.seriesChapterPlan, seriesPlan.seriesEnding].some(value => cleanText(value))) {
+    lines.push(isSeriesPlanApproved(seriesPlan)
+      ? "WHOLE-SERIES PLAN — CREATOR-APPROVED. Preserve this plan through the finale. Chapter production must follow the numbered sequence; do not silently skip, reorder, or invent payoff outcomes."
+      : "WHOLE-SERIES PLAN — DRAFT ONLY, NOT APPROVED. Help the creator revise it, but do not treat it as locked canon or start chapter writing/drawing.");
+    if (cleanText(seriesPlan.seriesScope)) lines.push("Series scope and format: " + cleanText(seriesPlan.seriesScope));
+    if (cleanText(seriesPlan.seriesArcPlan)) lines.push("Series arcs and character journeys: " + cleanText(seriesPlan.seriesArcPlan));
+    if (cleanText(seriesPlan.seriesChapterPlan)) lines.push("Complete chapter/episode sequence (one numbered entry per chapter):\n" + cleanText(seriesPlan.seriesChapterPlan));
+    if (cleanText(seriesPlan.seriesEnding)) lines.push("Planned finale and payoff map: " + cleanText(seriesPlan.seriesEnding));
+  }
   for (const [label, value] of entries) if (value.trim()) lines.push(label + ": " + value.trim());
   const influences = bible.influences.filter(item => item.work.trim() && item.aspect.trim());
   if (influences.length) {

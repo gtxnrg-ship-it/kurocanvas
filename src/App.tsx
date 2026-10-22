@@ -285,6 +285,8 @@ async function deleteCurrentConversation(){
    if(!universe)throw new Error('This universe no longer exists in local storage.');
    const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);
    if(!conversation)throw new Error('This conversation could not be found in the active universe.');
+   const homeConversation=await conversationStorage.load(universe.homeConversationId,activeUniverseId);
+   if(!homeConversation)throw new Error('The main conversation cannot be recovered. Deletion was cancelled to protect the remaining universe.');
    if(conversation.id===universe.homeConversationId){
     throw new Error('The main conversation anchors this universe and cannot be deleted. Create or open another conversation if you want to remove one.');
    }

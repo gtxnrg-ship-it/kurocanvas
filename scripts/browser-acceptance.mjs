@@ -73,6 +73,38 @@ try {
       'Declining setup must preserve the draft.');
   });
 
+  await runCheck('story output waits for approved world and character foundations', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const composer = page.getByRole('textbox', { name: 'Message to Kuro' });
+    await composer.fill('Write the opening scene where Mira meets Ren.');
+    let unexpectedDownloadPrompt = false;
+    page.once('dialog', async dialog => {
+      unexpectedDownloadPrompt = dialog.type() === 'confirm';
+      await dialog.dismiss();
+    });
+    await page.getByRole('button', { name: 'Send' }).click();
+    await page.getByText(/holding story production/i).waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(unexpectedDownloadPrompt, false, 'Foundation checks must happen before the local model download prompt.');
+    assert.equal(await page.locator('.live-studio').isVisible().catch(() => false), false,
+      'A scene must not enter drawing mode while approved foundations are missing.');
+    assert.equal(await composer.inputValue(), '', 'A blocked story request is recorded as a conversation turn, not left as a stale composer draft.');
+  });
+
+  await runCheck('creative-influence research queues without preparing the local model', async () => {
+    const composer = page.getByRole('textbox', { name: 'Message to Kuro' });
+    await composer.fill('Borrow relationship dynamics from Horimiya and leadership from Tokyo Revengers for an original story.');
+    let unexpectedDownloadPrompt = false;
+    page.once('dialog', async dialog => {
+      unexpectedDownloadPrompt = dialog.type() === 'confirm';
+      await dialog.dismiss();
+    });
+    await page.getByRole('button', { name: 'Send' }).click();
+    await page.getByText(/queued separate source-backed research tasks/i).waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(unexpectedDownloadPrompt, false, 'Explicit research tools should be available without downloading Qwen.');
+    assert.equal(await page.locator('.live-studio').isVisible().catch(() => false), false,
+      'A research request should remain in chat rather than jumping into drawing.');
+  });
+
   await runCheck('chat scope controls stay within representative mobile widths', async () => {
     for (const width of [320, 360, 390, 430, 600, 601, 768, 900, 1280]) {
       await page.setViewportSize({ width, height: 844 });

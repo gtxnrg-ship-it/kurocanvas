@@ -104,8 +104,19 @@ export function createCharacterDesignHandoff(
   if (input.storyOrder !== undefined && (!Number.isFinite(input.storyOrder) || input.storyOrder < 0)) {
     throw new Error("Story order must be a non-negative number.");
   }
-  const storyOrder = input.storyOrder ?? 0;
-  const timelineLabel = chapterNumber === undefined ? "Initial design · timeline position unassigned" : "Chapter " + chapterNumber + " · proposed visual design";
+  const existingTimelineStates = bible.characterStates.filter(state =>
+    norm(state.characterName) === normalizedName && state.status !== "superseded"
+  );
+  if (input.existingEntityId && existingTimelineStates.length > 0
+    && chapterNumber === undefined && input.storyOrder === undefined) {
+    throw new Error("This character already has visual history. Set a chapter number or story order so the new design cannot be mistaken for the beginning of the story.");
+  }
+  const storyOrder = input.storyOrder ?? chapterNumber ?? 0;
+  const timelineLabel = chapterNumber !== undefined
+    ? "Chapter " + chapterNumber + " · proposed visual design"
+    : input.storyOrder !== undefined
+      ? "Story order " + input.storyOrder + " · proposed visual design"
+      : "Initial design · baseline appearance";
   const visualState: CharacterVisualState = {
     id: createId(),
     characterName: character.name,
@@ -130,7 +141,11 @@ export function createCharacterDesignHandoff(
     kind: "visual-reference",
     title: "Character design · " + character.name,
     summary: "Proposed visual design linked to the saved editable canvas. Appearance draft: " + designDetails +
-      (chapterNumber === undefined ? " Timeline placement is unassigned and must be reviewed before approval." : " Proposed for chapter " + chapterNumber + "; confirm chronology before approval.") +
+      (chapterNumber !== undefined
+        ? " Proposed for chapter " + chapterNumber + "; confirm chronology before approval."
+        : input.storyOrder !== undefined
+          ? " Proposed at story order " + input.storyOrder + "; confirm chronology before approval."
+          : " Stored as the baseline starting appearance at provisional order 0; confirm story placement before approval.") +
       " This is a proposal, not approved canon.",
     ...(chapterNumber !== undefined ? { chapterNumber } : {}),
     ...(input.storyOrder !== undefined ? { storyOrder } : {}),

@@ -1,4 +1,4 @@
-import { KURO_TINY_MODEL_ID } from "./localTinyModelConfig";
+import { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_ID } from "./localTinyModelConfig";
 
 type ProgressEvent = { status?: string; progress?: number; file?: string; loaded?: number; total?: number };
 type WorkerRequest =
@@ -65,14 +65,15 @@ async function handleRequest(request: WorkerRequest): Promise<void> {
       tokenize: true, add_generation_prompt: true, return_dict: true, enable_thinking: false,
     }) as { input_ids?: { dims?: number[] }; [key: string]: unknown };
     const promptLength = Number(inputs.input_ids?.dims?.[1] ?? 0);
-    const maxNewTokens = Math.max(16, Math.min(request.maxOutputTokens, 1024));
+    const maxNewTokens = Math.max(16, Math.min(request.maxOutputTokens, KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS));
     const temperature = Number.isFinite(request.temperature) ? Math.max(0, Math.min(2, request.temperature)) : 0.7;
     const sampling = temperature > 0
       ? { do_sample: true, temperature, top_p: 0.8, top_k: 20 }
       : { do_sample: false };
     const output = await runtime.model.generate({ ...inputs, max_new_tokens: maxNewTokens, ...sampling });
     const tokenIds = Array.from(output.data).slice(promptLength).map(Number);
-    const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true }).trim();
+    // Preserve token-boundary whitespace; the final chat renderer trims only after continuation chunks are stitched.
+    const text = runtime.tokenizer.decode(tokenIds, { skip_special_tokens: true });
     scope.postMessage({ id: request.id, type: "result", text, outputTokens: tokenIds.length, finishReason: tokenIds.length >= maxNewTokens ? "length" : "stop" });
   } catch (error) {
     scope.postMessage({ id: request.id, type: "error", message: error instanceof Error ? error.message : "Local model worker failed." });

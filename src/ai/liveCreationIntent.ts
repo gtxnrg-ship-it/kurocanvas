@@ -7,7 +7,7 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
   if (!text) return false;
 
   // A clear "not now" clause anywhere in the request wins over a visual verb elsewhere.
-  const negatedVisualAction = /\b(?:don't|do\s+not|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just|want\s+to)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show)\b/i;
+  const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show)\b/i;
   if (negatedVisualAction.test(text)) return false;
 
   const visualVerb = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|start\s+(?:drawing|sketching|creating))\b/i;

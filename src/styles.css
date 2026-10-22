@@ -822,3 +822,60 @@
     white-space:normal;
   }
 }
+
+/* Completion pass: consistent keyboard focus, mobile viewport safety, and motion preferences. */
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--purple, #a78bfa);
+  outline-offset: 3px;
+}
+
+/* Mobile browser chrome changes the available height while scrolling or opening the IME. */
+@supports (min-height: 100dvh) {
+  body,
+  #root,
+  .app,
+  .app > main,
+  .sidebar {
+    min-height: 100dvh;
+  }
+}
+
+@media (max-width: 600px) {
+  .mobilenav {
+    height: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app main {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .conversation {
+    min-height: calc(100dvh - 133px - env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobilenav button {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Respect the operating system's reduced-motion preference across every screen. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

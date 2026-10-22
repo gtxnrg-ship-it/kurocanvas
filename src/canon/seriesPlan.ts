@@ -211,6 +211,13 @@ export function evaluateSeriesProductionRequest(
   }
 
   if (expected && target === expected.number) {
+    if (pendingReviewChapterNumber === target && !allowRevision) {
+      return {
+        allowed: false, complete: false, revision: false,
+        targetChapterNumber: target, expectedChapterNumber: expected.number,
+        message: "Chapter " + target + " has a saved drawing awaiting your review. Open it and explicitly approve it in Art Direction before asking Kuro to continue.",
+      };
+    }
     return {
       allowed: true, complete: false, revision: false,
       targetChapterNumber: target, expectedChapterNumber: expected.number,

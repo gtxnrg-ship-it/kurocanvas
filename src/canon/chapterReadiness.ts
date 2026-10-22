@@ -234,5 +234,9 @@ export function requestsProvisionalChapterOverride(message: string): boolean {
 export function formatChapterReadinessMessage(report: ChapterReadinessReport): string {
   if (report.ready) return "The chapter foundation check is complete. Kuro can begin the approved storyboard.";
   const details = report.gaps.map((gap, index) => (index + 1) + ". " + gap.message).join("\n");
+  if (report.gaps.some(gap => gap.id === "series-sequence")) {
+    return "I’m holding this chapter so the approved series stays in order and no earlier drawing is silently skipped.\n\n" +
+      details + "\n\nOpen the saved chapter in the Creative Vault, review it, and explicitly approve it in Art Direction before continuing. An already-approved chapter can be revised only when you explicitly ask for a revision.";
+  }
   return "I’m holding story production for now. We can keep brainstorming and researching, but Kuro should not start writing dialogue, scenes, or other reader-facing material while approved foundations are missing.\n\nStill needed:\n" + details + "\n\nFinish these in the project's World Bible, Art Direction and whole-series plan, Character Timeline, Style Bible, and relationship records, then ask Kuro to start story production again. For a deliberately non-canon experiment, explicitly request a rough provisional storyboard anyway; that exception should not be treated as approved story canon.";
 }

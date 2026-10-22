@@ -48,8 +48,8 @@ Last verified evidence reviewed: **22 October 2026**. Current application source
 - [x] Re-run source CI with real hosted runners and capture actual test/build output; earlier runner-less failures were superseded by successful runs on later exact SHAs.
 - [x] Generate and commit `package-lock.json` from the same Node/npm/peer-dependency policy used in CI; remove the temporary bootstrap workflow.
 - [x] Switch the permanent web and Android CI workflows to the committed lockfile with `npm ci`; successful runs on SHA `617719e0bc22` confirm locked installation.
-- [x] Run the exact-main automated acceptance sequence on source SHA `430ac5619fd6`: 71 test files / 541 tests passed; TypeScript and production build succeeded. Hands-on release acceptance remains open.
-- [x] Run `npm run typecheck && npm test && npm run build` on source SHA `430ac5619fd6`: 71 test files / 541 tests passed and the production build succeeded.
+- [x] Run the exact-main automated acceptance sequence on source SHA `430ac5619fd6`: 71 test files / 542 tests passed; TypeScript and production build succeeded. Hands-on release acceptance remains open.
+- [x] Run `npm run typecheck && npm test && npm run build` on source SHA `430ac5619fd6`: 71 test files / 542 tests passed and the production build succeeded.
 - [x] Build and publish a debug-signed APK with a SHA-256 digest and source-commit provenance.
 - [ ] Install and launch the published APK on a real Android device and record the device/OS smoke-test outcome.
 - [ ] Record the exact source SHA, workflow run, test results and APK checksum; do not use an old artifact as evidence for newer code.

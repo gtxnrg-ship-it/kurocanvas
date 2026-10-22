@@ -313,7 +313,7 @@ function toggleVoiceInput(){
   speechDraftBaseRef.current=draft.trim();
   speechStatusRef.current='';
   recognition.lang=typeof navigator!=='undefined'&&navigator.language?navigator.language:'en-US';
-  recognition.continuous=false;
+  recognition.continuous=true;
   recognition.interimResults=true;
   recognition.onresult=event=>{
    if(speechRecognitionRef.current!==recognition)return;

@@ -49,7 +49,7 @@ describe("optional browser speech input", () => {
     expect(normalizeSpokenPunctuation("Make a new character comma wearing a red coat period"))
       .toBe("Make a new character, wearing a red coat.");
     expect(normalizeSpokenPunctuation("Give her red hair exclamation mark new paragraph Make the eyes gold"))
-      .toBe("Give her red hair!\\n\\nMake the eyes gold");
+      .toBe("Give her red hair!\n\nMake the eyes gold");
     expect(normalizeSpokenPunctuation("Say hello open quote Kuro close quote"))
       .toBe("Say hello “Kuro”");
   });

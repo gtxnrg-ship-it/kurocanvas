@@ -90,6 +90,7 @@ try {
   });
 
   await runCheck('settings dialog opens and can be closed without an exception', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Settings and model downloads' }).click();
     const dialog = page.getByRole('dialog', { name: 'Kuro settings' });
     await dialog.waitFor({ state: 'visible', timeout: 10000 });

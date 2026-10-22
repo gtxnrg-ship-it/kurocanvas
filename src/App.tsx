@@ -96,6 +96,7 @@ function readProviderConfig(): SafeProviderConfig {
  }catch{}
  return canonical;
 }
+function trimEndpointSlashes(value:string):string { let result=value.trim(); while(result.endsWith('/')) result=result.slice(0,-1); return result; }
 function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function TinyMark(){return <div className="tiny-mark" aria-label="Kuro"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function restoreChatMessage(record:{role:string;content:string;metadata?:Record<string,unknown>},projectId:string):Msg{
@@ -391,7 +392,7 @@ useEffect(()=>{
  }
  async function synthesizeArtDirection(bible:ArtDirectionBible):Promise<Partial<ArtDirectionBible>>{
   if(!activeProvider)throw new Error('Prepare Qwen3-0.6B in Preferences before asking Kuro to synthesize art direction.');
-  const provider=createConfiguredProvider({baseUrl:activeProvider.baseUrl,modelUri:activeProvider.modelUri,apiKey:activeProvider.apiKey,allowInsecureLocalhost:activeProvider.allowInsecureLocalhost}, progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
+  const provider=createConfiguredProvider({baseUrl:activeProvider.baseUrl,modelUri:activeProvider.modelUri,apiKey:activeProvider.apiKey,allowInsecureLocalhost:activeProvider.allowInsecureLocalhost,supportsVision:activeProvider.supportsVision,supportsStructuredOutput:activeProvider.supportsStructuredOutput}, progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
   const models=await provider.listModels();
   const model:ModelDescriptor|undefined=models.find(item=>item.modelUri===activeProvider.modelUri||item.name===activeProvider.modelUri);
   if(!model)throw new Error('The configured model was not returned by this provider. Check Preferences.');

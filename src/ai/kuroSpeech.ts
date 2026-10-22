@@ -1,5 +1,6 @@
 export type KuroSpeechEngine = "kokoro" | "system" | "fish";
-export interface KuroSpeechPreferences { engine: KuroSpeechEngine; voice: string; rate: number; apiKey: string; }
+export type KuroEnglishAccent = "natural" | "subtle-japanese" | "noticeable-japanese";
+export interface KuroSpeechPreferences { engine: KuroSpeechEngine; voice: string; rate: number; accent: KuroEnglishAccent; apiKey: string; }
 export interface KuroSpeechProgress { status: string; percent: number; file?: string; }
 export type KuroAudioActivityCallback = (level: number) => void;
 import { normalizedAudioLevel } from "./audioMeter";
@@ -40,7 +41,7 @@ export interface KuroFishTtsPayload {
 }
 
 /** Keep the same core voice while letting delivery respond gently to the meaning of the text. */
-export function kuroFishPerformanceDirection(text: string): string {
+export function kuroFishPerformanceDirection(text: string, accent: KuroEnglishAccent = "subtle-japanese"): string {
   const serious = /\b(sorry|apolog(?:y|ize|ise)|that sounds painful|i'm sorry|i am sorry|grief|lost someone|overwhelmed|scared|afraid|hurt|frustrat|exhausted|worried|anxious|hard day|tough time|struggling)\b/i.test(text);
   const upbeat = /\b(hell yeah|awesome|fantastic|that worked|great news|congratulations|love this|excited|amazing|we did it|nailed it|perfect)\b/i.test(text);
   const curious = /\?\s*$/.test(text.trim()) || /\b(what if|let's explore|i'm curious|interesting question|why do you think)\b/i.test(text);
@@ -51,12 +52,17 @@ export function kuroFishPerformanceDirection(text: string): string {
       : curious
         ? "curious, attentive and conversational, with an interested rising tone where natural"
         : "natural, warm and conversational, lightly playful when it fits";
-  return "[speaking fluent English with a subtle Japanese-influenced accent; " + mood + "; natural anime voice, expressive but never exaggerated]";
+  const accentDirection = accent === "natural"
+    ? "speaking fluent English with natural pronunciation and no instructed accent; preserve the selected voice\'s natural timbre"
+    : accent === "noticeable-japanese"
+      ? "speaking fluent English with a clearly noticeable but still natural Japanese-influenced accent, especially in vowel colour and sentence cadence; remain intelligible and never caricature the accent"
+      : "speaking fluent English with a subtle Japanese-influenced accent, gentle vowel colour and natural cadence; remain idiomatic, clear and never caricature the accent";
+  return "[" + accentDirection + "; " + mood + "; keep Kuro’s established personality consistent across SAKURA, Chiaki Nanami, and Mitsuri profiles; clear, bright, engaging feminine voice with lively but intelligible articulation and expressive anime-inspired delivery; adjust emotion to the meaning of each reply; natural and never exaggerated]";
 }
 
-export function buildKuroFishTtsPayload(text: string, preferences: Pick<KuroSpeechPreferences, "voice" | "rate">): KuroFishTtsPayload {
+export function buildKuroFishTtsPayload(text: string, preferences: Pick<KuroSpeechPreferences, "voice" | "rate"> & Partial<Pick<KuroSpeechPreferences, "accent">>): KuroFishTtsPayload {
   return {
-    text: kuroFishPerformanceDirection(text) + " " + text,
+    text: kuroFishPerformanceDirection(text, preferences.accent ?? "subtle-japanese") + " " + text,
     reference_id: preferences.voice,
     format: "mp3",
     language: "en",
@@ -68,7 +74,7 @@ export function buildKuroFishTtsPayload(text: string, preferences: Pick<KuroSpee
     latency: "balanced",
   };
 }
-export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, apiKey: "" };
+export const DEFAULT_KURO_SPEECH_PREFERENCES: KuroSpeechPreferences = { engine: "fish", voice: KURO_FISH_VOICES[0].id, rate: 1, accent: "subtle-japanese", apiKey: "" };
 
 export function readKuroSpeechPreferences(): KuroSpeechPreferences {
   try {
@@ -80,6 +86,7 @@ export function readKuroSpeechPreferences(): KuroSpeechPreferences {
     const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id;
     const voice = voiceList.some(item => item.id === stored?.voice) ? stored!.voice! : fallbackVoice;
     const rate = typeof stored?.rate === "number" && Number.isFinite(stored.rate) ? Math.max(0.8, Math.min(1.2, stored.rate)) : 1;
+    const accent: KuroEnglishAccent = stored?.accent === "natural" || stored?.accent === "noticeable-japanese" ? stored.accent : "subtle-japanese";
     // Migrate older installations away from persisting API credentials in localStorage.
     if (stored && Object.prototype.hasOwnProperty.call(stored, "apiKey")) {
       try {
@@ -92,7 +99,7 @@ export function readKuroSpeechPreferences(): KuroSpeechPreferences {
       try { return (sessionStorage.getItem(API_KEY_SESSION_STORAGE_KEY) || "").trim().slice(0, 1024); }
       catch { return ""; }
     })();
-    return { engine, voice, rate, apiKey };
+    return { engine, voice, rate, accent, apiKey };
   } catch { return { ...DEFAULT_KURO_SPEECH_PREFERENCES }; }
 }
 export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
@@ -102,6 +109,7 @@ export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
       ? value.voice
       : value.engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id,
     rate: Number.isFinite(value.rate) ? Math.max(0.8, Math.min(1.2, value.rate)) : 1,
+    accent: value.accent === "natural" || value.accent === "noticeable-japanese" ? value.accent : "subtle-japanese",
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(safe)); } catch { /* storage may be disabled */ }
   try {

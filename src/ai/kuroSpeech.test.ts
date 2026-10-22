@@ -39,6 +39,7 @@ describe("Kuro speech preferences", () => {
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.engine).toBe("fish");
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.voice).toBe(KURO_FISH_VOICES[0].id);
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.apiKey).toBe("");
+    expect(DEFAULT_KURO_SPEECH_PREFERENCES.accent).toBe("subtle-japanese");
     expect(KURO_FISH_AUDIO_MODEL).toBe("drama-3");
     expect(KURO_FISH_VOICES.map(voice => voice.id)).toEqual([
       "84644c87811b4279940848ec184e0ffe",
@@ -53,12 +54,14 @@ describe("Kuro speech preferences", () => {
       engine: "fish",
       voice: KURO_FISH_VOICES[1].id,
       rate: 2,
+      accent: "noticeable-japanese",
       apiKey: "  example-key  ",
     });
     expect(readKuroSpeechPreferences()).toEqual({
       engine: "fish",
       voice: KURO_FISH_VOICES[1].id,
       rate: 1.2,
+      accent: "noticeable-japanese",
       apiKey: "example-key",
     });
     expect(values.get(STORAGE_KEY)).not.toContain("example-key");
@@ -80,6 +83,7 @@ describe("Kuro speech preferences", () => {
       engine: "kokoro",
       voice: KURO_SPEECH_VOICES[0].id,
       rate: 0.8,
+      accent: "subtle-japanese",
       apiKey: "",
     });
   });
@@ -95,6 +99,7 @@ describe("Kuro speech preferences", () => {
       engine: "system",
       voice: "af_nicole",
       rate: 1.05,
+      accent: "subtle-japanese",
       apiKey: "",
     });
     installMemoryStorage(JSON.stringify({ engine: "remote-untrusted", voice: "unknown", rate: 1, apiKey: "" }));
@@ -107,6 +112,18 @@ describe("Kuro Fish Audio delivery direction", () => {
     const direction = kuroFishPerformanceDirection("I'm sorry this has been such a hard day for you.");
     expect(direction).toContain("subtle Japanese-influenced accent");
     expect(direction).toContain("gentle, sincere and calm");
+  });
+
+  it("keeps Kuro’s core voice direction consistent across profile choices", () => {
+    const direction = kuroFishPerformanceDirection("Let’s talk about your new idea.");
+    expect(direction).toContain("keep Kuro’s established personality consistent across SAKURA, Chiaki Nanami, and Mitsuri profiles");
+    expect(direction).toContain("clear, bright, engaging feminine voice");
+  });
+
+  it("lets the English accent direction vary without changing Kuro’s personality", () => {
+    expect(kuroFishPerformanceDirection("Let’s work through this together.", "natural")).toContain("no instructed accent");
+    expect(kuroFishPerformanceDirection("Let’s work through this together.", "subtle-japanese")).toContain("subtle Japanese-influenced accent");
+    expect(kuroFishPerformanceDirection("Let’s work through this together.", "noticeable-japanese")).toContain("clearly noticeable but still natural Japanese-influenced accent");
   });
 
   it("uses a lively but restrained delivery for excitement", () => {
@@ -137,6 +154,12 @@ describe("Fish Audio Drama 3 payload", () => {
     expect(payload.min_chunk_length).toBe(80);
     expect(payload.condition_on_previous_chunks).toBe(true);
     expect(payload.latency).toBe("balanced");
+  });
+
+  it("passes selected accent guidance to Drama 3 while retaining English speech", () => {
+    const payload = buildKuroFishTtsPayload("Let’s talk.", { voice: KURO_FISH_VOICES[0].id, rate: 1, accent: "noticeable-japanese" });
+    expect(payload.text).toContain("clearly noticeable but still natural Japanese-influenced accent");
+    expect(payload.language).toBe("en");
   });
 
   it("bounds a corrupted saved speaking-rate value before it reaches the API", () => {

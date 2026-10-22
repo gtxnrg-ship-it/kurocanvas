@@ -1010,3 +1010,32 @@ a:focus-visible,
 .drawing-alt .draw-toolbar{width:100%;min-width:0;max-width:100%}
 .drawing-alt .draw-toolgroup,.drawing-alt .draw-colors,.drawing-alt .draw-actions{min-width:0;max-width:100%;flex-wrap:wrap}
 .drawing-alt .althead>div{min-width:0;max-width:100%}
+
+
+/* Live Creation needs an explicit, bounded long-form budget on narrow screens too. */
+.live-batch-budget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  color: #cfc4e2;
+  font-size: 12px;
+}
+.live-batch-budget select {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid #3a304b;
+  border-radius: 9px;
+  background: #171421;
+  color: #e9e1f5;
+  color-scheme: dark;
+  font: inherit;
+}
+.live-batch-budget select:focus-visible {
+  outline: 2px solid var(--purple, #a78bfa);
+  outline-offset: 2px;
+}

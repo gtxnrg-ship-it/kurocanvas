@@ -60,7 +60,7 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Let's discuss the protagonist's character design.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Research visual references for a character sheet.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Create a character with a complicated past.")).toBe(false);
-    expect(shouldStartLiveCreationFromChat("Write chapter one with a cinematic manga-panel feel.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Write chapter one with a cinematic manga-panel feel.")).toBe(true);
   });
 
   it("does not activate on an empty request", () => {

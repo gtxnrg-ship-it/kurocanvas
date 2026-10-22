@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clearRemoteModelCredential, readRemoteModelCredential, saveRemoteModelCredential } from "./providerCredentials";
+import { clearRemoteModelCredential, hasRemoteModelConsent, readRemoteModelCredential, saveRemoteModelCredential } from "./providerCredentials";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -21,16 +21,18 @@ describe("remote model credentials", () => {
 
   it("stores a trimmed key only in session storage and binds it to the exact endpoint", () => {
     vi.stubGlobal("sessionStorage", session);
-    saveRemoteModelCredential("https://model.example/v1/", "  secret-token  ");
+    saveRemoteModelCredential("https://model.example/v1/", "  secret-token  ", true);
     expect(readRemoteModelCredential("https://model.example/v1")).toBe("secret-token");
     expect(readRemoteModelCredential("https://other.example/v1")).toBe("");
+    expect(hasRemoteModelConsent("https://model.example/v1")).toBe(true);
+    expect(hasRemoteModelConsent("https://other.example/v1")).toBe(false);
     expect([...session.values.values()].join(" ")).toContain("secret-token");
   });
 
   it("clears a key on an empty save and on explicit reset", () => {
     vi.stubGlobal("sessionStorage", session);
-    saveRemoteModelCredential("https://model.example/v1", "secret-token");
-    saveRemoteModelCredential("https://model.example/v1", " ");
+    saveRemoteModelCredential("https://model.example/v1", "secret-token", true);
+    saveRemoteModelCredential("https://model.example/v1", " ", true);
     expect(readRemoteModelCredential("https://model.example/v1")).toBe("");
     saveRemoteModelCredential("https://model.example/v1", "secret-token");
     clearRemoteModelCredential();
@@ -44,7 +46,7 @@ describe("remote model credentials", () => {
       removeItem: () => { throw new Error("blocked"); },
     });
     expect(readRemoteModelCredential("https://model.example/v1")).toBe("");
-    expect(() => saveRemoteModelCredential("https://model.example/v1", "token")).toThrow(/session storage/i);
+    expect(() => saveRemoteModelCredential("https://model.example/v1", "token", true)).toThrow(/session storage/i);
     expect(() => clearRemoteModelCredential()).not.toThrow();
   });
 });

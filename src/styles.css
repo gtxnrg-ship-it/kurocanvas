@@ -933,3 +933,70 @@ a:focus-visible,
     padding: 6px 8px;
   }
 }
+
+/* Keep local drawing document controls legible on the dark studio surface. */
+.drawing-project-controls select,
+.drawing-project-controls button {
+  border-color: #3a304b;
+  background: #171421;
+  color: #cfc4e2;
+}
+
+.drawing-project-controls select:focus-visible,
+.drawing-project-controls button:focus-visible {
+  outline: 2px solid var(--purple, #a78bfa);
+  outline-offset: 2px;
+}
+
+.drawing-project-controls button:hover:not(:disabled) {
+  border-color: #6f579d;
+  background: #242034;
+}
+
+.drawing-project-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The desktop drawing toolbar contains a long tool group. Let that group wrap at tablet widths. */
+@media (min-width: 601px) and (max-width: 900px) {
+  .drawing-alt {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    padding-inline: 16px;
+  }
+
+  .drawing-alt .draw-toolbar {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-toolgroup {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-toolgroup button {
+    white-space: normal;
+  }
+
+  .drawing-alt .draw-toolbar > .draw-colors,
+  .drawing-alt .draw-toolbar > .draw-actions {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .drawing-alt .drawing-stage {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .drawing-alt .drawing-paper {
+    width: min(100%, 960px);
+    max-width: 100%;
+  }
+}

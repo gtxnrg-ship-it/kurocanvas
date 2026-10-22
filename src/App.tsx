@@ -618,7 +618,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
    return;
   }
  }
- const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
+ const requestIsLive=modeRef.current==='live'||(!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery&&shouldStartLiveCreationFromChat(text));
  const hasIndependentWorkflow=Boolean(referenceQuery||explicitResearchIntent||creativeInfluences.length);
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");

@@ -48,8 +48,11 @@ export function buildProjectDeletionManifest(
     drawingRevisionIds: snapshot.drawingRevisions.filter(record => drawingIds.has(record.drawingId)).map(record => record.id),
     universeIds: [...universeIds],
     conversationIds: [...conversationIds],
+    // A message must belong to the selected project's universe. A stale or
+    // corrupt conversationId alone must never cause another universe's message
+    // to be deleted.
     messageIds: snapshot.messages.filter(record => universeIds.has(record.universeId)
-      || (record.conversationId !== undefined && conversationIds.has(record.conversationId))).map(record => record.id),
+      && (record.conversationId === undefined || conversationIds.has(record.conversationId))).map(record => record.id),
     relationshipIds: snapshot.relationships.filter(record => universeIds.has(record.universeId)).map(record => record.id),
     characterStateIds: snapshot.characterStates.filter(record => universeIds.has(record.universeId)).map(record => record.id),
   };

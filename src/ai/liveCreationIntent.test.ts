@@ -17,7 +17,7 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Let's make the main character's overall look now.")).toBe(true);
     expect(shouldStartLiveCreationFromChat("Start creating the characters' appearances.")).toBe(true);
     expect(shouldStartLiveCreationFromChat("Design a visual reference sheet for our villain.")).toBe(true);
-    expect(shouldStartLiveCreationFromChat("Sketch the protagonist from head to toe.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Sketch the protagonist from head to toe.")).toBe(true);
   });
 
   it("keeps ordinary brainstorming and research in chat", () => {

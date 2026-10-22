@@ -134,6 +134,21 @@ describe("chapter readiness gate", () => {
     expect(requiresApprovedStoryFoundations("Don't write yet, but outline the opening scene.")).toBe(true);
   });
 
+
+  it("gates reader-facing artifacts expressed as show, give, include, or add", () => {
+    expect(requiresApprovedStoryFoundations("Give me dialogue between Mira and Ren.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Show me an example scene with Mira and Ren.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Include a short conversation in the opening chapter.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Add two lines of dialogue to the first scene.")).toBe(true);
+  });
+
+  it("leaves ideation and research open when the user asks for options rather than an artifact", () => {
+    expect(requiresApprovedStoryFoundations("Give me ideas for the story.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Show me options for the opening scene.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Let's brainstorm the opening scene.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Research historical details for the first chapter.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Show me references for the opening scene.")).toBe(false);
+  });
   it("allows an explicit provisional experiment without treating it as approved canon", () => {
     expect(requestsProvisionalChapterOverride("Make a rough storyboard for chapter one anyway.")).toBe(true);
     expect(requestsProvisionalChapterOverride("Bypass the worldbuilding foundation for an experimental scene.")).toBe(true);

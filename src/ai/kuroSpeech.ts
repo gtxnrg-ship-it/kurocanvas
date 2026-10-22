@@ -132,8 +132,8 @@ function speechChunks(value: string, maxChunkLength = 280): string[] {
     if (sentence.length > maxChunkLength + 80) {
       if (current) chunks.push(current);
       current = "";
-      for (let offset = 0; offset < sentence.length; offset += 300) {
-        const part = sentence.slice(offset, offset + 300).trim();
+      for (let offset = 0; offset < sentence.length; offset += maxChunkLength) {
+        const part = sentence.slice(offset, offset + maxChunkLength).trim();
         if (part) chunks.push(part);
       }
     } else current = current ? current + " " + sentence : sentence;

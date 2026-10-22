@@ -215,6 +215,9 @@ useEffect(()=>{
   stopVoiceInputForWorkspaceSwitch();
   chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
   try{
+   await drainCurrentConversationMessages();
+   messagePersistenceGenerationRef.current++;
+   setLocalSaveStatus('saved');
    setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');
    const count=recentUniverses.length+1;const title=count===1?'My first universe':'Universe '+count;
    const project=createProject(title);await projectStorage.save(project);setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
@@ -232,6 +235,9 @@ useEffect(()=>{
   stopVoiceInputForWorkspaceSwitch();
   chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
   try{
+   await drainCurrentConversationMessages();
+   messagePersistenceGenerationRef.current++;
+   setLocalSaveStatus('saved');
    setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setCanvasRequest(null);setPlanNotice('');setRequestedDrawingId('');
    const conversation=await conversationStorage.load(conversationId||item.homeConversationId,item.id);
    if(!conversation)throw new Error('The saved conversation could not be found in its universe.');
@@ -272,6 +278,9 @@ useEffect(()=>{
  if(!activeUniverseId)return;
  chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);
  try{
+  await drainCurrentConversationMessages();
+  messagePersistenceGenerationRef.current++;
+  setLocalSaveStatus('saved');
   const conversation=await universeStorage.createConversation(activeUniverseId,'New conversation '+(universeConversations.length+1));
   const conversations=await conversationStorage.list(activeUniverseId);
   setUniverseConversations(conversations.map(value=>({id:value.id,title:value.title,updatedAt:value.updatedAt})));const universe=await universeStorage.load(activeUniverseId);if(universe)setRecentConversations(current=>[...current.filter(value=>value.id!==conversation.id),{id:conversation.id,universeId:activeUniverseId,universeTitle:universe.title,title:conversation.title,updatedAt:conversation.updatedAt,projectId:universe.projectId,homeConversationId:universe.homeConversationId}].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));
@@ -365,6 +374,9 @@ async function deleteCurrentConversation(){
   setConversationMenuOpen(false);
   if(!activeUniverseId||!activeConversationId){setHistoryNotice('Open a conversation before deleting it.');return;}
   try{
+   await drainCurrentConversationMessages();
+   messagePersistenceGenerationRef.current++;
+   setLocalSaveStatus('saved');
    const universe=await universeStorage.load(activeUniverseId);
    if(!universe)throw new Error('This universe no longer exists in local storage.');
    const conversation=await conversationStorage.load(activeConversationId,activeUniverseId);
@@ -580,7 +592,7 @@ if(activeProjectId && captureStory){
 }
 }}catch(e){if(requestIsCurrent()){setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
  return <div className="app"><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New chat <span>⌘ K</span></button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat with Kuro'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse'],['vault',Library,'Creative vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
- <main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className="saved"><i/> Saved locally</span><button aria-label="Help" title="How to use Kuro" onClick={()=>setHelpOpen(true)}><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
+ <main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className={'saved save-state-'+localSaveStatus} role="status" aria-live="polite"><i/>{historyLoading?'Restoring locally…':localSaveStatus==='saving'?'Saving locally…':localSaveStatus==='error'?'Local save failed':'Saved locally'}</span>{localSaveStatus==='error'&&<button className="save-retry" onClick={()=>setSaveRetryNonce(value=>value+1)} aria-label="Retry saving conversation">Retry save</button>}<button aria-label="Help" title="How to use Kuro" onClick={()=>setHelpOpen(true)}><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
  {helpOpen&&<div className="kuro-help-backdrop" onClick={()=>setHelpOpen(false)}><section className="kuro-help-dialog" role="dialog" aria-modal="true" aria-labelledby="kuro-help-title" onClick={event=>event.stopPropagation()}><div className="kuro-help-head"><div><small>QUICK GUIDE</small><h2 id="kuro-help-title">Working with Kuro</h2></div><button type="button" aria-label="Close help" onClick={()=>setHelpOpen(false)}><X size={18}/></button></div><section><h3>1. Prepare Kuro’s model</h3><p>Open Preferences → Download & prepare Qwen3-0.6B. Kuro uses one local, text-only model; an ordinary chat message will not start a surprise model download. After a page reload or cancelled generation, prepare it again for this session.</p></section><section><h3>2. Create and draw</h3><p>Describe the image or page. Kuro proposes editable canvas actions for review. Inspect the plan before approving it; the artwork should remain unchanged until you approve a validated plan.</p></section><section><h3>3. Find references and research</h3><p>Ask for visual references to search Wikimedia Commons and view each source, creator and license. Saving a reference makes a proposal, not approved canon. Research tasks live in Research Lab; review their actual source notes before using findings as story truth.</p></section><section><h3>4. Protect continuity</h3><p>Use Creative Vault for your World Bible, character states, art direction and story-memory proposals. Drafts are not approved canon. For long stories, give an explicit chapter or timeline point whenever it affects a reveal.</p></section><section><h3>5. Understand the limits</h3><p>Qwen3-0.6B here is text-only, so Kuro must not claim to inspect image pixels. Voice input is optional browser speech recognition; after you confirm, audio may be processed by the browser’s speech service rather than locally. Use Export transcript for visible chat text, or Project Manager for a broader project archive.</p></section><div className="kuro-help-footer"><a href="https://github.com/gtxnrg-ship-it/kurocanvas" target="_blank" rel="noreferrer noopener">Project source and current status ↗</a><button type="button" onClick={()=>{setHelpOpen(false);setProviderSettingsOpen(true);}}>Open Preferences</button></div></section></div>}
  {mode==='home'&&<section className="home-dashboard">
   <div className="home-eyebrow"><span className="home-orbit">✦</span> YOUR CREATIVE UNIVERSE</div>

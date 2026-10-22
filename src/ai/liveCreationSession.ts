@@ -165,3 +165,25 @@ export function settleLiveCreationBatch(
   };
   return { session: nextSession, canContinue, hitLimit, wantsMore };
 }
+
+
+/** Keep a validated-but-unapplied plan from appearing active after the creator leaves Live Creation. */
+export function pauseLiveCreationBeforeApply(
+  current: LiveCreationSession,
+  message = "The creator left Live Creation before the proposed drawing batch was applied. No canvas changes were made; review the saved canvas and re-plan before continuing.",
+): LiveCreationSession {
+  const log = current.log.map(entry => entry.kind === "request" && entry.status === "working"
+    ? { ...entry, status: "paused" as const, label: entry.label + " · paused before drawing; canvas unchanged" }
+    : entry);
+  return {
+    ...current,
+    status: "paused",
+    lastError: message,
+    log: [...log, {
+      id: "paused-before-drawing-" + current.id + "-" + current.batches,
+      kind: "status" as const,
+      label: "Live Creation paused before drawing. The proposed plan was not applied.",
+      status: "paused" as const,
+    }].slice(-24),
+  };
+}

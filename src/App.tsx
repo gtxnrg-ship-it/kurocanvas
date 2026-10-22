@@ -10,7 +10,7 @@ import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAu
 import CharacterDesignHandoff from './canon/CharacterDesignHandoff';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
-import { liveCreationSessionStorageKey, restoreLiveCreationSession, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
+import { DEFAULT_LIVE_CREATION_MAX_BATCHES, MAX_LIVE_CREATION_BATCHES, liveCreationSessionStorageKey, restoreLiveCreationSession, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
 import { buildKuroConversationTurns } from './ai/conversationContext';
 import { formatKuroChatResponse, isKuroChatResponseTruncated, getKuroResponseQualityGuidance, getKuroResponseTokenBudget, KURO_CONTINUE_ANSWER_PROMPT, findKuroContinuationSource, boundKuroContinuationSource } from './ai/responseQuality';
 import { generateCompleteLocalReply } from './ai/completeGeneration';
@@ -308,7 +308,7 @@ useEffect(()=>{
   // Keep an in-progress, paused, failed, or completed session when the user returns
   // from chat/vault. A new task after a completed run gets its own fresh session.
   if(!liveSessionRef.current||liveSessionRef.current.projectId!==sessionProjectId){
-   const fresh:LiveCreationSession={projectId:sessionProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
+   const fresh:LiveCreationSession={projectId:sessionProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:true,status:'ready',activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status',label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done'}]};
    liveSessionRef.current=fresh;
    setLiveSession(fresh);
    setRequestedDrawingId('');
@@ -674,7 +674,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   if(modeRef.current!=='live')setMode('live');
   const previous=liveSessionRef.current;
   const current=!previous||previous.projectId!==activeProjectId||previous.status==='complete'
-   ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
+   ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
    : previous;
   const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
   liveSessionRef.current=next;setLiveSession(next);
@@ -792,7 +792,7 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
   const next:LiveCreationSession={
    projectId:activeProjectId,
    id:current?.id||crypto.randomUUID(),originalPrompt:current?.originalPrompt||text,
-   batches:batchNumber,maxBatches:current?.maxBatches||4,autoContinue:current?.autoContinue??true,
+   batches:batchNumber,maxBatches:current?.maxBatches||DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:current?.autoContinue??true,
    status:'drawing',activeSummary:summary,lastError:'',
    log:[...(current?.log||[]).map(item=>item.status==='working'&&item.kind==='request'?{...item,status:'done' as const}:item),
     {id:planId,kind:'batch' as const,label:'Batch '+batchNumber+': '+summary.replace(/^(CONTINUE|COMPLETE):\s*/i,''),status:'working' as const}].slice(-24)
@@ -943,7 +943,8 @@ if(activeProjectId && captureStory){
     <DrawingCanvas projectId={activeProjectId} requestedDrawingId={requestedDrawingId} initialDimensions={initialDrawingDimensions} onDrawingOpened={id=>{setRequestedDrawingId('');setActiveDrawingId(id);}} pendingPlan={canvasRequest} onPlanResult={handleDrawingPlanResult}/>
    </div>
    <aside className="live-session-panel">
-    <div className="live-session-status"><span className={'live-session-dot status-'+(liveSession?.status||'ready')}/><div><b>{liveSession?.status==='planning'?'Planning next batch':liveSession?.status==='drawing'?'Drawing and verifying':liveSession?.status==='complete'?'Creation pass complete':liveSession?.status==='paused'?'Paused for review':liveSession?.status==='error'?'Needs attention':'Ready to create'}</b><small>{liveSession?.batches||0} verified batch{liveSession?.batches===1?'':'es'} · max {liveSession?.maxBatches||4} per run</small></div></div>
+    <div className="live-session-status"><span className={'live-session-dot status-'+(liveSession?.status||'ready')}/><div><b>{liveSession?.status==='planning'?'Planning next batch':liveSession?.status==='drawing'?'Drawing and verifying':liveSession?.status==='complete'?'Creation pass complete':liveSession?.status==='paused'?'Paused for review':liveSession?.status==='error'?'Needs attention':'Ready to create'}</b><small>{liveSession?.batches||0} verified batch{liveSession?.batches===1?'':'es'} · max {liveSession?.maxBatches||DEFAULT_LIVE_CREATION_MAX_BATCHES} per run</small></div></div>
+    <label className="live-batch-budget"><span>Run limit</span><select aria-label="Live creation batch limit" value={liveSession?.maxBatches??DEFAULT_LIVE_CREATION_MAX_BATCHES} onChange={event=>setLiveSession(current=>{if(!current)return current;const maxBatches=Number(event.target.value);if(!Number.isInteger(maxBatches)||maxBatches<1||maxBatches>MAX_LIVE_CREATION_BATCHES)return current;const next={...current,maxBatches};liveSessionRef.current=next;return next;})}><option value={4}>4 batches</option><option value={8}>8 batches</option><option value={12}>12 batches</option><option value={16}>16 batches</option><option value={20}>20 batches</option></select></label>
     <label className="live-autocontinue"><input type="checkbox" checked={liveSession?.autoContinue??true} onChange={event=>setLiveSession(current=>{if(!current)return current;const next={...current,autoContinue:event.target.checked};liveSessionRef.current=next;return next;})}/> Continue automatically after each verified batch</label>
     <div className="live-session-hint">Work is saved as native editable strokes/layers. If more pieces remain, Kuro proposes the next missing chunk after reading back the current result.</div>
     <div className="live-timeline-heading"><b>Creation timeline</b><span>{liveSession?.log.length||0}</span></div>

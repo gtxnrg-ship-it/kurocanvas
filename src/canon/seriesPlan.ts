@@ -96,7 +96,7 @@ export function validateSeriesPlan(fields: SeriesPlanFields): SeriesPlanIssue[] 
       const declaredCount = /\b(\d{1,3})\s*[- ]?\s*(?:chapters?|episodes?|parts?|installments?)\b/i.exec(scope);
       if (declaredCount && Number(declaredCount[1]) !== chapters.length) {
         issues.push({ id: "chapter-count", message: "The scope declares " + Number(declaredCount[1]) + " chapters/episodes, but the outline contains " + chapters.length + ". Add the missing entries or correct the intended length." });
-      } else if (!declaredCount && /\\b(?:standalone|one[- ]shot)\\b/i.test(scope) && chapters.length !== 1) {
+      } else if (!declaredCount && /\b(?:standalone|one[- ]shot)\b/i.test(scope) && chapters.length !== 1) {
         issues.push({ id: "chapter-count", message: "A standalone one-shot must have exactly one numbered chapter entry." });
       }
     }

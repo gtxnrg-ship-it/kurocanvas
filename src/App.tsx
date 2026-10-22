@@ -694,22 +694,38 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   setProviderNotice(localModelReadinessLabel());
   return;
  }
- const researchIntent=extractResearchTaskIntent(text);
- if(researchIntent){
-  setWorkingLabel('Queuing source-backed research…');
+ const researchIntent=explicitResearchIntent;
+ if(researchIntent||creativeInfluences.length){
+  setWorkingLabel(creativeInfluences.length?'Researching your creative references…':'Queuing source-backed research…');
   if(!activeProjectId){
-   setMessages(m=>[...m,{role:'kuro',text:'Choose or create a project before I can save a research task and its source notes.'}]);
+   setMessages(m=>[...m,{role:'kuro',text:'Choose or create a project before I can save research tasks and their source notes.'}]);
    return;
   }
-  setProviderNotice('Queuing source research for '+researchIntent.query+'…');
-  const task=await enqueueResearchTask({projectId:activeProjectId,query:researchIntent.query,depth:researchIntent.depth,sourceProvider:researchIntent.sourceProvider});
+  const queuedTasks:Awaited<ReturnType<typeof enqueueResearchTask>>[]=[];
+  if(researchIntent){
+   queuedTasks.push(await enqueueResearchTask({projectId:activeProjectId,query:researchIntent.query,depth:researchIntent.depth,sourceProvider:researchIntent.sourceProvider}));
+  }
+  for(const influence of creativeInfluences){
+   const duplicate=queuedTasks.some(task=>task.query.normalize('NFKC').toLocaleLowerCase().trim()===influence.query.normalize('NFKC').toLocaleLowerCase().trim()&&(task.sourceProvider??'wikipedia')==='wikipedia');
+   if(duplicate)continue;
+   queuedTasks.push(await enqueueResearchTask({projectId:activeProjectId,query:influence.query,depth:'deep',sourceProvider:'wikipedia'}));
+  }
   if(!requestIsCurrent()){
-   await cancelResearchTask(task.id,activeProjectId);
+   for(const task of queuedTasks)await cancelResearchTask(task.id,activeProjectId);
    return;
   }
-  const providerLabel=researchIntent.sourceProvider==='crossref'?'Crossref scholarly metadata':'English Wikipedia';
-  const taskSummary='I queued a '+researchIntent.depth+' research task for “'+researchIntent.query+'” using '+providerLabel+'. The queue will save source URLs and extracts in this project. Nothing has been added to canon or treated as verified story truth yet.';
-  setMessages(m=>[...m,{role:'kuro',text:taskSummary,tool:'Research queue · '+providerLabel,researchTaskId:task.id,researchProjectId:activeProjectId}]);
+  const notes=creativeInfluences.map(influence=>'• '+influence.work+' · study: '+influence.aspect).join('\n');
+  const explicitNote=researchIntent?'Explicit research request: “'+researchIntent.query+'” ('+researchIntent.depth+', '+(researchIntent.sourceProvider==='crossref'?'Crossref':'Wikipedia')+').':'';
+  const influenceNote=creativeInfluences.length
+   ?'I noticed the creative influences in your message and queued separate source-backed research tasks for these works:\n'+notes+'\n\nI’ll use the findings to compare the high-level techniques you named and help combine them into an original direction, not copy specific scenes, characters, or artwork. These are research notes, not approved canon.'
+   :'';
+  const fallbackNote=queuedTasks.length
+   ?'The research queue will save source URLs and extracts in this project. Nothing is treated as verified story truth or approved canon yet.'
+   :'';
+  const summary=[explicitNote,influenceNote,fallbackNote].filter(Boolean).join('\n\n');
+  const providers=[...new Set(queuedTasks.map(task=>(task.sourceProvider??'wikipedia')==='crossref'?'Crossref scholarly metadata':'English Wikipedia'))];
+  const providerLabel=providers.join(' + ');
+  setMessages(m=>[...m,{role:'kuro',text:summary,tool:'Research queue · '+providerLabel,...(queuedTasks.length===1?{researchTaskId:queuedTasks[0].id,researchProjectId:activeProjectId}:{})}]);
   setProviderNotice(localModelReadinessLabel());
   return;
  }

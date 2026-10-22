@@ -786,3 +786,17 @@
 .speech-actions{display:flex;gap:8px;flex-wrap:wrap}
 .speech-actions .provider-secondary{flex:1 1 140px}
 .speech-download-progress{width:100%;height:5px;accent-color:#e866bd}
+
+
+/* Audio-reactive meters: levels are sampled from the microphone and Kuro's actual Web Audio playback. */
+.live-audio-visualizer{display:grid;gap:7px;margin:12px 0;padding:12px;border:1px solid rgba(186,139,235,.2);border-radius:13px;background:linear-gradient(145deg,rgba(24,18,37,.96),rgba(14,12,22,.98));box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.live-audio-row{display:grid;grid-template-columns:38px minmax(0,1fr) 34px;align-items:center;gap:8px;min-height:36px}
+.live-audio-label{font-size:9px;font-weight:850;letter-spacing:1.2px;color:#b7a8c9}
+.live-audio-percent{font-size:9px;text-align:right;font-variant-numeric:tabular-nums;color:#8c809b}
+.live-audio-bars{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0;height:36px;overflow:hidden}
+.live-audio-bars i{display:block;flex:1 1 3px;max-width:5px;min-width:2px;min-height:3px;border-radius:5px;transition:height 70ms linear;will-change:height}
+.live-audio-bars.input-level i{background:linear-gradient(180deg,#8be9f3,#4f84d8);box-shadow:0 0 7px rgba(97,193,241,.18)}
+.live-audio-bars.output-level i{background:linear-gradient(180deg,#ffc0ef,#bb6de9);box-shadow:0 0 8px rgba(211,113,238,.2)}
+.live-audio-visualizer.is-active .live-audio-label{color:#d8c5f5}
+.live-audio-caption{min-height:15px;margin:2px 0 0;text-align:center;color:#b9a9cb;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:600px){.live-audio-visualizer{margin:8px 0;padding:9px}.live-audio-row{grid-template-columns:34px minmax(0,1fr) 31px;gap:6px}.live-audio-bars{gap:2px}}

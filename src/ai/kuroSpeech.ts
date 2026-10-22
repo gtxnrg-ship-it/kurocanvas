@@ -56,10 +56,10 @@ export function kuroFishPerformanceDirection(
         ? "curious, attentive and conversational, with an interested rising tone where natural"
         : "natural, warm and conversational, lightly playful when it fits";
   const accentDirection = accent === "natural"
-    ? "fluent English with natural pronunciation and no instructed accent; preserve the selected voice's natural timbre"
+    ? "speaking fluent English with natural pronunciation and no instructed accent; preserve the selected voice's natural timbre"
     : accent === "noticeable-japanese"
-      ? "fluent English with a clearly noticeable but still natural Japanese-influenced accent, especially in vowel colour and sentence cadence; remain intelligible and never caricature the accent"
-      : "fluent English with a subtle Japanese-influenced accent, gentle vowel colour and natural cadence; remain idiomatic, clear and never caricature the accent";
+      ? "speaking fluent English with a clearly noticeable but still natural Japanese-influenced accent, especially in vowel colour and sentence cadence; remain intelligible and never caricature the accent"
+      : "speaking fluent English with a subtle Japanese-influenced accent, gentle vowel colour and natural cadence; remain idiomatic, clear and never caricature the accent";
   return "[" + accentDirection + "; " + mood + "; expressive anime-inspired voice, natural and never exaggerated]";
 }
 

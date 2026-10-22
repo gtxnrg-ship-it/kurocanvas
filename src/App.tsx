@@ -257,8 +257,25 @@ useEffect(()=>{
    setLocalSaveStatus('saved');
    setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');
    const count=recentUniverses.length+1;const title=count===1?'My first universe':'Universe '+count;
-   const project=createProject(title);await projectStorage.save(project);setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
-   const bundle=createChatUniverse(title,project.id);await universeStorage.create(bundle);
+   const project=createProject(title);
+   await projectStorage.save(project);
+   let bundle: ReturnType<typeof createChatUniverse>;
+   try {
+    bundle=createChatUniverse(title,project.id);
+    await universeStorage.create(bundle);
+   } catch (creationError) {
+    // Project and universe records live in separate storage operations. If the
+    // second step fails, compensate instead of leaving an unreachable project
+    // in the user's project list.
+    try {
+     await projectStorage.remove(project.id);
+    } catch (cleanupError) {
+     const detail=(error:unknown)=>error instanceof Error?error.message:String(error);
+     throw new Error('Universe creation failed: '+detail(creationError)+'. Cleanup of the incomplete project also failed: '+detail(cleanupError)+'. Check local storage before retrying.');
+    }
+    throw creationError;
+   }
+   setLocalProjects(items=>[...items,{id:project.id,name:project.name}]);
    const universes=await universeStorage.list();
    setRecentUniverses(universes.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,projectId:item.projectId,homeConversationId:item.homeConversationId})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)));setRecentConversations(current=>[{id:bundle.homeConversation.id,universeId:bundle.universe.id,universeTitle:bundle.universe.title,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt,projectId:bundle.universe.projectId,homeConversationId:bundle.universe.homeConversationId},...current]);
    persistedMessageCount.current=0;setMessages([]);setActiveUniverseId(bundle.universe.id);setActiveConversationId(bundle.homeConversation.id);setUniverseConversations([{id:bundle.homeConversation.id,title:bundle.homeConversation.title,updatedAt:bundle.homeConversation.updatedAt}]);setActiveProjectId(bundle.universe.projectId);setDraft('');setMode('chat');

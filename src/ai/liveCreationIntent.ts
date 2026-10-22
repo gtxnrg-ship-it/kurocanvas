@@ -6,8 +6,16 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
   const text = message.normalize("NFKC").trim();
   if (!text) return false;
 
-  // A clear "not now" clause anywhere in the request wins over a visual verb elsewhere.
+  // Respect a clear request to defer visual work, but do not let a negated clause
+  // cancel a separate positive instruction such as "don't change her outfit, just shorten her hair".
   const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show)\b/i;
+  const negatedMatch = negatedVisualAction.exec(text);
+  if (negatedMatch) {
+    const remainder = text.slice((negatedMatch.index ?? 0) + negatedMatch[0].length);
+    const contrastingClause = remainder.match(/\b(?:but|instead|just|actually|rather|however)\b([\s\S]{0,160})/i)?.[1] ?? "";
+    const positiveVisualAction = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put)\b/i;
+    if (!positiveVisualAction.test(contrastingClause)) return false;
+  }
   if (negatedVisualAction.test(text)) return false;
 
   const visualVerb = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|start\s+(?:drawing|sketching|creating))\b/i;

@@ -10,7 +10,7 @@ export interface CreativeInfluenceResearchRequest {
 const INSPIRATION_ACTION = /\b(?:borrow(?:ing)?|take(?:\s+some)?\s+inspiration|draw(?:ing)?\s+inspiration|inspired\s+by|adapt(?:ing)?|use|using|reference|model\s+after|base(?:d)?\s+on|influence(?:d)?)\b/i;
 const CREATIVE_TOPIC = /\b(?:character|relationship|friendship|gang|leadership|power\s+system|art\s+style|visual\s+style|design|worldbuilding|world-building|world|story|plot|fight|costume|outfit|aesthetic|camera|panel|narrative|anime|manga|series|influence|dynamics|theme|dialogue)\b/i;
 const NEGATED_INSPIRATION = /\b(?:don't|do not|never|not yet|let's not|avoid)\b[\s\S]{0,90}\b(?:borrow|take(?:\s+some)?\s+inspiration|draw(?:ing)?\s+inspiration|adapt|use|reference|model\s+after|base(?:d)?\s+on)\b/i;
-const FROM_WORK = /\bfrom\s+(?:(["“])([^"”]{2,80})["”]|([\p{Lu}][\p{L}\p{N}'’:&.-]*(?:\s+(?:(?:of|the|and|no|to|in|for|on|at)\s+)?(?:[\p{Lu}][\p{L}\p{N}'’:&.-]*|x)){0,4})(?=\s*(?:[,.;!?]|$|\band\b))/gu;
+const FROM_WORK = /\bfrom\s+(?:(["“])([^"”]{2,80})["”]|([\p{Lu}][\p{L}\p{N}'’:&.-]*(?:\s+(?:[\p{Lu}][\p{L}\p{N}'’:&.-]*|x|of|the|and|no|to|in|for|on|at)){0,4})(?=\s*(?:[,.;!?]|$|\band\b))/gu;
 
 const normalized = (value: string) => value.normalize("NFKC").toLocaleLowerCase().trim();
 const GENERIC_ASPECT = /^(?:this|that|it|them|those|these|something|the same|everything|something like that)$/i;

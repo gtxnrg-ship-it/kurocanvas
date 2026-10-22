@@ -14,6 +14,8 @@ export interface OpenAICompatibleProviderOptions {
   displayName?: string;
   /** Only use HTTP on localhost/loopback. Remote endpoints must use HTTPS. */
   allowInsecureLocalhost?: boolean;
+  /** Advertise image input only when the creator has verified the configured model supports it. */
+  supportsVision?: boolean;
   fetchImpl?: typeof fetch;
   /** Hard deadline for chat-completion requests. Defaults to 90 seconds. */
   requestTimeoutMs?: number;
@@ -45,6 +47,7 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
     throw new Error("Model provider URLs must use HTTPS. HTTP is allowed only for an explicitly enabled localhost endpoint.");
   }
   if (url.username || url.password) throw new Error("Do not put credentials in the provider URL.");
+  if (url.search) throw new Error("Provider URLs with query parameters are not supported. Put credentials in the session-only API key field.");
   url.hash = "";
   return url.toString().replace(/\/+$/, "");
 }
@@ -67,12 +70,14 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private readonly fetchImpl: typeof fetch;
   private readonly requestTimeoutMs: number;
   private readonly modelListTimeoutMs: number;
+  private readonly supportsVision: boolean;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     this.id = options.providerId?.trim() || "openai-compatible";
     this.displayName = options.displayName?.trim() || "OpenAI-compatible provider";
     this.baseUrl = normalizedBaseUrl(options.baseUrl, options.allowInsecureLocalhost === true);
     this.apiKey = options.apiKey?.trim() || undefined;
+    this.supportsVision = options.supportsVision === true;
     this.fetchImpl = options.fetchImpl ?? fetch;
     const boundedTimeout = (value: number | undefined, fallback: number) =>
       typeof value === "number" && Number.isFinite(value) ? Math.min(300_000, Math.max(1, Math.floor(value))) : fallback;
@@ -92,14 +97,17 @@ export class OpenAICompatibleProvider implements ModelProvider {
       return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
         const modelName = item.id!;
         const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
-        const capabilities = ["chat"] as const;
+        const capabilities = this.supportsVision
+          ? ["chat", "structured-output", "vision"] as const
+          : ["chat", "structured-output"] as const;
+        const advertisedRoles = this.supportsVision ? [...roles, "vision" as const] : [...roles];
         const hostname = new URL(this.baseUrl).hostname;
         return {
           id: this.id + ":" + modelName,
           name: modelName,
           providerId: this.id,
           location: ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ? "local" as const : "remote" as const,
-          roles: [...roles],
+          roles: advertisedRoles,
           capabilities: [...capabilities],
           modelUri: modelName,
           installed: true,

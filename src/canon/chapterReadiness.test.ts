@@ -3,6 +3,7 @@ import { approveSeriesPlan } from "./seriesPlan";
 import type { ChapterReadinessInput } from "./chapterReadiness";
 import {
   evaluateChapterReadiness,
+  isWholeSeriesPlanningRequest,
   requiresApprovedStoryFoundations,
   formatChapterReadinessMessage,
   requiresHistoricalResearchForChapter,
@@ -142,6 +143,14 @@ describe("chapter readiness gate", () => {
     };
     expect(evaluateChapterReadiness(singleCharacter).gaps.map(gap => gap.id)).not.toContain("relationships");
     expect(evaluateChapterReadiness({ ...base, relationships: [] }).gaps.map(gap => gap.id)).toContain("relationships");
+  });
+
+  it("keeps whole-series outlining in chat instead of routing it into chapter production", () => {
+    const request = "Help me outline the entire Webtoon series from chapter 1 through the finale.";
+    expect(isWholeSeriesPlanningRequest(request)).toBe(true);
+    expect(requiresApprovedStoryFoundations(request)).toBe(false);
+    expect(isWholeSeriesPlanningRequest("Draw the opening Webtoon chapter.")).toBe(false);
+    expect(isWholeSeriesPlanningRequest("Plan a scene for chapter one.")).toBe(false);
   });
 
   it("holds story prose, dialogue, scenes, and panel production until foundations are ready", () => {

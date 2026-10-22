@@ -34,7 +34,7 @@ import { resolveTemporalCharacterContext } from './canon/temporalCharacterContex
 import { buildSvgDocument } from './drawing/svgExport';
 import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
 import { isMangaChapterProductionRequest, shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
-import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, resolveCreativeFormatChoice, type CreativeFormatChoice } from './ai/creativeFormats';
+import { DEFAULT_ILLUSTRATED_STORY, detectCreativeProductionRequest, resolveCreativeFormatChoice, buildCreativeProductionPrompt, type CreativeFormatChoice } from './ai/creativeFormats';
 import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresApprovedStoryFoundations, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
@@ -688,7 +688,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   const current=!previous||previous.projectId!==activeProjectId||previous.status==='complete'
    ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:DEFAULT_LIVE_CREATION_MAX_BATCHES,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}
    : previous;
-  const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
+  const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||(selectedFormatSpec?buildCreativeProductionPrompt(selectedFormatSpec.id,text):text)),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
   liveSessionRef.current=next;setLiveSession(next);
  }
  chatAbortControllerRef.current?.abort();const requestController=new AbortController();chatAbortControllerRef.current=requestController;const requestGeneration=++chatRequestGenerationRef.current;const requestIsCurrent=()=>!requestController.signal.aborted&&chatRequestGenerationRef.current===requestGeneration;const contextQuery=continuationSourceOverride?text+'\n\nOriginal user request to preserve:\n'+continuationSourceOverride:text;let recentTurns=buildKuroConversationTurns(messages,24,4000,contextQuery,26000);setDraft('');setMessages(m=>[...m,{role:'user',text}]);setWorking(true);setWorkingLabel('Reading your workspace and story context…');let draftForMemoryCapture='';try{

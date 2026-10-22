@@ -521,3 +521,7 @@
 .kuro-help-footer a{font-size:10px;color:#c9b3ff}
 .kuro-help-footer button{border:1px solid #775bb0;border-radius:8px;background:#302146;padding:9px 11px;color:#eee4ff;font-size:10px}
 @media(max-width:520px){.kuro-help-dialog{padding:15px}.kuro-help-head h2{font-size:19px}.conversation-menu{right:-4px}}
+
+.conversation-menu>button.conversation-menu-danger{color:#ffb6bf;border:1px solid #633c49;background:#281820}
+.conversation-menu>button.conversation-menu-danger:hover:not(:disabled){border-color:#a95a69;background:#3a1f2a;color:#ffe5e9}
+.conversation-menu>button.conversation-menu-danger:disabled{opacity:.48;cursor:not-allowed;background:#1c1722;border-color:#423643;color:#9a8b9c}

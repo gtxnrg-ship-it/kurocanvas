@@ -32,7 +32,7 @@ export function extractCreativeInfluenceResearch(message: string): CreativeInflu
   let previousEnd = 0;
 
   for (const match of matches.slice(0, 8)) {
-    const work = (match[2] ?? match[3] ?? "").replace(/^[“"]|[”"]$/g, "").replace(/['’]s$/i, "").trim();
+    const work = (match[2] ?? match[3] ?? "").replace(/^[“"]|[”"]$/g, "").replace(/['’]s$/i, "").replace(/\s+(?:of|the|and|no|to|in|for|on|at)$/i, "").trim();
     if (work.length < 2 || work.length > 80 || IGNORED_WORKS.has(normalized(work))) {
       previousEnd = (match.index ?? previousEnd) + match[0].length;
       continue;

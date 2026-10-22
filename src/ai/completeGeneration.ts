@@ -99,7 +99,8 @@ export async function generateCompleteLocalReply(
   const totalBudget = Math.max(16, Math.min(KURO_LOCAL_MAX_TOKENS_PER_REPLY, Math.floor(requestedBudget)));
   const originalUserRequest = [...request.messages].reverse().find(message => message.role === "user");
   const originalRequestText = originalUserRequest ? textOf(originalUserRequest.content) : "";
-  const continuationPrompt = [
+  const parts: string[] = [];
+  const continuationPrompt = () => [
     "Continue the answer from exactly where it stopped. Do not restart, recap, repeat a completed section, or add an introduction.",
     "Honor the creator's original request and constraints. Continue the next unfinished sentence or section, using the existing answer as context.",
     "Begin by repeating the exact overlap text below verbatim, then continue beyond it. The application removes an exact repeated prefix. Do not paraphrase that overlap.",
@@ -108,7 +109,6 @@ export async function generateCompleteLocalReply(
     originalRequestText ? "Original user request (preserve its intent and constraints):\n" + originalRequestText.slice(-2400) : "",
   ].filter(Boolean).join("\n\n");
 
-  const parts: string[] = [];
   let outputTokens = 0;
   let lastResponse: ModelResponse | undefined;
   const maxPasses = Math.ceil(totalBudget / KURO_LOCAL_MAX_TOKENS_PER_PASS);
@@ -131,7 +131,7 @@ export async function generateCompleteLocalReply(
       : [
           ...request.messages,
           { role: "assistant" as const, content: parts.join("\n\n") },
-          { role: "user" as const, content: continuationPrompt },
+          { role: "user" as const, content: continuationPrompt().join("\n\n") },
         ];
 
     let response: ModelResponse;

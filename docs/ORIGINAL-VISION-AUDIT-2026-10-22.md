@@ -1,9 +1,11 @@
 # KuroCanvas Original-Vision and End-to-End Audit
 **Audit date:** 22 October 2026  
 **Baseline:** `main` at `b4e0c632cc08522cfe71c1e1e80f5a3178ac6e63`  
-**Scope:** Source-level review of the primary app flow, model preparation, navigation, canvas preview, product specification, roadmap, CI and open voice integration work.
+**Scope:** Source-level review of the primary app flow, model preparation, navigation, canvas preview, character hand-off, voice integration, product specification, roadmap and CI.
 
-This is an evidence-backed audit snapshot, not a claim that every possible defect in every code path has been reproduced. The repository cannot be executed on a real browser or Android device from this review environment. Automated CI on the baseline was green, but passing typechecks/unit tests/builds is not proof that the product journey works end to end.
+This is an evidence-backed audit snapshot, not a claim that every possible defect in every code path has been reproduced. The repository cannot be executed on a real browser or Android device from this review environment. Automated CI on the original baseline was green, but passing typechecks/unit tests/builds is not proof that the product journey works end to end.
+
+**Update as of 22 October 2026:** the chat-first/navigation and recovery changes have merged through [PR #153](https://github.com/gtxnrg-ship-it/kurocanvas/pull/153), voice/dictation improvements through [PR #154](https://github.com/gtxnrg-ship-it/kurocanvas/pull/154), and the proposed character-design-to-World-&-Vault hand-off through [PR #155](https://github.com/gtxnrg-ship-it/kurocanvas/pull/155). At code SHA `c924d39fe67b3847b86eaa0d9aac8b7cb60f0556`, Project checks and Kuro Canvas checks passed with 70 test files / 531 tests, TypeScript, and Vite production build. The Android APK build was still running at the time of this note. None of these checks substitutes for the real-device and end-to-end release acceptance below.
 
 ## The intended ordinary-user journey
 
@@ -19,17 +21,17 @@ This is an evidence-backed audit snapshot, not a claim that every possible defec
 
 ## Findings and changes made on this audit branch
 
-| Priority | Finding | Evidence and impact | Audit-branch action |
+| Priority | Finding | Evidence and impact | Action on current main |
 |---|---|---|---|
 | P1 usability/spec alignment | **A “New chat” label obscured universe isolation.** | The architecture contract says independent creative worlds must be isolated, while another conversation in an existing world is a separate explicit action. A generic “New chat” label made scope unclear. | The sidebar now says “New universe” and always creates an isolated universe. The chat header separately offers “New conversation” inside the active universe. |
-| P1 usability | **The first ordinary chat request stopped at a Preferences detour.** | `send()` rejected an unprepared model and told the user to open Preferences and resend. The message stayed in the draft, but the main path required a settings trip and a second send. | Added an explicit, one-time-per-session confirmation before preparing the ~370 MB local model. Progress is surfaced in the existing work/status UI and the same prompt is retried automatically after success. Declining starts no download and keeps the draft. |
+| P1 usability | **The first ordinary chat request stopped at a Preferences detour.** | `send()` previously rejected an unprepared model and required the user to open Preferences and resend. | Main now offers the explicit model-preparation consent when the user first sends, shows preparation progress and retries that same prompt after success. Composer, tools and microphone are locked during preparation so edits cannot be silently lost; declining or failure preserves the draft. The consent is repeated on a later attempt if preparation still has not succeeded. |
 | P1 state handling | **Live Creation could enter “planning” before the model gate rejected the request.** | In `send()`, the live session log/status was updated before the unprepared-model return. That could leave a running-looking session with no running operation. | Moved the Live Creation state transition after the model-preparation gate, so rejected/cancelled first-run setup does not create a false working entry. |
 | P1 usability | **The home hero presented four competing starting actions.** | “New universe”, “Live creation studio”, “Open drawing studio” and “Research & browse” encouraged the user to choose an implementation mode before talking to Kuro. | Replaced the hero actions with one “Talk to Kuro” action. It resumes the active conversation when available and creates the first universe only when necessary. |
 | P1 usability | **All specialist destinations competed at the same sidebar level.** | Home, chat, live creation, canvas, reader, research and vault appeared as seven peer destinations. That conflicts with the chat-first promise. | Grouped Live Creation, canvas, reader and research under a collapsible “Creative tools” section, leaving Home, Talk to Kuro and World & Vault as the primary destinations. The group opens when a specialist view is reached through another route. |
 | P2 copy accuracy | **The chat side panel called itself “LIVE WORKSPACE” while showing a saved-document preview.** | `WorkspacePreview.tsx` loads the persisted drawing and regenerates an SVG after storage-change notifications. Its own notice accurately says it is saved artwork, not a live 3D viewport; the panel title was more suggestive than the implementation. | Renamed the panel to “SAVED CANVAS PREVIEW”. The dedicated Live Creation canvas remains the place to watch actual drawing actions. |
 | P1 orchestration | **A visual request from chat did not itself enter Live Creation.** | `send()` treated requests as live only when the user had already navigated to the Live Creation view. An ordinary character-design conversation could require the user to understand and open the specialist mode manually. | Added a conservative intent matcher for explicit canvas requests and visual deliverables (character sheets, storyboards, panels, maps, portraits, and similar work). It switches to Live Creation only for a clear visual-production request; ordinary brainstorming and research remain in chat. Added unit tests for both paths. |
 
-These edits are on `audit/chat-first-ux-and-first-run`. They must pass PR CI before being treated as verified.
+Current status: the changes described in this section are merged to `main` through PR #153. Exact-main typecheck, test suite and production build passed on SHA `c924d39fe67b`; automated test success is not proof of hands-on device acceptance.
 
 ## Important gaps against the original vision
 
@@ -57,7 +59,7 @@ The current session also has a bounded batch count. Verify that hitting the limi
 
 ### P1 — Character-to-world handoff has implementation; end-to-end continuity is still unverified
 
-PR #155 adds a post-creation **Save design** action. It links the saved drawing to a proposed story-memory visual reference, adds a proposed character entity for a new character, and adds a proposed visual state to the active project's style bible. It supports a new appearance for an existing character without replacing that character's approved identity. The handoff asks for creator-confirmed appearance details, protects project scope, blocks duplicate drawing links, and attempts rollback if the three storage writes fail partway. These entries are proposals, never auto-approved canon.
+The merged PR #155 adds a post-creation **Save design** action. It links the saved drawing to a proposed story-memory visual reference, adds a proposed character entity for a new character, and adds a proposed visual state to the active project's style bible. It supports a new appearance for an existing character without replacing that character's approved identity. The handoff asks for creator-confirmed appearance details, protects project scope, blocks duplicate drawing links, and attempts rollback if the three storage writes fail partway. These entries are proposals, never auto-approved canon.
 
 This removes the manual asset-linking gap in source, but doesn't prove that approved details are consistently retrieved during chapter writing. Browser/Android acceptance must still verify World & Vault shows the record, approval state persists after reload, the linked drawing opens, retcon/revision works, and the next chapter uses the approved name, age, outfit, scars, injuries and timeline state.
 
@@ -79,7 +81,7 @@ The top of `ROADMAP.md` still described its last evidence as 21 October and refe
 
 ## Baseline checks observed
 
-After PR #154, baseline `main` was `e2d2e30ca06abad814060b4c394da935ccfb05b7`. Exact-commit runs passed for [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769604), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769669), [Android APK build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769911), and [development preview](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39764769932). These are build/test automation results; they do not prove real-device usability, the full creative journey, voice quality, or autonomous art quality.
+After PR #155, current application source `main` was `c924d39fe67b3847b86eaa0d9aac8b7cb60f0556`. Exact-source [Project checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959249), [Kuro Canvas checks](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959262), and [development-preview build](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959278) passed; Project checks recorded 70 test files / 531 tests passed, TypeScript passed and Vite build succeeded. The [Android APK workflow](https://github.com/gtxnrg-ship-it/kurocanvas/actions/runs/39765959286) was still running when this status was written. These are automation results, not proof of real-device usability, full creative journey, voice quality, or autonomous art quality.
 
 ## Required release acceptance run
 
@@ -104,7 +106,7 @@ In the first-run path in `src/App.tsx`, `send()` captures the submitted text bef
 
 ### P2 — The “one-time-per-session” consent description does not match the implementation
 
-The code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. **Audit-branch copy fix:** the prompt now asks whether to start preparing the model, without describing the confirmation as one-time. This is intentional repeated consent per attempt; declining starts no download. Keep this behavior covered by the first-run acceptance tests.
+The code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. **Current main behavior:** the prompt asks whether to start preparing the model without claiming the confirmation itself is one-time. This is intentionally repeated per attempt; declining starts no download. The main branch's exact-SHA automated checks pass, but device-level preparation/cancellation/retry still needs a hands-on acceptance run.
 
 
 

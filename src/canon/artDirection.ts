@@ -1,5 +1,5 @@
 import { parseModelJson } from "../ai/structuredOutput";
-import { isSeriesPlanApproved, type SeriesPlanFields } from "./seriesPlan";
+import { isSeriesPlanApproved, resolveApprovedSeriesChapter, type SeriesPlanFields } from "./seriesPlan";
 
 export interface ArtDirectionInfluence {
   id: string;
@@ -105,7 +105,7 @@ export function validateArtDirection(value: unknown, projectId?: string): string
  * Builds strict creative constraints for model prompts. Inspiration is decomposed
  * into separate craft dimensions; it must never become permission to copy a work.
  */
-export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, projectId: string, maxCharacters = 6000): string {
+export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, projectId: string, maxCharacters = 6000, requestedChapterNumber?: number): string {
   if (!bible) return "";
   const errors = validateArtDirection(bible, projectId);
   if (errors.length) throw new Error("Art direction refused: " + errors.join(" "));
@@ -138,6 +138,13 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     if (cleanText(seriesPlan.seriesScope)) seriesPriorityLines.push("Series scope and format: " + cleanText(seriesPlan.seriesScope));
     if (cleanText(seriesPlan.seriesArcPlan)) seriesPriorityLines.push("Series arcs and character journeys: " + cleanText(seriesPlan.seriesArcPlan));
     if (cleanText(seriesPlan.seriesEnding)) seriesPriorityLines.push("Planned finale and payoff map: " + cleanText(seriesPlan.seriesEnding));
+    const activeChapter = resolveApprovedSeriesChapter(seriesPlan, requestedChapterNumber);
+    if (activeChapter) {
+      seriesPriorityLines.push(
+        "ACTIVE PLANNED CHAPTER " + activeChapter.number + " — follow this approved chapter brief precisely and preserve the established ending: " +
+        activeChapter.summary
+      );
+    }
   }
   const lines = [
     ...seriesPriorityLines,

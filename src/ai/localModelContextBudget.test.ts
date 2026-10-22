@@ -4,7 +4,7 @@ import { boundMessages } from "./localTinyModelProvider";
 describe("local model context budget", () => {
   it("keeps the newest user request when a long system prompt would otherwise consume the whole budget", () => {
     const messages = [
-      { role: "system", content: "SYSTEM-BEGIN " + "persona and rules ".repeat(900) + " SYSTEM-TAIL-MARKER" },
+      { role: "system", content: "SYSTEM-BEGIN " + "persona and rules ".repeat(450) + " SYSTEM-MIDDLE-MARKER " + "persona and rules ".repeat(450) + " SYSTEM-TAIL-MARKER" },
       { role: "assistant", content: "Older useful context " + "world detail ".repeat(100) },
       { role: "user", content: "CURRENT USER REQUEST: continue chapter 14. " + "required detail ".repeat(200) + " FINAL-REQUEST-MARKER" },
     ];
@@ -12,6 +12,7 @@ describe("local model context budget", () => {
     expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_200);
     expect(bounded[0].role).toBe("system");
     expect(bounded[0].content).toContain("SYSTEM-BEGIN");
+    expect(bounded[0].content).toContain("SYSTEM-MIDDLE-MARKER");
     expect(bounded[0].content).toContain("SYSTEM-TAIL-MARKER");
     expect(bounded[bounded.length - 1].role).toBe("user");
     expect(bounded[bounded.length - 1].content).toContain("CURRENT USER REQUEST");

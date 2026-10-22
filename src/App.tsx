@@ -328,7 +328,7 @@ function toggleVoiceInput(){
   if(!voiceConsented){setProviderNotice('Voice input was not started. Your audio was not handed to the browser speech-recognition service.');return;}
   speechDraftBaseRef.current=draft.trim();
   speechStatusRef.current='';
-  recognition.lang=typeof navigator!=='undefined'&&navigator.language?navigator.language:'en-US';
+  recognition.lang='en-US';
   recognition.continuous=true;
   recognition.interimResults=true;
   recognition.onresult=event=>{
@@ -422,6 +422,12 @@ async function toggleLiveVoiceSession(){
   const recognition=speechRecognitionRef.current;speechRecognitionRef.current=null;
   if(recognition){try{recognition.stop();}catch{}}
   stopKuroVoice();setLiveVoiceStatus('Voice session stopped.');return;
+ }
+ const speechPreferences=readKuroSpeechPreferences();
+ if(speechPreferences.engine==='fish'&&!speechPreferences.apiKey.trim()){
+  setLiveVoiceStatus('Add your Fish Audio API key in Preferences, or choose Kokoro Local / Device voice before starting voice mode.');
+  setProviderSettingsOpen(true);
+  return;
  }
  try{await unlockKuroAudio();}catch(error){setLiveVoiceStatus(error instanceof Error?error.message:'Audio playback could not be unlocked.');return;}
  const accepted=window.confirm("Live voice stays ready for each turn, sends recognized speech through your browser's speech-recognition service (which may process audio off-device), and speaks replies using your selected Kuro voice. Start the live voice session?");

@@ -27,3 +27,26 @@ body {
 @media (prefers-reduced-motion: reduce) {
   body { animation: none; }
 }
+
+
+/* Narrow-screen resilience for long model output, URLs, and embedded media. */
+.bubble,
+.bubble a,
+.bubble code,
+.bubble pre,
+.toolchip,
+.context {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.bubble pre,
+.bubble code {
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+.bubble img,
+.bubble video,
+.bubble iframe {
+  max-width: 100%;
+}

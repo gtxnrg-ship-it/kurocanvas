@@ -5,6 +5,8 @@ import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadiness
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
 import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
+import { startKuroMicrophoneMeter } from './ai/audioMeter';
+import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAudioVisualizer';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
 import { buildKuroConversationTurns } from './ai/conversationContext';
@@ -91,12 +93,12 @@ async function canvasDocumentPreviewDataUrl(drawing: LocalDrawingDocument): Prom
 }
 export default function App(){
  const [liveSession,setLiveSession]=useState<LiveCreationSession|null>(null); const liveSessionRef=useRef<LiveCreationSession|null>(null); liveSessionRef.current=liveSession;
- const [liveVoiceActive,setLiveVoiceActive]=useState(false); const liveVoiceEnabledRef=useRef(false); const voiceTurnInFlightRef=useRef(false); const [liveVoiceStatus,setLiveVoiceStatus]=useState('Voice session is off');
+ const [liveVoiceActive,setLiveVoiceActive]=useState(false); const liveVoiceEnabledRef=useRef(false); const voiceTurnInFlightRef=useRef(false); const [liveVoiceStatus,setLiveVoiceStatus]=useState('Voice session is off'); const liveAudioVisualizerRef=useRef<LiveAudioVisualizerHandle|null>(null); const stopVoiceMeterRef=useRef<(()=>void)|null>(null);
  const sendRef=useRef<(messageOverride?:string,continuationSourceOverride?:string)=>Promise<void>>(async()=>{});
  const messagesViewportRef=useRef<HTMLDivElement|null>(null); const messagesEndRef=useRef<HTMLSpanElement|null>(null); const scrollSticksToBottomRef=useRef(true);
  const [mode,setMode]=useState<Mode>('home'); const modeRef=useRef<Mode>('home'); modeRef.current=mode; const [mobileVaultSection,setMobileVaultSection]=useState<'overview'|'world'|'timeline'|'relationships'|'style'|'references'|'models'|'projects'>('overview'); const [compactMobile,setCompactMobile]=useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 600px)').matches); const [localProjects,setLocalProjects]=useState<LocalProjectChoice[]>([]); const [activeProjectId,setActiveProjectId]=useState(''); const [recentUniverses,setRecentUniverses]=useState<RecentUniverse[]>([]); const [recentConversations,setRecentConversations]=useState<RecentConversation[]>([]); const [activeUniverseId,setActiveUniverseId]=useState(''); const [activeConversationId,setActiveConversationId]=useState(''); const [universeConversations,setUniverseConversations]=useState<Array<{id:string;title:string;updatedAt:string}>>([]); const [historyLoading,setHistoryLoading]=useState(true); const [historyNotice,setHistoryNotice]=useState(''); const [canonNotice,setCanonNotice]=useState('Choose a universe to load its approved World Bible.'); const [draft,setDraft]=useState(''); const [messages,setMessages]=useState<Msg[]>([]); const messagesRef=useRef(messages); messagesRef.current=messages; const persistedMessageCount=useRef(0); const messagePersistenceGenerationRef=useRef(0); const messagePersistencePromiseRef=useRef<Promise<void>|null>(null); const [localSaveStatus,setLocalSaveStatus]=useState<'saved'|'saving'|'error'>('saved'); const [saveRetryNonce,setSaveRetryNonce]=useState(0); const [saveDrainNonce,setSaveDrainNonce]=useState(0); const chatRequestGenerationRef=useRef(0); const chatAbortControllerRef=useRef<AbortController|null>(null); const [working,setWorking]=useState(false); const [workingLabel,setWorkingLabel]=useState(''); const [voiceInputActive,setVoiceInputActive]=useState(false); const speechRecognitionRef=useRef<BrowserSpeechRecognition|null>(null); const speechDraftBaseRef=useRef(''); const speechStatusRef=useRef(''); const [conversationMenuOpen,setConversationMenuOpen]=useState(false); const [helpOpen,setHelpOpen]=useState(false); const [tools,setTools]=useState(false); const [providerSettingsOpen,setProviderSettingsOpen]=useState(false); const [providerConfig,setProviderConfig]=useState<SafeProviderConfig>(()=>readProviderConfig()); const [activeProvider,setActiveProvider]=useState<ActiveProviderConfig|null>(null); const [providerNotice,setProviderNotice]=useState('No model connected'); const kuroVoiceIntensity: KuroVoiceIntensity='playful'; const [proposedPlan,setProposedPlan]=useState<ProposedDrawingPlan|null>(null); const [planNotice,setPlanNotice]=useState(''); const [pendingModelAction,setPendingModelAction]=useState<PendingCharacterModelAction|null>(null); const [canvasRequest,setCanvasRequest]=useState<{id:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean}|null>(null); const [requestedDrawingId,setRequestedDrawingId]=useState(''); const [activeDrawingId,setActiveDrawingId]=useState('');
  useEffect(()=>{const viewport=messagesViewportRef.current;if(!viewport||!scrollSticksToBottomRef.current)return;viewport.scrollTop=viewport.scrollHeight;},[messages,working,proposedPlan,planNotice]);
- useEffect(()=>()=>{liveVoiceEnabledRef.current=false;try{stopKuroVoice();}catch{}},[]);
+ useEffect(()=>()=>{liveVoiceEnabledRef.current=false;try{stopKuroVoice();}catch{};try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;},[]);
  useEffect(()=>{const media=window.matchMedia('(max-width: 600px)');const update=()=>setCompactMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;try{speechRecognitionRef.current?.abort?.();}catch{}speechRecognitionRef.current=null;},[]);
@@ -407,7 +409,7 @@ async function processLiveVoiceTurn(transcript:string){
   await sendRef.current(transcript);
   const recent=messagesRef.current.slice(beforeCount);
   const reply=[...recent].reverse().find(message=>message.role==='kuro'&&message.text.trim());
-  if(reply&&liveVoiceEnabledRef.current){setLiveVoiceStatus('Kuro is speaking…');await speakKuroVoice(reply.text,readKuroSpeechPreferences(),progress=>setLiveVoiceStatus(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));}
+  if(reply&&liveVoiceEnabledRef.current){setLiveVoiceStatus('Kuro is speaking…');await speakKuroVoice(reply.text,readKuroSpeechPreferences(),progress=>setLiveVoiceStatus(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')),level=>liveAudioVisualizerRef.current?.setOutputLevel(level));}
  }catch(error){setLiveVoiceStatus('Voice turn failed: '+(error instanceof Error?error.message:'unknown error'));}
  finally{
   voiceTurnInFlightRef.current=false;
@@ -420,7 +422,7 @@ async function toggleLiveVoiceSession(){
   liveVoiceEnabledRef.current=false;setLiveVoiceActive(false);voiceTurnInFlightRef.current=false;
   const recognition=speechRecognitionRef.current;speechRecognitionRef.current=null;
   if(recognition){try{recognition.stop();}catch{}}
-  stopKuroVoice();setLiveVoiceStatus('Voice session stopped.');return;
+  stopKuroVoice();try{stopVoiceMeterRef.current?.();}catch{}stopVoiceMeterRef.current=null;liveAudioVisualizerRef.current?.setInputLevel(0);liveAudioVisualizerRef.current?.setOutputLevel(0);setLiveVoiceStatus('Voice session stopped.');return;
  }
  const speechPreferences=readKuroSpeechPreferences();
  if(speechPreferences.engine==='fish'&&!speechPreferences.apiKey.trim()){
@@ -431,7 +433,14 @@ async function toggleLiveVoiceSession(){
  try{await unlockKuroAudio();}catch(error){setLiveVoiceStatus(error instanceof Error?error.message:'Audio playback could not be unlocked.');return;}
  const accepted=window.confirm("Live voice stays ready for each turn, sends recognized speech through your browser's speech-recognition service (which may process audio off-device), and speaks replies using your selected Kuro voice. Start the live voice session?");
  if(!accepted){setLiveVoiceStatus('Voice session was not started.');return;}
- liveVoiceEnabledRef.current=true;setLiveVoiceActive(true);setLiveVoiceStatus('Starting microphone and Kuro voice…');beginLiveVoiceRecognition();
+ liveVoiceEnabledRef.current=true;setLiveVoiceActive(true);setLiveVoiceStatus('Starting microphone and Kuro voice…');
+ void startKuroMicrophoneMeter(level=>liveAudioVisualizerRef.current?.setInputLevel(level)).then(stopMeter=>{
+  if(!liveVoiceEnabledRef.current){stopMeter();return;}
+  stopVoiceMeterRef.current=stopMeter;
+ }).catch(()=>{
+  if(liveVoiceEnabledRef.current)setLiveVoiceStatus('Voice input is starting, but the microphone level meter is unavailable in this browser.');
+ });
+ beginLiveVoiceRecognition();
 }
 function currentTranscriptText():string{
   const title=universeConversations.find(item=>item.id===activeConversationId)?.title||'Kuro conversation';
@@ -733,11 +742,11 @@ if(activeProjectId && captureStory){
   else setMessages(items=>[...items,{role:'kuro',text:result==='cancelled'?'The live drawing was cancelled, and the original canvas was restored and verified.':'The live drawing batch failed: '+message}]);
   if(canContinue){
    const progressLine='Continue the next live creation batch. Previous completed batch: '+current.activeSummary+'. Add only the next missing pieces; do not redraw what is already on canvas.';
-   if(liveVoiceEnabledRef.current)void speakKuroVoice('That batch is saved. I’m moving on to the next part now.',readKuroSpeechPreferences(),p=>setLiveVoiceStatus(p.status));
+   if(liveVoiceEnabledRef.current)void speakKuroVoice('That batch is saved. I’m moving on to the next part now.',readKuroSpeechPreferences(),p=>setLiveVoiceStatus(p.status),level=>liveAudioVisualizerRef.current?.setOutputLevel(level));
    window.setTimeout(()=>{void sendRef.current(progressLine,current.originalPrompt);},0);
   }else if(liveVoiceEnabledRef.current&&result==='success'){
    const spoken=hitLimit?'I’ve saved this batch. I’ve paused so you can inspect the work before I continue.':wantsMore?'This batch is saved. Automatic continuation is paused; you can resume from the next missing part.':'This creation pass is saved. Take a look at the canvas.';
-   void (async()=>{try{setLiveVoiceStatus('Kuro is speaking…');await speakKuroVoice(spoken,readKuroSpeechPreferences());}catch(error){setLiveVoiceStatus(error instanceof Error?error.message:'Voice playback failed.');}finally{if(liveVoiceEnabledRef.current&&modeRef.current==='live')window.setTimeout(()=>beginLiveVoiceRecognition(),250);}})();
+   void (async()=>{try{setLiveVoiceStatus('Kuro is speaking…');await speakKuroVoice(spoken,readKuroSpeechPreferences(),undefined,level=>liveAudioVisualizerRef.current?.setOutputLevel(level));}catch(error){setLiveVoiceStatus(error instanceof Error?error.message:'Voice playback failed.');}finally{if(liveVoiceEnabledRef.current&&modeRef.current==='live')window.setTimeout(()=>beginLiveVoiceRecognition(),250);}})();
   }
  },[]);
  return <div className={'app'+(compactMobile?' mobile-companion':'')}><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New chat <span>⌘ K</span></button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat with Kuro'],['live',WandSparkles,'Live Creation'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse'],['vault',Library,'Creative vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
@@ -770,7 +779,7 @@ if(activeProjectId && captureStory){
     <div className="live-timeline-heading"><b>Creation timeline</b><span>{liveSession?.log.length||0}</span></div>
     <ol className="live-session-timeline">{(liveSession?.log||[]).map(item=><li key={item.id} className={'live-log-'+item.status}><span className="live-log-state">{item.status==='done'?'✓':item.status==='working'?'◌':item.status==='paused'?'Ⅱ':'!'}</span><div><p>{item.label}</p><small>{item.status==='done'?'Recorded':item.status==='working'?'In progress':item.status==='paused'?'Paused':'Needs attention'}</small></div></li>)}</ol>
     {liveSession?.lastError&&<p className="live-error" role="alert">{liveSession.lastError}</p>}
-    {liveVoiceActive&&<p className="live-voice-status" role="status" aria-live="polite"><Mic size={13}/>{liveVoiceStatus}</p>}
+    <LiveAudioVisualizer ref={liveAudioVisualizerRef} active={liveVoiceActive} status={liveVoiceStatus} />
     <div className="live-session-controls">
      {liveSession?.status==='paused'&&<button type="button" className="live-primary" onClick={()=>{const current=liveSessionRef.current;if(!current)return;const resumed={...current,autoContinue:true,status:'ready' as const,lastError:''};liveSessionRef.current=resumed;setLiveSession(resumed);void sendRef.current('Continue the next live creation batch. Add the next missing parts only; do not redraw completed elements.',current.originalPrompt);}}>Continue next batch <ArrowRight size={14}/></button>}
      {liveSession?.status==='error'&&<button type="button" className="live-primary" onClick={()=>{setDraft(liveSession.originalPrompt);setPlanNotice('Review the current canvas, then retry with a smaller, specific batch.');setLiveSession(current=>current?{...current,status:'ready',lastError:''}:current);}}>Prepare a smaller retry</button>}

@@ -221,8 +221,8 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
       + (tail ? content.slice(-tail) : "");
   };
 
-  // The first system block contains the persona and execution rules. Preserve both
-  // its beginning and its tail, where project context is commonly appended.
+  // The first system block contains persona, execution rules and appended project context.
+  // Preserve its beginning, central slice and ending to reduce silent context loss.
   const hasHistory = messages.some((message, index) =>
     index !== systemIndex && index !== latestUserIndex && Boolean(message.content),
   );

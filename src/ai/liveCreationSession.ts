@@ -9,6 +9,8 @@ export type LiveCreationSession = {
   projectId: string;
   id: string;
   originalPrompt: string;
+  /** Exact saved canvas bound to this production run, retained across reloads. */
+  drawingId?: string;
   batches: number;
   maxBatches: number;
   autoContinue: boolean;
@@ -40,6 +42,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
     if (record.projectId !== projectId
       || typeof record.id !== "string" || !record.id || record.id.length > 128
       || typeof record.originalPrompt !== "string" || record.originalPrompt.length > 12000
+      || (record.drawingId !== undefined && (typeof record.drawingId !== "string" || !record.drawingId || record.drawingId.length > 128))
       || !Number.isInteger(record.batches) || (record.batches as number) < 0 || (record.batches as number) > 1000
       || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > MAX_LIVE_CREATION_BATCHES
       || typeof record.autoContinue !== "boolean"
@@ -68,6 +71,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       projectId,
       id: record.id,
       originalPrompt: record.originalPrompt,
+      ...(typeof record.drawingId === "string" ? { drawingId: record.drawingId } : {}),
       batches: record.batches as number,
       maxBatches: record.maxBatches as number,
       autoContinue: record.autoContinue,

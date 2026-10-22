@@ -57,6 +57,25 @@ describe("complete local chat generation", () => {
     expect(result.usage?.outputTokens).toBe(1324);
   });
 
+  it("removes an exact repeated overlap and keeps continuation in the same paragraph", async () => {
+    const { provider } = providerWith([
+      { text: "First sentence ends. The final thought is still being developed", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },
+      { text: "The final thought is still being developed and the explanation continues.", finishReason: "stop", usage: { outputTokens: 250 }, modelId: model.id, providerId: model.providerId },
+    ]);
+    const result = await generateCompleteLocalReply(provider, request, model);
+    expect(result.text).toBe("First sentence ends. The final thought is still being developed and the explanation continues.");
+    expect(result.text.match(/The final thought is still being developed/g)).toHaveLength(1);
+  });
+
+  it("preserves a real Markdown heading boundary between continuation passes", async () => {
+    const { provider } = providerWith([
+      { text: "The opening explanation is complete.", finishReason: "length", usage: { outputTokens: 1024 }, modelId: model.id, providerId: model.providerId },
+      { text: "## Next section\nThe next section begins here.", finishReason: "stop", usage: { outputTokens: 180 }, modelId: model.id, providerId: model.providerId },
+    ]);
+    const result = await generateCompleteLocalReply(provider, request, model);
+    expect(result.text).toContain("The opening explanation is complete.\n\n## Next section");
+  });
+
   it("stops immediately when the model finishes naturally", async () => {
     const { provider, generate } = providerWith([
       { text: "A complete, concise answer.", finishReason: "stop", usage: { outputTokens: 42 }, modelId: model.id, providerId: model.providerId },

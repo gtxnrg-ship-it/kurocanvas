@@ -770,3 +770,15 @@
 @media(max-width:1000px){.live-studio{padding:13px 12px 88px;height:auto;min-height:calc(100dvh - 130px);overflow:visible}.live-studio-layout{grid-template-columns:minmax(0,1fr);overflow:visible;flex:none}.live-canvas-pane{overflow:visible}.live-session-panel{max-height:none;overflow:visible}.live-studio-header{align-items:flex-start}.live-studio-title p{max-width:500px}.live-canvas-pane .drawing-stage{height:calc(75dvh - 180px);min-height:310px}}
 @media(max-width:600px){.live-studio{padding:12px 10px 96px;gap:10px}.live-studio-header{display:grid;gap:12px}.live-studio-actions{width:100%}.live-studio-actions button{flex:1}.live-studio-title h1{font-size:23px}.live-studio-title p{font-size:10px}.live-studio-layout{gap:10px}.live-canvas-pane .drawing-alt{padding:8px}.live-canvas-pane .drawing-alt .althead{display:grid;gap:7px}.live-canvas-pane .drawing-stage{height:58dvh;min-height:280px;padding:8px}.live-session-panel{padding:11px}.live-composer{position:sticky;bottom:76px;z-index:40;padding:9px;background:rgba(19,15,26,.97);backdrop-filter:blur(12px)}.live-composer-row{display:grid;grid-template-columns:minmax(0,1fr)}.live-composer-row textarea{min-height:54px}.live-composer-row .live-primary{max-width:none;min-height:42px}.live-composer-foot{display:grid;gap:3px}.live-composer-foot span:nth-child(2){max-width:95%;}.home-hero-actions .home-live-creation{border-color:#a74795;background:linear-gradient(115deg,#3b1c3d,#2a2255);color:#ffd7f5;box-shadow:0 0 21px rgba(241,83,186,.09)}}
 @media(prefers-reduced-motion:reduce){.live-session-dot{box-shadow:none}}
+
+
+/* Local speech controls. Voice preparation is explicit and progress is always visible. */
+.kuro-speech-settings{display:grid;gap:10px;margin:12px 0 16px;padding:13px;border:1px solid #45314c;border-radius:12px;background:linear-gradient(145deg,#1b1220,#12101a)}
+.kuro-speech-settings legend{padding:0 6px;color:#f0bbdf;font-size:11px;font-weight:800}
+.kuro-speech-settings label{display:grid;gap:6px;color:#d6c9e0;font-size:10px}
+.kuro-speech-settings label span{font-variant-numeric:tabular-nums;color:#f1bfe6}
+.kuro-speech-settings select{width:100%;min-width:0;padding:9px;border:1px solid #423047;border-radius:8px;background:#0d0b12;color:#f5ebfb;font:inherit}
+.kuro-speech-settings input[type=range]{width:100%;accent-color:#ee66c4}
+.kuro-speech-settings p{font-size:9px;line-height:1.6;color:#a59aae;margin:0}
+.kuro-speech-settings .speech-model-id{font-size:8px;line-height:1.5;color:#8d809b;overflow-wrap:anywhere}
+.speech-download-progress{width:100%;height:5px;accent-color:#e866bd}

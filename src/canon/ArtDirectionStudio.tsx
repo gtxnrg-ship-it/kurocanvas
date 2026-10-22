@@ -16,19 +16,37 @@ export default function ArtDirectionStudio({ projectId, projects, onSynthesize }
 
   useEffect(() => {
     let alive = true;
-    if (!projectId) { setBible(null); setMessage("Choose a project first. Art direction is stored separately for each series."); return; }
+    if (!projectId) {
+      setBible(null);
+      setMessage("Choose a project first. Art direction is stored separately for each series.");
+      setSeriesPlanMessage("Map the full story through its ending before asking Kuro to produce any chapter.");
+      return;
+    }
     setBusy(true);
     void artDirectionStorage.load(projectId).then(saved => {
       if (!alive) return;
       setBible(saved ?? createEmptyArtDirection(projectId));
       setMessage(saved ? "Loaded saved art direction. Locked rules are attached to Kuro's project context." : "No art direction saved yet. Set the style once, then keep it consistent across chapters.");
-    }).catch(error => { if (alive) { setBible(null); setMessage(error instanceof Error ? error.message : "Could not load art direction."); } })
+      setSeriesPlanMessage(saved && isSeriesPlanApproved(saved as SeriesPlanFields)
+        ? "The saved whole-series outline is approved. Editing the outline or its title, premise, or genres will require fresh approval."
+        : "Map the full story through its ending before asking Kuro to produce any chapter.");
+    }).catch(error => { if (alive) {
+      setBible(null);
+      const detail = error instanceof Error ? error.message : "Could not load art direction.";
+      setMessage(detail);
+      setSeriesPlanMessage("Could not verify the saved series plan. Reopen the project and try again before approving chapter production.");
+    } })
       .finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [projectId]);
 
   function updateField(key: ArtDirectionField, value: string) {
-    setBible(current => current ? { ...current, [key]: value } : current);
+    const changesStoryPremise = key === "title" || key === "premise" || key === "genres";
+    setBible(current => current ? {
+      ...current, [key]: value,
+      ...(changesStoryPremise ? { seriesPlanApproved: false, seriesPlanApprovalSignature: "" } : {}),
+    } : current);
+    if (changesStoryPremise) setSeriesPlanMessage("The project's identity or premise changed. Review and approve the whole-series plan again before chapter production.");
   }
   function updateInfluence(id: string, key: keyof Omit<ArtDirectionInfluence, "id">, value: string) {
     setBible(current => current ? { ...current, influences: current.influences.map(item => item.id === id ? { ...item, [key]: value } : item) } : current);

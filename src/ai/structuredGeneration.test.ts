@@ -80,6 +80,14 @@ describe("validated structured generation", () => {
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry a model-runtime failure as though it were malformed JSON", async () => {
+    const { provider, generate } = makeProvider([]);
+    generate.mockRejectedValue(new Error("Qwen is not prepared in this session."));
+    await expect(generateValidatedStructuredResponse(provider, request, model, parsePlan))
+      .rejects.toThrow(/failed before validation.*not prepared/i);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed after bounded schema-repair attempts", async () => {
     const { provider, generate } = makeProvider([
       { text: "not json", finishReason: "stop", usage: { outputTokens: 8 }, modelId: model.id, providerId: model.providerId },

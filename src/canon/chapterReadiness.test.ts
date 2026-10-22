@@ -140,6 +140,8 @@ describe("chapter readiness gate", () => {
     expect(requiresApprovedStoryFoundations("Show me an example scene with Mira and Ren.")).toBe(true);
     expect(requiresApprovedStoryFoundations("Include a short conversation in the opening chapter.")).toBe(true);
     expect(requiresApprovedStoryFoundations("Add two lines of dialogue to the first scene.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Don't show me dialogue yet; let's brainstorm.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Don't show me dialogue yet, but give me one example line.")).toBe(true);
   });
 
   it("leaves ideation and research open when the user asks for options rather than an artifact", () => {

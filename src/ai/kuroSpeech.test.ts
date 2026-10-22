@@ -29,6 +29,7 @@ afterEach(() => {
 describe("Kuro speech preferences", () => {
   it("defaults to the SAKURA profile using Fish Audio Drama 3 without inventing a stored key", () => {
     installMemoryStorage();
+    expect(readKuroSpeechPreferences().engine).toBe("fish");
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.engine).toBe("fish");
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.voice).toBe(KURO_FISH_VOICES[0].id);
     expect(DEFAULT_KURO_SPEECH_PREFERENCES.apiKey).toBe("");

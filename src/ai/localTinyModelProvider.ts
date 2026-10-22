@@ -202,12 +202,23 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   const clip = (content: string, budget: number): string => {
     if (content.length <= budget) return content;
     if (budget <= 1) return content.slice(0, budget);
-    const marker = "\n[…context clipped…]\n";
-    if (budget <= marker.length) return content.slice(-budget);
-    const usable = budget - marker.length;
-    const head = Math.ceil(usable * 0.64);
-    const tail = usable - head;
-    return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
+    const marker = "\n[…context section omitted…]\n";
+    if (budget <= marker.length * 2 + 1) return content.slice(-budget);
+
+    // Preserve the prompt's beginning, a central slice, and its ending. The
+    // system prompt combines persona, canon, memory, research and canvas state;
+    // head/tail-only clipping silently erased every middle section.
+    const usable = budget - marker.length * 2;
+    const head = Math.ceil(usable * 0.4);
+    const middle = Math.ceil(usable * 0.2);
+    const tail = usable - head - middle;
+    const latestMiddleStart = Math.max(head, content.length - tail - middle);
+    const middleStart = Math.max(head, Math.min(Math.floor((content.length - middle) / 2), latestMiddleStart));
+    return content.slice(0, head)
+      + marker
+      + content.slice(middleStart, middleStart + middle)
+      + marker
+      + (tail ? content.slice(-tail) : "");
   };
 
   // The first system block contains the persona and execution rules. Preserve both

@@ -187,3 +187,37 @@ export function pauseLiveCreationBeforeApply(
     }].slice(-24),
   };
 }
+
+
+export type LiveCreationPlanningOutcome = "cancelled" | "error";
+
+/**
+ * Settle inference that ended before any native canvas batch began. Never increment
+ * the verified batch counter for a plan the executor did not apply and read back.
+ */
+export function settleLiveCreationPlanning(
+  current: LiveCreationSession,
+  outcome: LiveCreationPlanningOutcome,
+  message: string,
+  studioStillActive: boolean,
+): LiveCreationSession {
+  if (current.status !== "planning") return current;
+  const paused = outcome === "cancelled" || !studioStillActive;
+  const status: LiveCreationSession["status"] = paused ? "paused" : "error";
+  const logStatus: LiveCreationLogEntry["status"] = paused ? "paused" : "error";
+  const action = paused ? "paused" : "failed";
+  const log = current.log.map(entry => entry.kind === "request" && entry.status === "working"
+    ? { ...entry, status: logStatus, label: entry.label + " · planning " + action }
+    : entry);
+  return {
+    ...current,
+    status,
+    lastError: message,
+    log: [...log, {
+      id: "planning-settled-" + current.id + "-" + current.batches,
+      kind: "status" as const,
+      label: "Live Creation " + action + " before drawing. No native actions were applied.",
+      status: logStatus,
+    }].slice(-24),
+  };
+}

@@ -378,7 +378,8 @@ function beginLiveVoiceRecognition(){
  }
  const recognition=createBrowserSpeechRecognition();
  if(!recognition){endLiveVoiceSession('This browser does not support continuous speech recognition.');return;}
- recognition.lang=typeof navigator!=='undefined'&&navigator.language?navigator.language:'en-US';
+ // Live voice is English by design; don't inherit a phone's unrelated UI locale.
+ recognition.lang='en-US';
  recognition.continuous=true;recognition.interimResults=true;
  recognition.onresult=event=>{
   if(!liveVoiceEnabledRef.current||voiceTurnInFlightRef.current)return;
@@ -777,7 +778,7 @@ if(activeProjectId && captureStory){
  {mode==='live'&&<section className="live-studio" aria-label="Live Creation Studio">
   <header className="live-studio-header">
    <div className="live-studio-title"><small>LIVE CREATION · EDITABLE WORKSPACE</small><h1>Watch Kuro build it.</h1><p>She works directly on the canvas in verified chunks. You can inspect, scroll, pause continuation, or stop a drawing.</p></div>
-   <div className="live-studio-actions"><button type="button" className={liveVoiceActive?'live-voice-button is-active':'live-voice-button'} onClick={()=>void toggleLiveVoiceSession()}><Mic size={15}/>{liveVoiceActive?'Stop voice session':'Start voice session'}</button><button type="button" className="live-back-button" onClick={()=>setMode('chat')}>Back to chat</button></div>
+   <div className="live-studio-actions"><button type="button" className={liveVoiceActive?'live-voice-button is-active':'live-voice-button'} onClick={()=>void toggleLiveVoiceSession()}><Mic size={15}/>{liveVoiceActive?'Stop voice session':'Start voice session'}</button>{liveVoiceActive&&/speaking|decoding generated speech|synthesi[sz]ing|generating speech/i.test(liveVoiceStatus)&&<button type="button" className="live-secondary" onClick={()=>{stopKuroVoice();setLiveVoiceStatus('Speech interrupted. Listening for you…');}} aria-label="Interrupt Kuro’s spoken reply">Interrupt Kuro</button>}<button type="button" className="live-back-button" onClick={()=>setMode('chat')}>Back to chat</button></div>
   </header>
   <div className="live-studio-layout">
    <div className="live-canvas-pane" aria-label="Live editable canvas">

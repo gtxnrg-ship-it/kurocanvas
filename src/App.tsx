@@ -511,7 +511,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  if(!text||working)return;
  if(requestIsLive){
   const current=liveSessionRef.current||{id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:true,status:'ready' as const,activeSummary:'',lastError:'',log:[] as LiveCreationLogEntry[]};
-  const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request',label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working'}].slice(-24)};
+  const next:LiveCreationSession={...current,originalPrompt:current.originalPrompt||(continuationSourceOverride||text),status:'planning',lastError:'',log:[...current.log,{id:crypto.randomUUID(),kind:'request' as const,label:current.batches===0?'Start creation: '+text:'Continue creation · batch '+(current.batches+1),status:'working' as const}].slice(-24)};
   liveSessionRef.current=next;setLiveSession(next);
  }
  const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){setMessages(m=>[...m,{role:'kuro',text:'I have not sent your request to a model yet. Qwen3-0.6B is Kuro’s only model, and it must be prepared explicitly in Preferences first. Open Preferences → Download & prepare Qwen3-0.6B, then send your draft again. I will not start a surprise 370 MB download from the chat box.'}]);setProviderNotice(localModelReadinessLabel());return;}chatAbortControllerRef.current?.abort();const requestController=new AbortController();chatAbortControllerRef.current=requestController;const requestGeneration=++chatRequestGenerationRef.current;const requestIsCurrent=()=>!requestController.signal.aborted&&chatRequestGenerationRef.current===requestGeneration;const contextQuery=continuationSourceOverride?text+'\n\nOriginal user request to preserve:\n'+continuationSourceOverride:text;let recentTurns=buildKuroConversationTurns(messages,24,4000,contextQuery,26000);setDraft('');setMessages(m=>[...m,{role:'user',text}]);setWorking(true);setWorkingLabel('Reading your workspace and story context…');let draftForMemoryCapture='';try{
@@ -611,7 +611,7 @@ let canonContext='';let storyContext='';let relationshipContext='';let temporalC
    batches:batchNumber,maxBatches:current?.maxBatches||4,autoContinue:current?.autoContinue??true,
    status:'drawing',activeSummary:summary,lastError:'',
    log:[...(current?.log||[]).map(item=>item.status==='working'&&item.kind==='request'?{...item,status:'done' as const}:item),
-    {id:planId,kind:'batch',label:'Batch '+batchNumber+': '+summary.replace(/^(CONTINUE|COMPLETE):\s*/i,''),status:'working'}].slice(-24)
+    {id:planId,kind:'batch' as const,label:'Batch '+batchNumber+': '+summary.replace(/^(CONTINUE|COMPLETE):\s*/i,''),status:'working' as const}].slice(-24)
   };
   liveSessionRef.current=next;setLiveSession(next);
   setCanvasRequest({id:planId,commands:plan.commands,expectedDocumentSignature:targetDocumentSignature,expectedDocumentWasSaved:targetDocumentWasSaved});
@@ -722,7 +722,7 @@ if(activeProjectId && captureStory){
   const canContinue=wantsMore&&current.autoContinue&&current.batches<current.maxBatches;
   const hitLimit=wantsMore&&current.autoContinue&&current.batches>=current.maxBatches;
   const finalStatus:LiveCreationSession['status']=result!=='success'?'error':canContinue?'planning':hitLimit||wantsMore?'paused':'complete';
-  const updated:LiveCreationSession={...current,status:finalStatus,lastError:result==='error'?message:'',log:[...nextLog,{id:crypto.randomUUID(),kind:'status',label:result==='success'?'Batch '+current.batches+' saved and verified · '+message:result==='cancelled'?'Drawing cancelled · '+message:'Drawing stopped · '+message,status:result==='success'?'done':result==='cancelled'?'paused':'error'}].slice(-24)};
+  const updated:LiveCreationSession={...current,status:finalStatus,lastError:result==='error'?message:'',log:[...nextLog,{id:crypto.randomUUID(),kind:'status' as const,label:result==='success'?'Batch '+current.batches+' saved and verified · '+message:result==='cancelled'?'Drawing cancelled · '+message:'Drawing stopped · '+message,status:(result==='success'?'done':result==='cancelled'?'paused':'error') as LiveCreationLogEntry['status']}].slice(-24)};
   liveSessionRef.current=updated;setLiveSession(updated);
   if(result==='success')setMessages(items=>[...items,{role:'kuro',text:'Batch '+current.batches+' is saved and verified in the editable canvas. '+(canContinue?'I’m continuing with the next missing chunk now.':hitLimit?'I paused at the safety limit so you can review the work before continuing.':wantsMore?'I paused because automatic continuation is off. You can resume when ready.':'This live creation pass is complete for now.')}]);
   else setMessages(items=>[...items,{role:'kuro',text:result==='cancelled'?'The live drawing was cancelled, and the original canvas was restored and verified.':'The live drawing batch failed: '+message}]);

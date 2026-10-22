@@ -4,6 +4,28 @@ import {
   type ResearchTaskRecord,
 } from "./researchQueue";
 
+describe("research lease ownership", () => {
+  const claimed: ResearchTaskRecord = {
+    ...createResearchTask({ projectId: "series-a", query: "Ming history", depth: "deep" }, () => "lease-task"),
+    status: "running",
+    leaseUntil: 20_000,
+    leaseOwnerId: "tab-a",
+  };
+
+  it("accepts only the current unexpired owner token", () => {
+    expect(ownsResearchLease(claimed, "lease-task", "series-a", "tab-a", 19_999)).toBe(true);
+    expect(ownsResearchLease(claimed, "lease-task", "series-a", "tab-b", 19_999)).toBe(false);
+    expect(ownsResearchLease(claimed, "lease-task", "series-b", "tab-a", 19_999)).toBe(false);
+    expect(ownsResearchLease(claimed, "another-task", "series-a", "tab-a", 19_999)).toBe(false);
+  });
+
+  it("rejects expired leases and tasks no longer running", () => {
+    expect(ownsResearchLease(claimed, "lease-task", "series-a", "tab-a", 20_000)).toBe(false);
+    expect(ownsResearchLease({ ...claimed, status: "completed" }, "lease-task", "series-a", "tab-a", 19_999)).toBe(false);
+    expect(ownsResearchLease({ ...claimed, leaseOwnerId: undefined }, "lease-task", "series-a", "tab-a", 19_999)).toBe(false);
+  });
+});
+
 describe("portable research task history", () => {
   it("preserves completed source findings but pauses unfinished jobs on import", () => {
     const completed: ResearchTaskRecord = {
@@ -13,7 +35,7 @@ describe("portable research task history", () => {
       completedAt: "2026-10-20T12:00:00.000Z",
     };
     const queued = createResearchTask({ projectId: "series-old", query: "Ming dynasty armour", depth: "exhaustive" }, () => "task-queued");
-    const running = { ...queued, id: "task-running", status: "running" as const, progress: 32, leaseUntil: Date.now() + 120000 };
+    const running = { ...queued, id: "task-running", status: "running" as const, progress: 32, leaseUntil: Date.now() + 120000, leaseOwnerId: "old-tab-claim" };
     let ids = 0;
     const imported = normalizeImportedResearchTasks([completed, queued, running], "series-old", "series-new", () => "fresh-" + (++ids), "2026-10-21T00:00:00.000Z");
     expect(imported.map(task => task.id)).toEqual(["fresh-1", "fresh-2", "fresh-3"]);
@@ -21,6 +43,7 @@ describe("portable research task history", () => {
     expect(imported[0]).toMatchObject({ status: "completed", progress: 100, sources: completed.sources, completedAt: completed.completedAt });
     expect(imported[1]).toMatchObject({ status: "cancelled", progress: 0, stage: expect.stringContaining("retry") });
     expect(imported[2]).toMatchObject({ status: "cancelled", progress: 32, leaseUntil: undefined, stage: expect.stringContaining("retry") });
+    expect(imported[2].leaseOwnerId).toBeUndefined();
   });
 
   it("rejects cross-project task records, duplicate IDs, and malformed source URLs", () => {

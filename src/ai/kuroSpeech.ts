@@ -5,6 +5,7 @@ export type KuroAudioActivityCallback = (level: number) => void;
 import { normalizedAudioLevel } from "./audioMeter";
 
 const STORAGE_KEY = "kuro-speech-preferences";
+const API_KEY_SESSION_STORAGE_KEY = "kuro-fish-audio-api-key-session";
 export const KURO_SPEECH_MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
 export const KURO_SPEECH_MODEL_LICENSE = "Apache-2.0";
 export const KURO_SPEECH_VOICES = [
@@ -51,20 +52,35 @@ export function readKuroSpeechPreferences(): KuroSpeechPreferences {
     const fallbackVoice = engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id;
     const voice = voiceList.some(item => item.id === stored?.voice) ? stored!.voice! : fallbackVoice;
     const rate = typeof stored?.rate === "number" && Number.isFinite(stored.rate) ? Math.max(0.8, Math.min(1.2, stored.rate)) : 1;
-    const apiKey = typeof stored?.apiKey === "string" ? stored.apiKey.trim().slice(0, 1024) : "";
+    // Migrate older installations away from persisting API credentials in localStorage.
+    if (stored && Object.prototype.hasOwnProperty.call(stored, "apiKey")) {
+      try {
+        const migrated = { ...stored };
+        delete migrated.apiKey;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      } catch { /* storage may be disabled */ }
+    }
+    const apiKey = (() => {
+      try { return (sessionStorage.getItem(API_KEY_SESSION_STORAGE_KEY) || "").trim().slice(0, 1024); }
+      catch { return ""; }
+    })();
     return { engine, voice, rate, apiKey };
   } catch { return { ...DEFAULT_KURO_SPEECH_PREFERENCES }; }
 }
 export function saveKuroSpeechPreferences(value: KuroSpeechPreferences): void {
-  const safe: KuroSpeechPreferences = {
+  const safe = {
     engine: value.engine === "system" || value.engine === "fish" ? value.engine : "kokoro",
     voice: (value.engine === "fish" ? KURO_FISH_VOICES : KURO_SPEECH_VOICES).some(item => item.id === value.voice)
       ? value.voice
       : value.engine === "fish" ? KURO_FISH_VOICES[0].id : KURO_SPEECH_VOICES[0].id,
     rate: Number.isFinite(value.rate) ? Math.max(0.8, Math.min(1.2, value.rate)) : 1,
-    apiKey: typeof value.apiKey === "string" ? value.apiKey.trim().slice(0, 1024) : "",
   };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(safe)); } catch { /* storage may be disabled */ }
+  try {
+    const apiKey = typeof value.apiKey === "string" ? value.apiKey.trim().slice(0, 1024) : "";
+    if (apiKey) sessionStorage.setItem(API_KEY_SESSION_STORAGE_KEY, apiKey);
+    else sessionStorage.removeItem(API_KEY_SESSION_STORAGE_KEY);
+  } catch { /* credentials are session-only; unavailable storage means the key must be re-entered */ }
 }
 type WorkerRequest = { id: number; type: "prepare" } | { id: number; type: "generate"; text: string; voice: string };
 type WorkerRequestInput<T = WorkerRequest> = T extends { id: number } ? Omit<T, "id"> : never;

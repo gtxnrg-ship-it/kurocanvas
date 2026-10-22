@@ -21,7 +21,7 @@
   "icons": [
     {
       "src": "./kuro-icon.webp",
-      "sizes": "512x512",
+      "sizes": "384x384",
       "type": "image/webp",
       "purpose": "any maskable"
     }

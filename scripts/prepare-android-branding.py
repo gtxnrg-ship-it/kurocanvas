@@ -86,13 +86,34 @@ def splash_image(size,landscape=False):
     return canvas
 
 nodpi=RES/"drawable-nodpi"; nodpi.mkdir(parents=True,exist_ok=True)
-splash_image((1080,1920)).save(nodpi/"kuro_canvas_splash.png","PNG",optimize=True)
+splash_image((1080,1920)).save(nodpi/"splash.png","PNG",optimize=True)
+# Older Capacitor templates use an explicit drawable/splash.png; always provide it.
+base_drawable=RES/"drawable"; base_drawable.mkdir(parents=True,exist_ok=True)
+splash_image((1080,1920)).save(base_drawable/"splash.png","PNG",optimize=True)
+# Preserve existing density-specific layout and dimensions where Capacitor made resources.
 for directory in RES.glob("drawable*"):
     target=directory/"splash.png"
-    if target.exists():
-        try:
-            with Image.open(target) as previous: size=previous.size
-        except OSError: size=(1080,1920)
-        splash_image(size,size[0]>size[1]).save(target,"PNG",optimize=True)
+    if not target.exists() or target in (nodpi/"splash.png",base_drawable/"splash.png"):
+        continue
+    try:
+        with Image.open(target) as previous: size=previous.size
+    except OSError: size=(1080,1920)
+    splash_image(size,size[0]>size[1]).save(target,"PNG",optimize=True)
+
+# Connect the image to the actual Android 12+ system splash theme as well as the
+# pre-Android-12 window background. Keep the launcher mark in the system icon slot.
+for styles_file in values.glob("styles.xml"):
+    tree=ET.parse(styles_file); root=tree.getroot(); changed=False
+    for style in root.findall("style"):
+        if style.get("name") != "AppTheme.NoActionBarLaunch":
+            continue
+        for key, value in (("android:windowBackground","@drawable/splash"),
+                           ("windowSplashScreenBackground","#05040A"),
+                           ("windowSplashScreenAnimatedIcon","@mipmap/ic_launcher")):
+            item=next((node for node in style.findall("item") if node.get("name")==key),None)
+            if item is None: item=ET.SubElement(style,"item",{"name":key})
+            item.text=value
+        changed=True
+    if changed: ET.ElementTree(root).write(styles_file,encoding="utf-8",xml_declaration=True)
 
 print("Prepared official Kuro launcher icons for all densities, adaptive icon resources, and native portrait/landscape splash artwork.")

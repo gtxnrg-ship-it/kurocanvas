@@ -41,6 +41,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
 | Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
+| Mobile native-plan workflow | Implemented in main | Compact phones can review, reject or approve a validated plan and inspect the editable result; manual freehand canvas controls remain simplified. Physical Android touch/scroll testing is still open |
 | Nonlinear character visual chronology | Implemented in main | The Style Bible now distinguishes a chapter-targeted request from explicit in-world story order; browser-level approval/reload/next-chapter validation remains open |
 | Project JSON export download | Browser/WebView revoke timing fixed in main | Delayed object-URL cleanup has tests, but exporting and opening a real backup on Android/iOS still needs smoke testing | 
 | Chat-to-Live-Creation routing | Implemented in main | Explicit draw/visual artifact requests route from chat; ambiguous phrases still need creator direction, and only supported editable native actions can execute |
@@ -105,7 +106,7 @@ After the app opens, use this checklist to test the most important paths rather 
 - [ ] Open the reader and confirm it shows the saved drawing from the active universe—not sample chapter art.
 - [ ] Refresh or reopen the app and check that the universe, conversation and drawing remain available.
 - [ ] Create a second universe and confirm its conversation and saved drawings are separate.
-- [ ] In the first universe, ask Kuro for a drawing plan after the local Qwen model is prepared. Inspect the proposed actions and approve only if the preview looks right.
+- [ ] On desktop and compact Android, ask Kuro for a drawing plan after the local Qwen model is prepared. Inspect the proposed actions, reject one and confirm the canvas stays unchanged, then approve one and verify the editable result renders and survives navigation/reload.
 - [ ] Export a project, import it as a separate copy, and verify drawings, revision checkpoints, chat transcripts and chapter/relationship continuity before relying on it as a backup.
 - [ ] Ask Kuro to find reference images for a concrete subject; confirm real thumbnails, source pages, creator/license labels, and that saving creates a proposal rather than approved canon.
 - [ ] Ask Kuro to research a topic with sources; confirm a durable queue task appears in Research Lab and that a follow-up like “summarize those findings” includes saved source URLs.

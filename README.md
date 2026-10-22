@@ -1,7 +1,7 @@
 # Kuro Canvas
 
 > 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  
-> **Latest published APK source:** `434464344e7f5017dd3899a11cc677828804af0f` · **SHA-256:** `a4f793051d521247c6cda71878a1794ce23e04d92fdb2b338f27756dd72851d4`. The rolling release is updated only after the Android workflow passes and assembles an APK; while a newer build is running, it can temporarily lag behind `main`. This is debug-signed test software, not a production or Play Store release. It has not been smoke-tested on a physical device in this audit.
+> **Latest published APK source:** `430ac5619fd6afaed4363afc37378502f1b8542b` · **SHA-256:** `d5b6bebb7469147898a4ad845104ba7c5b690d4522eca3f4cd314d7a6d3bf4bc`. The rolling release is updated only after the Android workflow passes and assembles an APK; while a newer build is running, it can temporarily lag behind `main`. This is debug-signed test software, not a production or Play Store release. It has not been smoke-tested on a physical device in this audit.
 
 **Create · Draw · Tell · Together.**
 

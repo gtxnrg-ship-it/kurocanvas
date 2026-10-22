@@ -6,6 +6,8 @@ describe("canvas dimensions", () => {
     expect(CANVAS_PRESETS.landscape).toEqual([1600, 1200]);
     expect(CANVAS_PRESETS.square[0]).toBe(CANVAS_PRESETS.square[1]);
     expect(CANVAS_PRESETS.webtoon[1]).toBeGreaterThan(CANVAS_PRESETS.webtoon[0] * 3);
+    expect(CANVAS_PRESETS["long-webtoon"]).toEqual([900, 6000]);
+    expect(isValidCanvasDimensions(...CANVAS_PRESETS["long-webtoon"])).toBe(true);
     expect(isValidCanvasDimensions(...CANVAS_PRESETS.a4)).toBe(true);
   });
 

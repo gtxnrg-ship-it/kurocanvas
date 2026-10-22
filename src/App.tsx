@@ -7,6 +7,7 @@ import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, shouldEndLiveSpeechSession, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
 import { startKuroMicrophoneMeter } from './ai/audioMeter';
 import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAudioVisualizer';
+import CharacterDesignHandoff from './canon/CharacterDesignHandoff';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
 import { KURO_PERSONA_CORE, getKuroVoiceGuidance, type KuroVoiceIntensity } from './ai/kuroPersona';
 import { liveCreationSessionStorageKey, restoreLiveCreationSession, type LiveCreationSession, type LiveCreationLogEntry } from './ai/liveCreationSession';
@@ -876,6 +877,7 @@ if(activeProjectId && captureStory){
      {liveSession?.status==='error'&&<button type="button" className="live-primary" onClick={()=>{setDraft(liveSession.originalPrompt);setPlanNotice('Review the current canvas, then retry with a smaller, specific batch.');setLiveSession(current=>current?{...current,status:'ready',lastError:''}:current);}}>Prepare a smaller retry</button>}
      <button type="button" className="live-secondary" onClick={()=>{setCanvasRequest(null);setProposedPlan(null);setMode('chat');if(liveVoiceEnabledRef.current)void toggleLiveVoiceSession();}}>Finish session and return to chat</button>
     </div>
+    {activeProjectId&&activeDrawingId&&liveSession&&liveSession.batches>0&&(liveSession.status==='complete'||liveSession.status==='paused')&&<CharacterDesignHandoff projectId={activeProjectId} drawingId={activeDrawingId} originalPrompt={liveSession.originalPrompt} onOpenVault={()=>{setMobileVaultSection('world');setMode('vault');}}/>}
    </aside>
   </div>
   <div className="live-composer">

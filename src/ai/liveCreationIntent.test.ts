@@ -63,6 +63,20 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Write chapter one with a cinematic manga-panel feel.")).toBe(true);
   });
 
+  it("routes common equipment, accessories, tattoos, expressions, and pose edits into visual creation", () => {
+    expect(shouldStartLiveCreationFromChat("Give her a sword and shield.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Shorten her hair and curl the ends.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Add a tattoo to her arm.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Change his pose and facial expression.")).toBe(true);
+    expect(shouldStartLiveCreationFromChat("Give the protagonist a long cape and boots.")).toBe(true);
+  });
+
+  it("respects requests to defer equipment and appearance edits", () => {
+    expect(shouldStartLiveCreationFromChat("Don't give her a sword yet; let's discuss the design first.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't put a tattoo on her arm yet.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("Don't redesign his armor yet, but make his hair shorter.")).toBe(true);
+  });
+
   it("does not activate on an empty request", () => {
     expect(shouldStartLiveCreationFromChat("  ")).toBe(false);
   });

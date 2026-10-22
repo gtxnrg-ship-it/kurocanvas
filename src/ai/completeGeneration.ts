@@ -6,7 +6,7 @@ import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from
  * whole-response limit.
  */
 export const KURO_LOCAL_MAX_TOKENS_PER_PASS = 1024;
-export const KURO_LOCAL_MAX_TOKENS_PER_REPLY = 6144;
+export const KURO_LOCAL_MAX_TOKENS_PER_REPLY = 12288;
 const LOCAL_PROVIDER_ID = "kuro-local-browser";
 const COMPLETE_SENTINEL = "[KURO_REPLY_COMPLETE]";
 

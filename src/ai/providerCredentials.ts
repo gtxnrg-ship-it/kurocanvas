@@ -11,21 +11,18 @@ function normalizedEndpoint(value: string): string {
  */
 export function hasRemoteModelConsent(baseUrl: string): boolean {
   const endpoint = normalizedEndpoint(baseUrl);
-  if (!endpoint) return "";
+  if (!endpoint) return false;
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return "";
+    if (!raw) return false;
     const value: unknown = JSON.parse(raw);
-    if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     const record = value as Record<string, unknown>;
     return record.baseUrl === endpoint && record.consented === true;
   } catch {
-    return "";
+    return false;
   }
 }
-
-/** Save only to tab/session storage, never localStorage or a .kuro package. */
-
 
 /** Read the session-scoped consent paired with a previously saved remote route. */
 export function readRemoteModelCredential(baseUrl: string): string {

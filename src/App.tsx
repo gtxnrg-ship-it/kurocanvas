@@ -4,7 +4,7 @@ import MessageRenderer from './chat/MessageRenderer';
 import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
 import { persistMessageRange } from './chat/messagePersistence';
-import { createBrowserSpeechRecognition, describeSpeechRecognitionError, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
+import { createBrowserSpeechRecognition, describeSpeechRecognitionError, shouldEndLiveSpeechSession, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
 import { startKuroMicrophoneMeter } from './ai/audioMeter';
 import LiveAudioVisualizer, { type LiveAudioVisualizerHandle } from './ai/LiveAudioVisualizer';
 import { readKuroSpeechPreferences, speakKuroVoice, stopKuroVoice, unlockKuroAudio } from './ai/kuroSpeech';
@@ -392,8 +392,9 @@ function beginLiveVoiceRecognition(){
  };
  recognition.onerror=event=>{
   if(!liveVoiceEnabledRef.current)return;
-  setLiveVoiceStatus(describeSpeechRecognitionError(event.error));
-  if(event.error==='not-allowed'||event.error==='service-not-allowed'){endLiveVoiceSession(describeSpeechRecognitionError(event.error));}
+  const message=describeSpeechRecognitionError(event.error);
+  setLiveVoiceStatus(message);
+  if(shouldEndLiveSpeechSession(event.error))endLiveVoiceSession(message);
  };
  recognition.onend=()=>{
   if(speechRecognitionRef.current===recognition)speechRecognitionRef.current=null;

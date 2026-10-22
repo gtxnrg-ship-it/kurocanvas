@@ -34,6 +34,7 @@ describe("3D character model records", () => {
     expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 1)?.id).toBe("base");
     expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 15)?.id).toBe("chapter-12");
     expect(selectCharacterModelVariant([chapter12, chapter20], "Ren", 1)).toBeUndefined();
+    expect(selectCharacterModelVariant([chapter12, chapter20], "Ren")).toBeUndefined();
   });
 
   it("requires chapter-specific model variants to link to a finite approved-state order", () => {

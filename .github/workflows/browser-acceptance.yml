@@ -1,0 +1,67 @@
+name: Browser acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kuro-browser-acceptance-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium-acceptance:
+    name: Chromium user-journey and responsive smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked app dependencies
+        run: npm ci --no-audit --no-fund --legacy-peer-deps
+      - name: Build the production app
+        run: npm run build
+      - name: Install isolated browser-test tooling
+        run: npm install --no-save --package-lock=false --legacy-peer-deps playwright@1.64.1
+      - name: Install Chromium and OS dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Start the production preview server
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/kuro-preview.log 2>&1 &
+          echo $! > /tmp/kuro-preview.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/kuro-preview.log
+          exit 1
+      - name: Run browser acceptance checks
+        run: node scripts/browser-acceptance.mjs
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuro-browser-acceptance-failure
+          path: |
+            /tmp/kuro-browser-acceptance-failure.png
+            /tmp/kuro-preview.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f /tmp/kuro-preview.pid ]; then
+            kill "$(cat /tmp/kuro-preview.pid)" 2>/dev/null || true
+          fi

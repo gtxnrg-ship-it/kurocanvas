@@ -129,7 +129,7 @@ try {
     await page.locator('.chatlayout').waitFor({ state: 'visible', timeout: 10000 });
   });
 
-  await runCheck('drawing workspace opens and pointer input changes the canvas', async () => {
+  await runCheck('drawing workspace edits, autosaves, and restores after page reload', async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
     const drawingNav = page.getByRole('button', { name: 'Drawing canvas', exact: true });
@@ -154,6 +154,20 @@ try {
       return element instanceof HTMLCanvasElement && element.toDataURL() !== previous;
     }, before, { timeout: 10000 });
     await page.locator('.save-indicator.saved').waitFor({ state: 'visible', timeout: 15000 });
+    const savedCanvasData = await canvas.evaluate(element => element.toDataURL());
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.locator('.home-dashboard').waitFor({ state: 'visible', timeout: 30000 });
+    const reopenTools = page.getByRole('button', { name: /Creative tools/i });
+    const reopenDrawing = page.getByRole('button', { name: 'Drawing canvas', exact: true });
+    if (!(await reopenDrawing.isVisible())) await reopenTools.click();
+    await reopenDrawing.click();
+    const restoredCanvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
+    await restoredCanvas.waitFor({ state: 'visible', timeout: 20000 });
+    await restoredCanvas.scrollIntoViewIfNeeded();
+    await page.waitForFunction(expected => {
+      const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
+      return element instanceof HTMLCanvasElement && element.width > 0 && element.height > 0 && element.toDataURL() === expected;
+    }, savedCanvasData, { timeout: 20000 });
   });
 
   await runCheck('phone viewport retains accessible drawing controls and editable canvas input', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import MessageRenderer from './chat/MessageRenderer';
 import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
@@ -12,14 +12,14 @@ import { generateCompleteLocalReply } from './ai/completeGeneration';
 import { generateValidatedStructuredResponse } from './ai/structuredGeneration';
 import { parseModelJson } from './ai/structuredOutput';
 import type { ModelDescriptor, ModelMessage, ModelMessageContent, ModelMessagePart } from './ai/modelRegistry';
-import DrawingCanvas from './drawing/DrawingCanvas';
+const DrawingCanvas = lazy(() => import('./drawing/DrawingCanvas'));
 import WorkspacePreview from './drawing/WorkspacePreview';
-import LegacyDrawingMigration from './drawing/LegacyDrawingMigration';
+const LegacyDrawingMigration = lazy(() => import('./drawing/LegacyDrawingMigration'));
 import type { NativeDrawingCommand } from './drawing/commands';
 import { drawingGuardSignature } from './drawing/drawingGuard';
 import { AI_PLAN_MAX_ACTIONS, AI_PLAN_MAX_POINTS_PER_STROKE, AI_PLAN_MAX_TOTAL_POINTS, parseAIStrokePlan, requestAIStrokePlan } from './drawing/aiPlan';
-import ProjectManager from './projects/ProjectManager';
-import ReaderWorkspace from './projects/ReaderWorkspace';
+const ProjectManager = lazy(() => import('./projects/ProjectManager'));
+const ReaderWorkspace = lazy(() => import('./projects/ReaderWorkspace'));
 import { artDirectionStorage, canonStorage, characterEvolutionStorage, characterModelStorage, chatMessageStorage, conversationStorage, drawingStorage, projectStorage, referenceSourceStorage, relationshipStorage, storyMemoryStorage, styleBibleStorage, universeStorage, type LocalDrawingDocument } from './core/storage';
 import { createChatUniverse } from './core/universe';
 import { createProject } from './core/project';
@@ -32,24 +32,24 @@ import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
 import { buildArtDirectionContext, parseArtDirectionSynthesis } from './canon/artDirection';
 import type { ArtDirectionBible } from './canon/artDirection';
-import ArtDirectionStudio from './canon/ArtDirectionStudio';
+const ArtDirectionStudio = lazy(() => import('./canon/ArtDirectionStudio'));
 import { buildStyleBibleContext, createEmptyStyleBible, findStyleConflicts } from './canon/styleBible';
-import StyleBibleStudio from './canon/StyleBibleStudio';
+const StyleBibleStudio = lazy(() => import('./canon/StyleBibleStudio'));
 import { buildStoryMemoryContext, createStoryThreadProposal, filterStoryMemoryAtPoint, retrieveStoryMemory, shouldCaptureStoryMemory } from './canon/storyMemory';
 import { proposeVisualStatesFromEvidence } from './canon/visualStateCapture';
 import { missingChapterRecallMessage } from './canon/recallGuard';
 import { parseStoryChapterNumber } from './canon/storyCoordinates';
-import StoryVault from './canon/StoryVault';
-import WorldStudio from './canon/WorldStudio';
-import CharacterTimelineStudio from './canon/CharacterTimelineStudio';
+const StoryVault = lazy(() => import('./canon/StoryVault'));
+const WorldStudio = lazy(() => import('./canon/WorldStudio'));
+const CharacterTimelineStudio = lazy(() => import('./canon/CharacterTimelineStudio'));
 import { buildReferenceContext, extractReferenceSearchQuery, normalizeReferenceSearchResults, searchWikimediaCommons, selectApprovedReferenceImages, type ApprovedReferenceImage, type ReferenceSearchResult } from './canon/referenceScout';
-import ReferenceScout from './canon/ReferenceScout';
+const ReferenceScout = lazy(() => import('./canon/ReferenceScout'));
 import InlineReferenceResults from './canon/InlineReferenceResults';
-import CharacterModelStudio from './canon/CharacterModelStudio';
+const CharacterModelStudio = lazy(() => import('./canon/CharacterModelStudio'));
 import { isCharacterModelToolRequest, parseCharacterModelAgentPlan, type CharacterModelAgentCommand } from './canon/characterModelAgentTools';
-import ResearchStudio from './research/ResearchStudio';
+const ResearchStudio = lazy(() => import('./research/ResearchStudio'));
 import { buildResearchContext, cancelResearchTask, enqueueResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, researchTaskStorage, startResearchQueueRunner } from './research/researchQueue';
-import RelationshipMemoryStudio from './canon/RelationshipMemoryStudio';
+const RelationshipMemoryStudio = lazy(() => import('./canon/RelationshipMemoryStudio'));
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Search, Layers3, Library, MessageCircle, Mic, MicOff, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';
 type Mode='home'|'chat'|'canvas'|'read'|'research'|'vault'; type Msg={role:'user'|'kuro';text:string;tool?:string;references?:ReferenceSearchResult[];referenceProjectId?:string;researchTaskId?:string;researchProjectId?:string}; type RecentConversation={id:string;universeId:string;universeTitle:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
 type SafeProviderConfig={baseUrl:string;modelUri:string;allowInsecureLocalhost:boolean;supportsVision:boolean};
@@ -602,7 +602,7 @@ if(activeProjectId && captureStory){
 }
 }}catch(e){if(requestIsCurrent()){setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I could not complete the model request: '+(e instanceof Error?e.message:'Unknown provider error')+'. Check the Qwen model status in Preferences, then try again.'}]);}}finally{if(chatAbortControllerRef.current===requestController)chatAbortControllerRef.current=null;if(requestIsCurrent()){setWorking(false);setWorkingLabel('');}}}
  return <div className="app"><aside className="sidebar"><div className="brand"><Mark/><div><b>Kuro Canvas</b><small>Create · Draw · Tell · Together</small></div></div><button className="new" onClick={()=>void startNewUniverse()} disabled={historyLoading}><Plus size={16}/> New chat <span>⌘ K</span></button><label>WORKSPACE</label><nav>{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat with Kuro'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Reader'],['research',Search,'Research & Browse'],['vault',Library,'Creative vault']] as const).map(([id,Icon,title])=><button key={id} className={mode===id?'active':''} onClick={()=>setMode(id)}><Icon size={17}/>{title}{id==='chat'&&<i/>}</button>)}</nav><label className="recent">RECENT UNIVERSES <MoreHorizontal size={15}/></label><div className="recent-universes">{historyLoading&&<small className="history-hint">Restoring your conversations…</small>}{!historyLoading&&recentUniverses.length===0&&<small className="history-hint">Your saved universes will appear here.</small>}{recentUniverses.map(item=><button key={item.id} className={'universe-shortcut '+(item.id===activeUniverseId?'active':'')} onClick={()=>void resumeUniverse(item)} title={item.title}><span className="universe-dot">✦</span><span className="universe-copy"><b>{item.title}</b><small>{new Date(item.updatedAt).toLocaleDateString()}</small></span>{item.id===activeUniverseId&&<i/>}</button>)}</div>{historyNotice&&<p className="history-notice" role="status">{historyNotice}</p>}<div className="sidebottom"><div className="local"><i/> <span><b>Local workspace</b><small>Your project stays yours</small></span></div><button className="settings" onClick={()=>setProviderSettingsOpen(true)}><Settings2 size={16}/> Preferences</button></div></aside>
- <main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className={'saved save-state-'+localSaveStatus} role="status" aria-live="polite"><i/>{historyLoading?'Restoring locally…':localSaveStatus==='saving'?'Saving locally…':localSaveStatus==='error'?'Local save failed':'Saved locally'}</span>{localSaveStatus==='error'&&<button className="save-retry" onClick={retryLocalMessageSave} aria-label="Retry saving conversation">Retry save</button>}<button aria-label="Help" title="How to use Kuro" onClick={()=>setHelpOpen(true)}><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
+ <Suspense fallback={<main className="workspace-loading" role="status" aria-live="polite">Loading workspace…</main>}><main><header className="topbar"><div>My workspace <span>/</span> <b>{mode==='home'?'Home':mode==='chat'?'Chat with Kuro':mode==='canvas'?'Drawing canvas':mode==='read'?'Reader':mode==='research'?'Research & Browse':'Creative vault'}</b><ChevronDown size={13}/></div><section><span className={'saved save-state-'+localSaveStatus} role="status" aria-live="polite"><i/>{historyLoading?'Restoring locally…':localSaveStatus==='saving'?'Saving locally…':localSaveStatus==='error'?'Local save failed':'Saved locally'}</span>{localSaveStatus==='error'&&<button className="save-retry" onClick={retryLocalMessageSave} aria-label="Retry saving conversation">Retry save</button>}<button aria-label="Help" title="How to use Kuro" onClick={()=>setHelpOpen(true)}><CircleHelp size={17}/></button><span className="user">Y</span></section></header>
  {helpOpen&&<div className="kuro-help-backdrop" onClick={()=>setHelpOpen(false)}><section className="kuro-help-dialog" role="dialog" aria-modal="true" aria-labelledby="kuro-help-title" onClick={event=>event.stopPropagation()}><div className="kuro-help-head"><div><small>QUICK GUIDE</small><h2 id="kuro-help-title">Working with Kuro</h2></div><button type="button" aria-label="Close help" onClick={()=>setHelpOpen(false)}><X size={18}/></button></div><section><h3>1. Prepare Kuro’s model</h3><p>Open Preferences → Download & prepare Qwen3-0.6B. Kuro uses one local, text-only model; an ordinary chat message will not start a surprise model download. After a page reload or cancelled generation, prepare it again for this session.</p></section><section><h3>2. Create and draw</h3><p>Describe the image or page. Kuro proposes editable canvas actions for review. Inspect the plan before approving it; the artwork should remain unchanged until you approve a validated plan.</p></section><section><h3>3. Find references and research</h3><p>Ask for visual references to search Wikimedia Commons and view each source, creator and license. Saving a reference makes a proposal, not approved canon. Research tasks live in Research Lab; review their actual source notes before using findings as story truth.</p></section><section><h3>4. Protect continuity</h3><p>Use Creative Vault for your World Bible, character states, art direction and story-memory proposals. Drafts are not approved canon. For long stories, give an explicit chapter or timeline point whenever it affects a reveal.</p></section><section><h3>5. Understand the limits</h3><p>Qwen3-0.6B here is text-only, so Kuro must not claim to inspect image pixels. Voice input is optional browser speech recognition; after you confirm, audio may be processed by the browser’s speech service rather than locally. Use Export transcript for visible chat text, or Project Manager for a broader project archive.</p></section><div className="kuro-help-footer"><a href="https://github.com/gtxnrg-ship-it/kurocanvas" target="_blank" rel="noreferrer noopener">Project source and current status ↗</a><button type="button" onClick={()=>{setHelpOpen(false);setProviderSettingsOpen(true);}}>Open Preferences</button></div></section></div>}
  {mode==='home'&&<section className="home-dashboard">
   <div className="home-eyebrow"><span className="home-orbit">✦</span> YOUR CREATIVE UNIVERSE</div>
@@ -627,5 +627,5 @@ if(activeProjectId && captureStory){
   try{localStorage.removeItem('kuro-active-project');}catch{}
  }
 }}/><WorldStudio projectId={activeProjectId} lockedToProjectId /><CharacterTimelineStudio projectId={activeProjectId} universeId={activeUniverseId} /><StoryVault projectId={activeProjectId} projects={localProjects} onOpenDrawing={openDrawingFromVault} onProjectChange={id=>{const scopedProjectId=recentUniverses.find(item=>item.id===activeUniverseId)?.projectId||'';if(id!==scopedProjectId){setHistoryNotice('This universe is isolated from other projects. Resume the matching universe from Recent Universes to work with its canon and assets.');setActiveProjectId(scopedProjectId);return;}setActiveProjectId(id);try{if(id)localStorage.setItem('kuro-active-project',id);else localStorage.removeItem('kuro-active-project');}catch{}}}/><RelationshipMemoryStudio universeId={activeUniverseId} projectId={activeProjectId} conversationId={activeConversationId}/><ArtDirectionStudio projectId={activeProjectId} projects={localProjects} onSynthesize={synthesizeArtDirection}/><StyleBibleStudio projectId={activeProjectId} projects={localProjects}/><ReferenceScout projectId={activeProjectId} projects={localProjects}/><CharacterModelStudio projectId={activeProjectId} projects={localProjects} pendingAgentAction={pendingModelAction} onAgentActionResult={(id,result,detail)=>{setPendingModelAction(current=>current?.id===id?null:current);setMessages(m=>[...m,{role:'kuro',text:result==='success'?'Native 3D viewport tools completed and verified in the live Character Model Studio: '+detail+'. This was direct tool use, not image generation.':'The native 3D viewport action failed: '+detail}]);}}/></section>}
- <footer><span>● <span>Drawing changes save locally on this device</span></span><span>Ctrl/Cmd+Z Undo · Shift+Ctrl/Cmd+Z Redo</span></footer></main><nav className="mobilenav">{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Read'],['research',Search,'Research'],['vault',Library,'Vault']] as const).map(([id,Icon,t])=><button key={id} className={mode===id?'active':''} onClick={()=>id==='canvas'?openCanvas():setMode(id)}><Icon size={19}/><span>{t}</span></button>)}</nav></div>
+ <footer><span>● <span>Drawing changes save locally on this device</span></span><span>Ctrl/Cmd+Z Undo · Shift+Ctrl/Cmd+Z Redo</span></footer></main></Suspense><nav className="mobilenav">{([['home',Sparkles,'Home'],['chat',MessageCircle,'Chat'],['canvas',PenTool,'Canvas'],['read',BookOpen,'Read'],['research',Search,'Research'],['vault',Library,'Vault']] as const).map(([id,Icon,t])=><button key={id} className={mode===id?'active':''} onClick={()=>id==='canvas'?openCanvas():setMode(id)}><Icon size={19}/><span>{t}</span></button>)}</nav></div>
 }

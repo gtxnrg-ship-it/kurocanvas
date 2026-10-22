@@ -50,7 +50,7 @@ The queue currently includes Wikipedia extracts and Crossref scholarly metadata/
 
 ### P1 — Live creation progress and recovery need an end-to-end proof
 
-The current live-session log is maintained in React component state in `App.tsx`. A durable save/restore path for the live-session plan and timeline was not found in that component. Verify whether navigation, reload, an interrupted model request, or app backgrounding loses the current batch, selected drawing, or continuation position. If it does, persist the session against the active project and provide resume/cancel/recover behavior.
+The audit branch now stores each Live Creation session under a project-scoped localStorage key and validates the saved record on restore. An interrupted `planning` or `drawing` session is restored as paused with a clear recovery note rather than being presented as completed. This closes the React-state-only session-log loss, but **the in-flight validated drawing plan/canvas request is not itself durably queued**; after a hard reload during a batch, the user must inspect the saved canvas and resume/reissue the remaining work. Browser-level reload, project-switch and cancellation tests still need to prove the saved timeline and drawing remain consistent.
 
 The current session also has a bounded batch count. Verify that hitting the limit produces a clear “paused for review / continue” state rather than making the user believe the entire request is finished.
 
@@ -102,6 +102,12 @@ In the first-run path in `src/App.tsx`, `send()` captures the submitted text bef
 ### P2 — The “one-time-per-session” consent description does not match the implementation
 
 The code invokes `window.confirm(...)` on every send while the model is unprepared. If the user declines and retries, the prompt appears again; there is no session-scoped decision state. **Audit-branch copy fix:** the prompt now asks whether to start preparing the model, without describing the confirmation as one-time. This is intentional repeated consent per attempt; declining starts no download. Keep this behavior covered by the first-run acceptance tests.
+
+
+
+### P2 — Removed an unimplemented keyboard shortcut hint
+
+The sidebar’s “New universe” control showed `⌘ K` even though the app had no matching keyboard handler. The hint is removed rather than teaching a shortcut that does nothing. Keyboard navigation and focus behavior still belong in the browser accessibility acceptance run.
 
 ### Resolved in the audit branch — universe and conversation labels now match the architecture contract
 

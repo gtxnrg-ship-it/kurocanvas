@@ -16,7 +16,6 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
     const positiveVisualAction = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put)\b/i;
     if (!positiveVisualAction.test(contrastingClause)) return false;
   }
-  if (negatedVisualAction.test(text)) return false;
 
   const visualVerb = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|start\s+(?:drawing|sketching|creating))\b/i;
   const canvasTarget = /\b(?:on|onto|in|inside)\s+(?:the\s+)?(?:live\s+)?canvas\b/i;

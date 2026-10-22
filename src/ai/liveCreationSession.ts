@@ -122,7 +122,8 @@ export function settleLiveCreationBatch(
   message: string,
   allowAutomaticContinuation: boolean,
 ): SettledLiveCreationBatch | null {
-  if (!current.log.some(entry => entry.kind === "batch" && entry.id === batchId)) return null;
+  const matchingBatch = current.log.find(entry => entry.kind === "batch" && entry.id === batchId);
+  if (!matchingBatch || matchingBatch.status !== "working") return null;
 
   const nextLog = current.log.map(entry => entry.kind === "batch" && entry.id === batchId
     ? {

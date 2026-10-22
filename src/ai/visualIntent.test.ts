@@ -31,6 +31,17 @@ describe("canvas visual intent", () => {
     expect(isDrawingIntent("Let's brainstorm how the protagonist changes across the story")).toBe(false);
   });
 
+  it("does not treat explicitly deferred visual work as a drawing or inspection request", () => {
+    expect(isDrawingIntent("Don't draw her yet; let's keep brainstorming.")).toBe(false);
+    expect(isDrawingIntent("Please don't sketch the scene yet.")).toBe(false);
+    expect(isCanvasVisualIntent("Don't inspect the canvas yet.")).toBe(false);
+    expect(shouldAttachCanvasPreview("Please don't sketch the scene yet.", ["chat", "vision"])).toBe(false);
+  });
+
+  it("still honors a separate positive visual request after a contrast", () => {
+    expect(isDrawingIntent("Don't draw her yet, but show me her current outfit.")).toBe(true);
+  });
+
   it("does not attach canvas previews for ordinary story chat", () => {
     expect(shouldAttachCanvasPreview("Help me brainstorm a villain's backstory", ["chat", "vision"])).toBe(false);
   });

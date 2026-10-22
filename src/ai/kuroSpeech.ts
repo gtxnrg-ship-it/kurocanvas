@@ -110,7 +110,7 @@ export async function prepareKuroVoice(onProgress?: (value: KuroSpeechProgress) 
   const reply = await requestWorker({ type: "prepare" }, onProgress);
   if (reply.type !== "ready") throw new Error("Kuro's local voice engine did not finish preparing.");
 }
-function speechChunks(value: string): string[] {
+function speechChunks(value: string, maxChunkLength = 280): string[] {
   const text = value
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
@@ -128,8 +128,8 @@ function speechChunks(value: string): string[] {
   for (const raw of sentences) {
     const sentence = raw.trim();
     if (!sentence) continue;
-    if (current && current.length + sentence.length + 1 > 280) { chunks.push(current); current = ""; }
-    if (sentence.length > 360) {
+    if (current && current.length + sentence.length + 1 > maxChunkLength) { chunks.push(current); current = ""; }
+    if (sentence.length > maxChunkLength + 80) {
       if (current) chunks.push(current);
       current = "";
       for (let offset = 0; offset < sentence.length; offset += 300) {
@@ -240,7 +240,7 @@ export async function speakKuroVoice(
   preferences: KuroSpeechPreferences = readKuroSpeechPreferences(),
   onProgress?: (value: KuroSpeechProgress) => void,
 ): Promise<void> {
-  const chunks = speechChunks(text);
+  const chunks = speechChunks(text, preferences.engine === "fish" ? 900 : 280);
   if (!chunks.length) return;
   const requestGeneration = ++playbackGeneration;
   try {

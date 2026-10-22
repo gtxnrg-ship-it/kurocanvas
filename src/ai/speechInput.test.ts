@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createBrowserSpeechRecognition,
   describeSpeechRecognitionError,
+  shouldEndLiveSpeechSession,
   transcriptFromSpeechEvent,
   finalTranscriptFromSpeechEvent,
   normalizeSpokenPunctuation,
@@ -65,6 +66,25 @@ describe("optional browser speech input", () => {
       .toBe("Give her red hair!\n\nMake the eyes gold");
     expect(normalizeSpokenPunctuation("Say hello open quote Kuro close quote"))
       .toBe("Say hello “Kuro”");
+  });
+
+  it("capitalizes sentence starts after punctuation and line breaks, and normalizes the pronoun I", () => {
+    expect(normalizeSpokenPunctuation("hello. how are you? i am okay! new line make another note"))
+      .toBe("Hello. How are you? I am okay!\nMake another note");
+  });
+
+  it("capitalizes first-person English contractions during dictation", () => {
+    expect(normalizeSpokenPunctuation("i'm ready and i've checked it, but i'll try again"))
+      .toBe("I'm ready and I've checked it, but I'll try again");
+  });
+
+  it("does not continuously restart when microphone or recognition service errors are terminal", () => {
+    for (const error of ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported", "network"]) {
+      expect(shouldEndLiveSpeechSession(error)).toBe(true);
+    }
+    expect(shouldEndLiveSpeechSession("no-speech")).toBe(false);
+    expect(shouldEndLiveSpeechSession("aborted")).toBe(false);
+    expect(shouldEndLiveSpeechSession(undefined)).toBe(false);
   });
 
   it("returns an empty transcript for empty or non-text recognition results", () => {

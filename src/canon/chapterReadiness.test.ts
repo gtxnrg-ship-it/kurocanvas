@@ -37,6 +37,7 @@ const base: ChapterReadinessInput = {
   },
   characterTimelines: [
     { characterId: "protagonist", timelineId: "main", storyOrder: 1, status: "approved" },
+    { characterId: "friend", timelineId: "main", storyOrder: 1, status: "approved" },
   ],
   relationships: [
     { characterAId: "protagonist", characterBId: "friend" },
@@ -47,7 +48,7 @@ const base: ChapterReadinessInput = {
 };
 
 describe("chapter readiness gate", () => {
-  it("allows production when the world, cast, art direction, visual state, timeline, and relationships are approved", () => {
+  it("allows production only when every approved character has a visual state and timeline", () => {
     const report = evaluateChapterReadiness(base);
     expect(report.ready).toBe(true);
     expect(report.approvedCharacterCount).toBe(2);
@@ -94,6 +95,19 @@ describe("chapter readiness gate", () => {
     expect(withoutSources.ready).toBe(false);
     expect(withoutSources.gaps.map(gap => gap.id)).toContain("research");
     expect(evaluateChapterReadiness({ ...base, requiresHistoricalResearch: true }).ready).toBe(true);
+  });
+
+  it("blocks when any approved character is missing a visual design or timeline state", () => {
+    const report = evaluateChapterReadiness({
+      ...base,
+      styleBible: {
+        characterStates: base.styleBible!.characterStates.filter(state => state.characterName !== "Ren"),
+      },
+      characterTimelines: base.characterTimelines!.filter(state => state.characterId !== "friend"),
+    });
+    expect(report.ready).toBe(false);
+    expect(report.gaps.find(gap => gap.id === "character-design")?.message).toContain("Ren");
+    expect(report.gaps.find(gap => gap.id === "timeline")?.message).toContain("Ren");
   });
 
   it("requires relationship canon only when two or more approved characters exist", () => {

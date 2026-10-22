@@ -93,13 +93,17 @@ export default function CharacterDesignHandoff({ projectId, drawingId, originalP
     if (!canon || !styleBible || loading || saving || alreadyLinked) return;
     setSaving(true);
     setFeedback("");
-    const previousCanon = await canonStorage.load(projectId);
-    const previousBible = await styleBibleStorage.load(projectId);
+    let previousCanon: CanonBundle | undefined;
+    let previousBible: ProjectStyleBible | undefined;
     let nextMemory: StoryMemoryRecord | undefined;
+    let previousMemories: StoryMemoryRecord[] = [];
     let wroteCanon = false;
     let wroteBible = false;
     let wroteMemory = false;
     try {
+      previousCanon = await canonStorage.load(projectId);
+      previousBible = await styleBibleStorage.load(projectId);
+      previousMemories = await storyMemoryStorage.list(projectId);
       const result = createCharacterDesignHandoff({
         projectId,
         drawingId,
@@ -109,12 +113,12 @@ export default function CharacterDesignHandoff({ projectId, drawingId, originalP
         ...(chapterNumber.trim() ? { chapterNumber: Number(chapterNumber) } : {}),
         ...(storyOrder.trim() ? { storyOrder: Number(storyOrder) } : {}),
         traits,
-      }, { canon, styleBible, storyMemories: memories });
+      }, { canon: previousCanon ?? createEmptyCanon(projectId), styleBible: previousBible ?? createEmptyStyleBible(projectId), storyMemories: previousMemories });
       nextMemory = result.storyMemory;
       await canonStorage.save(result.canon); wroteCanon = true;
       await styleBibleStorage.save(result.styleBible); wroteBible = true;
       await storyMemoryStorage.save(result.storyMemory); wroteMemory = true;
-      setCanon(result.canon); setStyleBible(result.styleBible); setMemories(current => [...current, result.storyMemory]);
+      setCanon(result.canon); setStyleBible(result.styleBible); setMemories([...previousMemories, result.storyMemory]);
       setCharacters(result.canon.entities.filter(entity => entity.kind.toLocaleLowerCase() === "character"));
       setAlreadyLinked(result.storyMemory);
       setFeedback("Saved as a proposal, not approved canon. The drawing, character entry, and visual state are linked in this project.");
@@ -145,15 +149,15 @@ export default function CharacterDesignHandoff({ projectId, drawingId, originalP
         <b>{alreadyLinked ? "Design linked to World & Vault" : "Keep this character in your world"}</b>
         <p>{alreadyLinked ? alreadyLinked.title : "Turn this saved canvas into a reviewable character and visual timeline entry."}</p>
       </div>
-      <button className="character-handoff-toggle" type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} disabled={loading}>
-        {alreadyLinked ? "Review" : expanded ? "Close" : "Save design"} <ChevronDown size={15} className={expanded ? "is-open" : ""}/>
+      <button className="character-handoff-toggle" type="button" onClick={() => alreadyLinked ? onOpenVault() : setExpanded(value => !value)} aria-expanded={expanded} disabled={loading}>
+        {alreadyLinked ? "Open Vault" : expanded ? "Close" : "Save design"} <ChevronDown size={15} className={expanded && !alreadyLinked ? "is-open" : ""}/>
       </button>
     </div>
     {loading && <p className="character-handoff-status" role="status">Loading this project's World Bible and visual timeline…</p>}
     {feedback && <p className="character-handoff-status" role="status">{feedback}</p>}
     {alreadyLinked && <button className="character-handoff-open" type="button" onClick={onOpenVault}>Open World & Vault <ArrowRight size={14}/></button>}
     {expanded && !alreadyLinked && <form className="character-handoff-form" onSubmit={event => void saveDesign(event)}>
-      <p className="character-handoff-note">The drawing stays editable and is linked as a visual reference. Kuro does not infer hidden pixels here: fill only details you confirm. All new records remain **proposed** until you approve them in the Vault.</p>
+      <p className="character-handoff-note">The drawing stays editable and is linked as a visual reference. Kuro does not infer hidden pixels here: fill only details you confirm. All new records remain <strong>proposed</strong> until you approve them in the Vault.</p>
       <label>Character<select value={entityChoice} onChange={event => chooseCharacter(event.target.value)} disabled={saving || loading}>
         <option value="new">Create a new character proposal</option>
         {characters.map(entity => <option key={entity.id} value={entity.id}>{entity.name} · {entity.status}</option>)}
@@ -173,7 +177,7 @@ export default function CharacterDesignHandoff({ projectId, drawingId, originalP
         </div>
       </details>
       {originalPrompt.trim() && <details className="character-handoff-source"><summary>Original creation prompt</summary><p>{originalPrompt}</p></details>}
-      <button className="character-handoff-save" type="submit" disabled={saving || loading || !name.trim() || !Object.values(traits).some(value => typeof value === "string" && value.trim())}>
+      <button className="character-handoff-save" type="submit" disabled={!canon || !styleBible || saving || loading || !name.trim() || !Object.values(traits).some(value => typeof value === "string" && value.trim())}>
         <Save size={15}/>{saving ? "Saving proposal…" : "Save character proposal"} <Sparkles size={14}/>
       </button>
     </form>}

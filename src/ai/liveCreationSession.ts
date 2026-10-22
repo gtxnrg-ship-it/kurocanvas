@@ -78,7 +78,9 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       restored.status = "paused";
       restored.lastError = "Kuro was interrupted by a reload or app restart. Inspect the saved canvas before continuing; unfinished work was not assumed complete.";
       restored.log = [
-        ...restored.log.map(entry => entry.status === "working" ? { ...entry, status: "paused" as const, label: entry.label + " · interrupted; inspect before continuing" } : entry),
+        ...restored.log.map((entry): LiveCreationLogEntry => entry.status === "working"
+          ? { ...entry, status: "paused", label: entry.label + " · interrupted; inspect before continuing" }
+          : entry),
         {
           id: "recovery-" + restored.id,
           kind: "status",

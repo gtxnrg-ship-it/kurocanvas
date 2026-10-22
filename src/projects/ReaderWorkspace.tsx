@@ -5,7 +5,7 @@ import { buildSvgDocument } from '../drawing/svgExport';
 
 type ReaderPageSummary = {
   id: string;
-  title?: string;
+  name?: string;
   updatedAt: string;
 };
 
@@ -90,7 +90,7 @@ function ReaderPageCard({
       if (!document) throw new Error('This drawing is no longer available in the active universe.');
       if (!alive) return;
       const nextDetails: ReaderPageDetails = {
-        title: document.name?.trim() || summary.title?.trim() || 'Untitled page',
+        title: document.name?.trim() || summary.name?.trim() || 'Untitled page',
         updatedAt: document.updatedAt || summary.updatedAt,
         width: document.width,
         height: document.height,
@@ -112,7 +112,7 @@ function ReaderPageCard({
       alive = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [nearViewport, summary.id, summary.title, summary.updatedAt, projectId]);
+  }, [nearViewport, summary.id, summary.name, summary.updatedAt, projectId]);
 
   const title = details?.title || summary.title?.trim() || 'Untitled page';
   return (

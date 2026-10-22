@@ -18,7 +18,10 @@ export type LiveCreationSession = {
   log: LiveCreationLogEntry[];
 };
 
-const PREFIX = "kuro-live-creation:v1:";
+export const DEFAULT_LIVE_CREATION_MAX_BATCHES = 12;
+export const MAX_LIVE_CREATION_BATCHES = 20;
+
+const PREFIX = "kuro-live-creation:v1:"
 const SESSION_STATUSES = new Set(["ready", "planning", "drawing", "complete", "paused", "error"]);
 const LOG_KINDS = new Set(["request", "batch", "status"]);
 const LOG_STATUSES = new Set(["working", "done", "paused", "error"]);
@@ -38,7 +41,7 @@ export function restoreLiveCreationSession(raw: string | null, projectId: string
       || typeof record.id !== "string" || !record.id || record.id.length > 128
       || typeof record.originalPrompt !== "string" || record.originalPrompt.length > 12000
       || !Number.isInteger(record.batches) || (record.batches as number) < 0 || (record.batches as number) > 1000
-      || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > 20
+      || !Number.isInteger(record.maxBatches) || (record.maxBatches as number) < 1 || (record.maxBatches as number) > MAX_LIVE_CREATION_BATCHES
       || typeof record.autoContinue !== "boolean"
       || typeof record.status !== "string" || !SESSION_STATUSES.has(record.status)
       || typeof record.activeSummary !== "string" || record.activeSummary.length > 6000

@@ -11,7 +11,7 @@ import {
 } from "./seriesPlan";
 
 const completeDraft: SeriesPlanFields = {
-  seriesScope: "A 12-episode vertical fantasy mystery for teen and adult readers.",
+  seriesScope: "A 3-episode vertical fantasy mystery for teen and adult readers.",
   seriesArcPlan: "Arc 1 establishes the city and friendship; Arc 2 reveals the observatory conspiracy; Arc 3 tests the cast's loyalties and costs; the final arc resolves the sky mystery and changes the city.",
   seriesChapterPlan: [
     "Chapter 1: Mira discovers a lantern that glows under the eclipsed sky and hides it from Ren.",
@@ -42,6 +42,15 @@ describe("whole-series plan contract", () => {
     expect(validateSeriesPlan(gap).map(issue => issue.id)).toContain("chapter-order");
     const duplicate = { ...completeDraft, seriesChapterPlan: completeDraft.seriesChapterPlan!.replace("Chapter 2:", "Chapter 1:") };
     expect(validateSeriesPlan(duplicate).map(issue => issue.id)).toContain("chapter-order");
+  });
+
+  it("checks the declared series length and rejects placeholder chapter summaries", () => {
+    const lengthMismatch = { ...completeDraft, seriesScope: "A 5-episode vertical fantasy mystery for teen and adult readers." };
+    expect(validateSeriesPlan(lengthMismatch).map(issue => issue.id)).toContain("chapter-count");
+    const placeholder = { ...completeDraft, seriesScope: "A standalone one-shot comic with a complete ending.", seriesChapterPlan: "Chapter 1: Too short." };
+    const issues = validateSeriesPlan(placeholder);
+    expect(issues.map(issue => issue.id)).toContain("chapters");
+    expect(issues.find(issue => issue.id === "chapters")?.message).toContain("40 characters");
   });
 
   it("requires explicit approval and ties approval to the exact saved plan contents", () => {

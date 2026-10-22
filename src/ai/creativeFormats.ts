@@ -9,6 +9,7 @@ export type CreativeFormatId =
   | "visual-novel"
   | "storyboard"
   | "picture-book"
+  | "custom-storyboard"
   | "illustrated-story";
 
 export type CreativeLayout = "vertical-strip" | "page" | "horizontal-strip" | "wide-scene" | "square-spread";
@@ -64,6 +65,10 @@ const FORMAT_SPECS: Record<CreativeFormatId, CreativeProductionSpec> = {
     id: "picture-book", label: "Illustrated picture-book spread", layout: "square-spread", width: 1800, height: 1800, foundationGate: true,
     promptGuidance: "PICTURE-BOOK SPREAD PRODUCTION: Compose a square spread with one clear illustration focal point and generous reserved space for readable narration. Follow the user's audience and tone. Keep character appearance and setting consistent across spreads; treat the result as editable layout/storyboard work, not finished publishing art.",
   },
+  "custom-storyboard": {
+    id: "custom-storyboard", label: "Custom creative format", layout: "page", width: 1600, height: 1200, foundationGate: true,
+    promptGuidance: "CUSTOM CREATIVE FORMAT: Follow the user's explicitly described medium, visual language, pacing, page/strip direction, panel density, text treatment, and intended audience. Do not force manga, Webtoon, comic-page, or any other convention when the brief requests something different. Use this editable 1600×1200 storyboard surface as a provisional starting point only; honor any specific layout or dimensions requested if the canvas supports them, and state any unsupported output clearly.",
+  },
   "illustrated-story": {
     id: "illustrated-story", label: "Flexible illustrated story", layout: "vertical-strip", width: 900, height: 6000, foundationGate: true,
     promptGuidance: "FLEXIBLE ILLUSTRATED-STORY PRODUCTION: The user did not specify a fixed comic tradition. Follow their requested medium, genre, tone, reading direction, panel density, and pacing; do not assume all stories are manga. Start with an editable storyboard and use small verified batches. Ask for a format choice only if a material decision cannot be safely inferred.",
@@ -78,13 +83,14 @@ const FORMAT_MATCHERS: Array<{ id: CreativeFormatId; pattern: RegExp }> = [
   { id: "graphic-novel", pattern: /\bgraphic\s+novel\b/i },
   { id: "visual-novel", pattern: /\bvisual\s+novel\b/i },
   { id: "picture-book", pattern: /\b(?:picture\s+book|illustrated\s+children'?s\s+book)\b/i },
-  { id: "storyboard", pattern: /\b(?:storyboard|animatic\s+board|shot\s+sequence)\b/i },
+  { id: "custom-storyboard", pattern: /\b(?:custom|hybrid|experimental)\s+(?:visual\s+)?(?:story|comic|format|sequence|narrative|book|storyboard)\b/i },
+  { id: "storyboard", pattern: /\b(?:storyboard|animatic\s+board|shot\s+sequence|short\s+film\s+board|film\s+storyboard)\b/i },
   { id: "manga", pattern: /\b(?:manga|manga\s+page)\b/i },
   { id: "comic-page", pattern: /\b(?:comic\s+page|comic\s+book|graphic\s+comic)\b/i },
 ];
 
 const STRONG_PRODUCTION_ACTION = /\b(?:write|draft|compose|script|create|make|build|produce|generate|draw|sketch|illustrate|paint|render|storyboard|plan|outline|start|begin|turn\s+.+\s+into|adapt\s+.+\s+into)\b/i;
-const IDEATION_OR_RESEARCH = /\b(?:brainstorm|research|references?|source\s+material|ideas?\s+for|options?\s+for|discuss|talk\s+through|explore\s+ideas|what\s+are\s+some|how\s+should\s+we|explain|compare|analy[sz]e)\b/i;
+const IDEATION_ONLY = /^\s*(?:(?:please|let['’]s|can\s+you|could\s+you|help\s+me)\s+)?(?:brainstorm|research|discuss|talk\s+(?:about|through)|explore\s+ideas|look\s+for\s+(?:references|sources)|find\s+(?:references|sources)|collect\s+references|compare|explain|analy[sz]e|give\s+me\s+ideas|show\s+me\s+references|what\s+are\s+some)\b/i;
 const DEFERRED_PRODUCTION = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on|wait\s+to|no\s+need\s+to|let's\s+not)\b[\s\S]{0,100}?\b(?:write|draft|compose|create|make|build|produce|generate|draw|sketch|illustrate|paint|render|storyboard|plan|outline|start|begin)\b/i;
 
 /**
@@ -93,22 +99,21 @@ const DEFERRED_PRODUCTION = /\b(?:don't|do\s+not|never|not\s+yet|hold\s+off\s+on
  */
 export function detectCreativeProductionRequest(message: string): CreativeProductionSpec | undefined {
   const text = message.normalize("NFKC").trim();
-  if (!text || DEFERRED_PRODUCTION.test(text)) {
-    const defer = DEFERRED_PRODUCTION.exec(text);
-    const remainder = defer ? text.slice(defer.index + defer[0].length) : "";
+  if (!text) return undefined;
+  const deferred = DEFERRED_PRODUCTION.exec(text);
+  if (deferred) {
+    const remainder = text.slice(deferred.index + deferred[0].length);
     const positiveClause = remainder.match(/\b(?:but|instead|however|actually)\b([\s\S]{0,180})/i)?.[1] ?? "";
     if (!positiveClause || !STRONG_PRODUCTION_ACTION.test(positiveClause)) return undefined;
   }
 
-  const isProduction = STRONG_PRODUCTION_ACTION.test(text);
-  if (!isProduction || IDEATION_OR_RESEARCH.test(text)) return undefined;
+  if (!STRONG_PRODUCTION_ACTION.test(text) || IDEATION_ONLY.test(text)) return undefined;
 
   const matched = FORMAT_MATCHERS.find(item => item.pattern.test(text));
   if (!matched) return undefined;
 
   // A user who is discussing a work but not asking for a deliverable stays in chat.
-  const asksForDeliverable = STRONG_PRODUCTION_ACTION.test(text)
-    && /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+story)\b/i.test(text);
+  const asksForDeliverable = /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+story|custom\s+format|custom|hybrid|experimental|narrative|story|format)\b/i.test(text);
   if (!asksForDeliverable) return undefined;
   return FORMAT_SPECS[matched.id];
 }

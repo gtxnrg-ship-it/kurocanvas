@@ -104,7 +104,7 @@ export async function generateCompleteLocalReply(
     "Continue the answer from exactly where it stopped. Do not restart, recap, repeat a completed section, or add an introduction.",
     "Honor the creator's original request and constraints. Continue the next unfinished sentence or section, using the existing answer as context.",
     "Begin by repeating the exact overlap text below verbatim, then continue beyond it. The application removes an exact repeated prefix. Do not paraphrase that overlap.",
-    "Exact overlap to repeat first:\n" + parts.join("").slice(-240),
+    "Exact overlap to repeat first:\n" + joinContinuationChunks(parts).slice(-240),
     "If the answer is already complete and nothing meaningful remains, reply with exactly " + COMPLETE_SENTINEL + ".",
     originalRequestText ? "Original user request (preserve its intent and constraints):\n" + originalRequestText.slice(-2400) : "",
   ].filter(Boolean).join("\n\n");
@@ -130,8 +130,8 @@ export async function generateCompleteLocalReply(
       ? request.messages
       : [
           ...request.messages,
-          { role: "assistant" as const, content: parts.join("\n\n") },
-          { role: "user" as const, content: continuationPrompt().join("\n\n") },
+          { role: "assistant" as const, content: joinContinuationChunks(parts) },
+          { role: "user" as const, content: continuationPrompt() },
         ];
 
     let response: ModelResponse;

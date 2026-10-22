@@ -1,10 +1,10 @@
 import type { ModelDescriptor, ModelProvider, ModelRequest, ModelResponse } from "./modelRegistry";
-import { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+import { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-export { KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
+export { KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS, KURO_TINY_MODEL_DESCRIPTOR_ID, KURO_TINY_MODEL_DOWNLOAD_BYTES, KURO_TINY_MODEL_ID, KURO_TINY_MODEL_URI } from "./localTinyModelConfig";
 
-/** Upper bound for mobile-friendly native-tool plans and longer creative responses. */
-export const KURO_LOCAL_MAX_OUTPUT_TOKENS = 1024;
+/** Backward-compatible alias for one memory-bounded inference pass, not a whole chat reply. */
+export const KURO_LOCAL_MAX_OUTPUT_TOKENS = KURO_LOCAL_MAX_OUTPUT_TOKENS_PER_PASS;
 type ProgressListener = (progress: { percent: number; file?: string; status: string }) => void;
 type TextMessage = { role: string; content: string };
 export type WorkerRequest =
@@ -202,16 +202,27 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   const clip = (content: string, budget: number): string => {
     if (content.length <= budget) return content;
     if (budget <= 1) return content.slice(0, budget);
-    const marker = "\n[…context clipped…]\n";
-    if (budget <= marker.length) return content.slice(-budget);
-    const usable = budget - marker.length;
-    const head = Math.ceil(usable * 0.64);
-    const tail = usable - head;
-    return content.slice(0, head) + marker + (tail ? content.slice(-tail) : "");
+    const marker = "\n[…context section omitted…]\n";
+    if (budget <= marker.length * 2 + 1) return content.slice(-budget);
+
+    // Preserve the prompt's beginning, a central slice, and its ending. The
+    // system prompt combines persona, canon, memory, research and canvas state;
+    // head/tail-only clipping silently erased every middle section.
+    const usable = budget - marker.length * 2;
+    const head = Math.ceil(usable * 0.4);
+    const middle = Math.ceil(usable * 0.2);
+    const tail = usable - head - middle;
+    const latestMiddleStart = Math.max(head, content.length - tail - middle);
+    const middleStart = Math.max(head, Math.min(Math.floor((content.length - middle) / 2), latestMiddleStart));
+    return content.slice(0, head)
+      + marker
+      + content.slice(middleStart, middleStart + middle)
+      + marker
+      + (tail ? content.slice(-tail) : "");
   };
 
-  // The first system block contains the persona and execution rules. Preserve both
-  // its beginning and its tail, where project context is commonly appended.
+  // The first system block contains persona, execution rules and appended project context.
+  // Preserve its beginning, central slice and ending to reduce silent context loss.
   const hasHistory = messages.some((message, index) =>
     index !== systemIndex && index !== latestUserIndex && Boolean(message.content),
   );

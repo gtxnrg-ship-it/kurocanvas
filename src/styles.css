@@ -879,3 +879,57 @@ a:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* The canon scope chip contains a disabled native select; keep it themed and shrinkable. */
+.context {
+  max-width: 100%;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.context select {
+  min-width: 0;
+  max-width: 180px;
+  padding: 4px 7px;
+  border: 1px solid #3a304b;
+  border-radius: 6px;
+  background: #1a1727;
+  color: #cfc4e2;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 9px;
+  opacity: 1;
+}
+
+.context select:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: #cfc4e2;
+}
+
+.context small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+@media (max-width: 600px) {
+  .context {
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .context select {
+    max-width: min(180px, 55vw);
+  }
+
+  .context small {
+    flex: 1 1 145px;
+  }
+
+  .context button {
+    min-height: 32px;
+    margin-left: auto;
+    padding: 6px 8px;
+  }
+}

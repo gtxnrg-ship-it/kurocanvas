@@ -31,6 +31,7 @@ import { buildApprovedCanonContext, filterConversationTurnsForRevealGate, hasUnr
 import { resolveTemporalCharacterContext } from './canon/temporalCharacterContext';
 import { buildSvgDocument } from './drawing/svgExport';
 import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
+import { shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
@@ -557,9 +558,9 @@ async function renameCurrentConversation(){
 }
 function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;if(!controller)return;controller.abort();chatAbortControllerRef.current=null;++chatRequestGenerationRef.current;setWorking(false);setPreparingModel(false);setWorkingLabel('');setProviderNotice(localModelReadinessLabel());setMessages(m=>[...m,{role:'kuro',text:'I stopped the current request. Any already completed and approved work remains; an unapproved drawing plan was not applied. Check the model status before the next AI request; cancelling local inference may mean Qwen needs to be prepared again in Preferences.'}]);}
  async function send(messageOverride?:string, continuationSourceOverride?:string){
- const requestIsLive=modeRef.current==='live';
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
+ const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
  const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. The first download is about 370 MB and requires an internet connection; your browser may cache it, but storage can be evicted. Start preparing it now?");
@@ -605,6 +606,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   return;
  }
  if(requestIsLive){
+  if(modeRef.current!=='live')setMode('live');
   const previous=liveSessionRef.current;
   const current=!previous||previous.projectId!==activeProjectId||previous.status==='complete'
    ? {projectId:activeProjectId,id:crypto.randomUUID(),originalPrompt:'',batches:0,maxBatches:4,autoContinue:previous?.autoContinue??true,status:'ready' as const,activeSummary:'',lastError:'',log:[{id:crypto.randomUUID(),kind:'status' as const,label:'Live Creation Studio ready · work will be drawn onto an editable canvas.',status:'done' as const}]}

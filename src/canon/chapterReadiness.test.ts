@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChapterReadinessInput } from "./chapterReadiness";
 import {
   evaluateChapterReadiness,
+  requiresApprovedStoryFoundations,
   formatChapterReadinessMessage,
   requiresHistoricalResearchForChapter,
   requestsProvisionalChapterOverride,
@@ -118,6 +119,19 @@ describe("chapter readiness gate", () => {
     };
     expect(evaluateChapterReadiness(singleCharacter).gaps.map(gap => gap.id)).not.toContain("relationships");
     expect(evaluateChapterReadiness({ ...base, relationships: [] }).gaps.map(gap => gap.id)).toContain("relationships");
+  });
+
+  it("holds story prose, dialogue, scenes, and panel production until foundations are ready", () => {
+    expect(requiresApprovedStoryFoundations("Write the opening scene where Mira meets Ren.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Draft the dialogue between the protagonist and her rival.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Generate a fight sequence for episode two.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Write the first paragraph.")).toBe(true);
+    expect(requiresApprovedStoryFoundations("Let's discuss the opening scene before writing it.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Research clothing in 1920s Kyoto for the opening scene.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Help me develop Mira's backstory and character profile.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Create a character sheet for Mira.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Don't write the scene yet; let's brainstorm it.")).toBe(false);
+    expect(requiresApprovedStoryFoundations("Don't write yet, but outline the opening scene.")).toBe(true);
   });
 
   it("allows an explicit provisional experiment without treating it as approved canon", () => {

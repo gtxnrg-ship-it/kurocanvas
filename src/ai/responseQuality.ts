@@ -7,7 +7,7 @@
  */
 export type KuroResponseDepth = "quick" | "balanced" | "deep" | "exhaustive";
 
-const LOCAL_OUTPUT_LIMIT_NOTICE = "I reached Qwen3-0.6B's current output limit";
+const LOCAL_OUTPUT_LIMIT_NOTICE = "Kuro reached the configured reply budget";
 const QUICK_REQUEST = /\b(?:quick(?:ly)?|brief(?:ly)?|short answer|one sentence|in a sentence|tl;?dr|just the answer|no explanation)\b/i;
 const CONTINUATION_REQUEST = /\b(?:continue|keep going|go on|carry on|finish (?:it|that|this|the answer)|pick up where you left off|expand on that|tell me more)\b/i;
 const DEEP_REQUEST = /\b(?:detailed|in detail|thorough(?:ly)?|deep dive|walk me through|explain how|how exactly|step by step|compare|brainstorm|worldbuild(?:ing)?|develop|design|architecture|implementation|debug|review|critique|write|draft|outline|chapter|scene|story|universe|world|every single|all of|full(?:y)?|complete|exhaustive|comprehensive|possibilities|alternatives|different ways|how it could play out|continuity|foreshadow|easter egg|cameo)\b/i;
@@ -41,6 +41,8 @@ export function getKuroResponseQualityGuidance(message: string): string {
     "Interpret the user's intended meaning, not merely literal keywords. Their English may be fragmented, informal, misspelled, or grammatically imperfect; do not correct it or demand polished prompts unless they ask. Use the conversation and project context to infer intent generously. Ask one focused question only when a material ambiguity would change the result; otherwise state a reasonable assumption and proceed.",
     "Understand before answering: connect the request to relevant earlier decisions, preserve named details and emotional nuance, and address every important part of a multi-part request. Do not bluff, falsely claim certainty, or ask the user to repeat information already available.",
     continuationInstruction,
+    "COLLABORATIVE CONVERSATION: Treat brainstorming as a real back-and-forth, not a form to fill out or a deliverable to prematurely formalize. Build directly on the user's latest thought, contribute a few specific ideas or trade-offs, and leave room for them to react. Do not mistake an unfinished idea for a request to produce a complete framework, checklist, or world bible. When the user is still exploring, help discover what they mean before locking decisions. When corrected, acknowledge the precise miss, update your understanding, and move forward without defending the previous answer.",
+    "CONTEXTUAL UNDERSTANDING: Resolve pronouns, shorthand, references such as “that thing” or “the whole system,” and implied contrasts using the available conversation and project records. Prefer the interpretation that best fits the whole exchange, not just the latest sentence in isolation. If multiple interpretations remain materially plausible, briefly name the uncertainty rather than confidently answering the wrong question.",
     "Answer the actual request first, then develop it at the depth it deserves. Prefer meaningful explanation, examples, trade-offs, alternate possibilities, and practical follow-through over generic enthusiasm, filler, or repeated conclusions. The user values substantial detail for creative and technical work; do not default to an artificially short answer for a complex discussion.",
     "For story creation, consider motivation, subtext, dialogue, pacing, consequences, physical continuity, setting details, visual readability, recurring motifs, foreshadowing, callbacks, Easter eggs, subtle cameos, and future payoffs when relevant. Keep author-only planning distinct from what readers should see at that point in the story. An intentionally requested cameo or clue is not an accidental continuity error; preserve its intended subtlety and do not expose a secret identity on-page unless the author asks.",
     "Keep suggestions separate from approved canon. Offer multiple genuinely distinct directions when the user is exploring possibilities; explain what each option changes and why it may work. Do not turn every response into a list if conversational prose is clearer.",
@@ -64,13 +66,15 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
   // Keep lightweight replies quick, while allowing full scene plans and
   // continuity extraction up to the local runtime's declared hard cap.
   if (providerId === "kuro-local-browser") {
+    // These are total reply budgets. The local generation harness emits bounded
+    // 1,024-token passes and continues automatically when a pass hits its ceiling.
     const localBudget: Record<KuroResponseDepth, number> = {
       quick: 256,
-      balanced: 512,
-      deep: 1024,
-      exhaustive: 1024,
+      balanced: 2048,
+      deep: 8192,
+      exhaustive: 12288,
     };
-    return Math.min(hostedBudget[depth], localBudget[depth]);
+    return localBudget[depth];
   }
   return hostedBudget[depth];
 }

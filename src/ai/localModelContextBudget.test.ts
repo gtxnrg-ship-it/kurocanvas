@@ -39,6 +39,27 @@ describe("local model context budget", () => {
     expect(bounded[bounded.length - 1]?.content).toContain("crimson scarf continuity anchor");
   });
 
+  it("uses constraints near the end of a long brief when ranking project context", () => {
+    const system = [
+      "KURO CORE CONTRACT: Preserve the creator's actual request and approved facts.",
+      "UNRELATED SETTING NOTES: " + "ancient harbor architecture coastal province calendar. ".repeat(20),
+      "UNRELATED HISTORY NOTES: " + "old treaties royal succession shipping records. ".repeat(20),
+      "APPROVED CHARACTER CONTINUITY: Aiko wears the crimson scarf; preserve this exact design in the current chapter.",
+      "UNRELATED EQUIPMENT NOTES: " + "spare tools workshop materials inventory lists. ".repeat(20),
+    ].join("\n\n");
+    const filler = Array.from({ length: 180 }, (_, index) => "distinctterm" + index).join(" ");
+    const longRequest = "Build the page while honoring every instruction. " + filler
+      + " FINAL CONSTRAINT: Aiko wears the crimson scarf. Preserve crimson scarf continuity exactly.";
+    const bounded = boundMessages([
+      { role: "system", content: system },
+      { role: "user", content: longRequest },
+    ], 1_800);
+
+    expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_800);
+    expect(bounded[0]?.content).toContain("Aiko wears the crimson scarf");
+    expect(bounded[bounded.length - 1]?.content).toContain("FINAL CONSTRAINT");
+  });
+
   it("gives a single-turn request the unused space when there is no transcript to preserve", () => {
     const prompt = "Current task: create a character sheet. " + "keep the character's silhouette consistent. ".repeat(100);
     const bounded = boundMessages([

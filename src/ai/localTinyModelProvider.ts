@@ -248,10 +248,17 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
       "there", "here", "because", "really", "very", "more", "some", "thing", "things",
       "does", "did", "doing", "been", "being", "get", "got", "from", "continue",
     ]);
-    const tokenize = (value: string) => new Set(value.normalize("NFKC").toLocaleLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter(token => token.length >= 3 && !stopWords.has(token))
-      .slice(0, 120));
+    const tokenize = (value: string) => {
+      // Keep a bounded sample from both ends: users often put a critical constraint
+      // after a long brief, and canon summaries may put the decisive detail last.
+      const sample = value.length > 24_000
+        ? value.slice(0, 12_000) + " " + value.slice(-12_000)
+        : value;
+      const unique = [...new Set(sample.normalize("NFKC").toLocaleLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter(token => token.length >= 3 && !stopWords.has(token)))];
+      return new Set(unique.length <= 160 ? unique : [...unique.slice(0, 100), ...unique.slice(-60)]);
+    };
     const queryTokens = tokenize(query);
     const ranked = sections.map(section => {
       const words = tokenize(section.text);

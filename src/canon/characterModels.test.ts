@@ -31,9 +31,11 @@ describe("3D character model records", () => {
     const baseModel = base({ id: "base", storyOrder: 0 });
     const chapter12 = base({ id: "chapter-12", characterStateId: "state-12", storyOrder: 12, fileName: "ren-18.glb", sourceType: "uploaded-glb", modelBlob: new Blob(["glb-data-12"]) });
     const chapter20 = base({ id: "chapter-20", characterStateId: "state-20", storyOrder: 20, fileName: "ren-19.glb", sourceType: "uploaded-glb", modelBlob: new Blob(["glb-data-20"]) });
+    expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren")?.id).toBe("base");
     expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 1)?.id).toBe("base");
     expect(selectCharacterModelVariant([baseModel, chapter12, chapter20], "Ren", 15)?.id).toBe("chapter-12");
     expect(selectCharacterModelVariant([chapter12, chapter20], "Ren", 1)).toBeUndefined();
+    expect(selectCharacterModelVariant([chapter12, chapter20], "Ren")).toBeUndefined();
   });
 
   it("requires chapter-specific model variants to link to a finite approved-state order", () => {

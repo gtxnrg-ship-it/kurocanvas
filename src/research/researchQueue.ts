@@ -677,7 +677,14 @@ export async function buildResearchContext(
 export function startResearchQueueRunner(): () => void {
   if (runnerStarted || typeof window === "undefined") return () => undefined;
   runnerStarted = true;
-  const wake = () => { void pumpQueue(); };
+  const wake = () => {
+    // Queue pause is persisted globally, while AbortController is page-local.
+    // A pause from another tab must also stop this tab's in-flight request.
+    void isResearchQueuePaused().then(globalPaused => {
+      if (globalPaused) activeController?.abort();
+    }).catch(() => undefined);
+    void pumpQueue();
+  };
   let queueChannel: BroadcastChannel | undefined;
   window.addEventListener(RESEARCH_QUEUE_CHANGED, wake);
   window.addEventListener("online", wake);
@@ -798,7 +805,8 @@ async function pumpQueue(): Promise<void> {
         const sources = await searchResearchSources(task.query, task.depth, task.sourceProvider ?? "wikipedia", controller.signal);
         const current = await researchTaskStorage.get(task.id);
         if (!current || current.status === "cancelled") continue;
-        if (paused || controller.signal.aborted) {
+        const globallyPaused = await isResearchQueuePaused().catch(() => false);
+        if (paused || controller.signal.aborted || globallyPaused) {
           await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined, leaseOwnerId: undefined });
           continue;
         }

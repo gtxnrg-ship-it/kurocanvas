@@ -128,6 +128,7 @@ export function buildArtDirectionContext(bible: ArtDirectionBible | undefined, p
     "If a locked detail is missing or contradictory, ask for clarification or mark it unknown instead of inventing a replacement.",
   ];
   const seriesPlan: SeriesPlanFields = {
+    title: bible.title, premise: bible.premise, genres: bible.genres,
     seriesScope: bible.seriesScope ?? "", seriesArcPlan: bible.seriesArcPlan ?? "",
     seriesChapterPlan: bible.seriesChapterPlan ?? "", seriesEnding: bible.seriesEnding ?? "",
     seriesPlanApproved: bible.seriesPlanApproved ?? false,

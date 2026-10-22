@@ -19,6 +19,26 @@ describe("local model context budget", () => {
     expect(bounded[bounded.length - 1].content).toContain("FINAL-REQUEST-MARKER");
   });
 
+  it("prioritizes project-context sections that match the active request", () => {
+    const system = [
+      "KURO CORE CONTRACT: Keep the creator's actual request and approved facts intact.",
+      "UNRELATED SETTING NOTES: " + "ancient harbor details and distant provinces. ".repeat(18),
+      "UNRELATED HISTORICAL NOTES: " + "old treaties, ships, and weather patterns. ".repeat(18),
+      "APPROVED CHARACTER CONTINUITY: Aiko wears the crimson scarf in this chapter; preserve the crimson scarf continuity anchor across the page.",
+      "UNRELATED EQUIPMENT NOTES: " + "spare tools, metal parts, and workshop inventory. ".repeat(18),
+    ].join("\\n\\n");
+    const bounded = boundMessages([
+      { role: "system", content: system },
+      { role: "assistant", content: "Earlier unrelated discussion." },
+      { role: "user", content: "For Aiko, preserve the crimson scarf continuity anchor." },
+    ], 1_800);
+
+    expect(bounded.reduce((sum, message) => sum + message.content.length, 0)).toBeLessThanOrEqual(1_800);
+    expect(bounded[0]?.content).toContain("KURO CORE CONTRACT");
+    expect(bounded[0]?.content).toContain("Aiko wears the crimson scarf");
+    expect(bounded[bounded.length - 1]?.content).toContain("crimson scarf continuity anchor");
+  });
+
   it("gives a single-turn request the unused space when there is no transcript to preserve", () => {
     const prompt = "Current task: create a character sheet. " + "keep the character's silhouette consistent. ".repeat(100);
     const bounded = boundMessages([

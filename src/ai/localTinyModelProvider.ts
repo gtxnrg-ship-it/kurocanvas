@@ -220,6 +220,66 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
       + marker
       + (tail ? content.slice(-tail) : "");
   };
+  
+  // System prompts can include the persona, the response contract, and multiple
+  // project-context sections. Uniform head/middle/tail clipping often keeps
+  // unrelated lore while deleting the exact character or scene the user asked about.
+  // Preserve the opening contract, then spend the remaining budget on query-relevant
+  // sections. The durable project records are untouched; this only selects the model's
+  // bounded working window.
+  const clipSystem = (content: string, budget: number, query: string): string => {
+    if (content.length <= budget) return content;
+    if (budget <= marker.length + 80) return clip(content, budget);
+
+    const prefixLength = Math.min(content.length, Math.max(80, Math.floor(budget * 0.42)));
+    const prefix = content.slice(0, prefixLength);
+    const sections = content.slice(prefixLength).split(/\\n{2,}/)
+      .map((text, index) => ({ text: text.trim(), index }))
+      .filter(section => section.text.length > 0);
+    if (sections.length < 2) return clip(content, budget);
+
+    const stopWords = new Set([
+      "the", "and", "for", "with", "that", "this", "then", "from", "into", "your",
+      "you", "are", "was", "were", "have", "has", "had", "will", "would", "could",
+      "should", "can", "not", "but", "all", "any", "how", "what", "when", "where",
+      "who", "why", "which", "their", "they", "them", "she", "her", "him", "his",
+      "its", "about", "please", "make", "want", "need", "just", "like", "also",
+      "there", "here", "because", "really", "very", "more", "some", "thing", "things",
+      "does", "did", "doing", "been", "being", "get", "got", "from", "continue",
+    ]);
+    const tokenize = (value: string) => new Set(value.normalize("NFKC").toLocaleLowerCase()
+      .split(/[^\\p{L}\\p{N}]+/u)
+      .filter(token => token.length >= 3 && !stopWords.has(token))
+      .slice(0, 120));
+    const queryTokens = tokenize(query);
+    const ranked = sections.map(section => {
+      const words = tokenize(section.text);
+      let overlap = 0;
+      for (const token of queryTokens) if (words.has(token)) overlap++;
+      const durableContext = /\\b(?:approved canon|world bible|story memory|character state|style bible|art direction|current editable canvas|research notes)\\b/i.test(section.text) ? 1 : 0;
+      return { ...section, score: overlap * 4 + durableContext };
+    }).filter(section => section.score > 0)
+      .sort((a, b) => b.score - a.score || a.index - b.index);
+
+    // When the query doesn't overlap any labeled project context, retain the first
+    // remaining section instead of silently discarding every project-specific rule.
+    if (!ranked.length && sections[0]) ranked.push({ ...sections[0], score: 0 });
+
+    const selected: Array<{ text: string; index: number }> = [];
+    let used = prefix.length + marker.length;
+    for (const section of ranked) {
+      const separatorCost = selected.length ? marker.length : 0;
+      const available = budget - used - separatorCost;
+      if (available < 80) continue;
+      const text = section.text.length <= available ? section.text : clip(section.text, available);
+      selected.push({ text, index: section.index });
+      used += separatorCost + text.length;
+      if (text.length < section.text.length) break;
+    }
+    if (!selected.length) return clip(content, budget);
+    selected.sort((a, b) => a.index - b.index);
+    return prefix + marker + selected.map(section => section.text).join(marker);
+  };
 
   // The first system block contains persona, execution rules and appended project context.
   // Preserve its beginning, central slice and ending to reduce silent context loss.
@@ -229,7 +289,7 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
   const systemBudget = system && latestUser
     ? Math.floor(limit * (hasHistory ? 0.48 : 0.58))
     : system ? limit : 0;
-  const boundedSystem = system ? { role: "system", content: clip(system.content, systemBudget) } : undefined;
+  const boundedSystem = system ? { role: "system", content: clipSystem(system.content, systemBudget, latestUser?.content ?? "") } : undefined;
   let used = boundedSystem?.content.length ?? 0;
 
   // Protect the newest user ask; leave room for recent history rather than letting

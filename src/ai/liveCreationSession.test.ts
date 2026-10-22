@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   liveCreationSessionStorageKey,
   restoreLiveCreationSession,
+  DEFAULT_LIVE_CREATION_MAX_BATCHES,
   type LiveCreationSession,
 } from "./liveCreationSession";
 
@@ -50,4 +51,10 @@ describe("live creation session recovery", () => {
   it("keeps completed sessions unchanged", () => {
     expect(restoreLiveCreationSession(JSON.stringify(session), "project-1")).toEqual(session);
   });
+  it("supports bounded long-form runs without accepting an unbounded batch budget", () => {
+    expect(DEFAULT_LIVE_CREATION_MAX_BATCHES).toBe(12);
+    expect(restoreLiveCreationSession(JSON.stringify({ ...session, maxBatches: 20 }), "project-1")?.maxBatches).toBe(20);
+    expect(restoreLiveCreationSession(JSON.stringify({ ...session, maxBatches: 21 }), "project-1")).toBeNull();
+  });
+
 });

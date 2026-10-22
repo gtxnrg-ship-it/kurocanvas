@@ -77,8 +77,8 @@ export function transcriptFromSpeechEvent(event: BrowserSpeechResultEvent): stri
 export function normalizeSpokenPunctuation(value: string): string {
   let text = value.trim();
   const replacements: ReadonlyArray<readonly [RegExp, string]> = [
-    [/\bnew paragraph\b[,.!?;:]?/gi, "\\n\\n"],
-    [/\bnew line\b[,.!?;:]?/gi, "\\n"],
+    [/\bnew paragraph\b[,.!?;:]?/gi, "\n\n"],
+    [/\bnew line\b[,.!?;:]?/gi, "\n"],
     [/\bquestion mark\b[,.!?;:]?/gi, "?"],
     [/\bexclamation mark\b[,.!?;:]?/gi, "!"],
     [/\b(?:full stop|period)\b[,.!?;:]?/gi, "."],
@@ -95,8 +95,8 @@ export function normalizeSpokenPunctuation(value: string): string {
     .replace(/[ \t]+([,.;:!?…])/g, "$1")
     .replace(/([,;:!?…])(?=\S)/g, "$1 ")
     .replace(/\.([A-Za-z“])/g, ". $1")
-    .replace(/[ \t]*\n[ \t]*/g, "\\n")
-    .replace(/\n{3,}/g, "\\n\\n")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
   return text;

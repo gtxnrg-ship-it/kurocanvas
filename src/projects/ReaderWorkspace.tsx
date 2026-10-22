@@ -114,7 +114,7 @@ function ReaderPageCard({
     };
   }, [nearViewport, summary.id, summary.name, summary.updatedAt, projectId]);
 
-  const title = details?.title || summary.title?.trim() || 'Untitled page';
+  const title = details?.title || summary.name?.trim() || 'Untitled page';
   return (
     <article className="reader-page" ref={articleRef}>
       <div className="reader-page-meta">

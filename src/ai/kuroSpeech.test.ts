@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildKuroFishTtsPayload,
   DEFAULT_KURO_SPEECH_PREFERENCES,
   kuroFishPerformanceDirection,
   KURO_FISH_AUDIO_MODEL,
@@ -115,5 +116,31 @@ describe("Kuro Fish Audio delivery direction", () => {
   it("sounds curious for questions and conversational by default", () => {
     expect(kuroFishPerformanceDirection("What do you think?")).toContain("curious, attentive");
     expect(kuroFishPerformanceDirection("Let's work through this together.")).toContain("natural, warm and conversational");
+  });
+});
+
+describe("Fish Audio Drama 3 payload", () => {
+  it("sends English text to the selected profile with native speech controls", () => {
+    const payload = buildKuroFishTtsPayload("What do you think?", {
+      voice: KURO_FISH_VOICES[1].id,
+      rate: 1.1,
+    });
+    expect(payload.text).toContain("speaking fluent English");
+    expect(payload.text).toContain("subtle Japanese-influenced accent");
+    expect(payload.text).toContain("What do you think?");
+    expect(payload.reference_id).toBe(KURO_FISH_VOICES[1].id);
+    expect(payload.language).toBe("en");
+    expect(payload.format).toBe("mp3");
+    expect(payload.normalize).toBe(true);
+    expect(payload.prosody).toEqual({ speed: 1.1, volume: 0, normalize_loudness: true });
+    expect(payload.chunk_length).toBe(300);
+    expect(payload.min_chunk_length).toBe(80);
+    expect(payload.condition_on_previous_chunks).toBe(true);
+    expect(payload.latency).toBe("balanced");
+  });
+
+  it("bounds a corrupted saved speaking-rate value before it reaches the API", () => {
+    const payload = buildKuroFishTtsPayload("Hello!", { voice: KURO_FISH_VOICES[0].id, rate: 99 });
+    expect(payload.prosody.speed).toBe(1.2);
   });
 });

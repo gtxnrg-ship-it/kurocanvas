@@ -54,6 +54,11 @@ jobs:
       - name: Generate the native Android project
         run: npx cap add android
 
+      - name: Apply official Kuro launcher and native startup branding
+        run: |
+          python -m pip install --user Pillow
+          python scripts/prepare-android-branding.py
+
       - name: Sync the built application into Android
         run: npx cap sync android
 

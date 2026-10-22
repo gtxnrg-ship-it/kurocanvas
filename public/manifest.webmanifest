@@ -11,8 +11,8 @@
     "minimal-ui"
   ],
   "orientation": "any",
-  "background_color": "#09080f",
-  "theme_color": "#09080f",
+  "background_color": "#05040a",
+  "theme_color": "#05040a",
   "categories": [
     "productivity",
     "graphics",
@@ -21,7 +21,7 @@
   "icons": [
     {
       "src": "./kuro-icon.webp",
-      "sizes": "any",
+      "sizes": "512x512",
       "type": "image/webp",
       "purpose": "any maskable"
     }

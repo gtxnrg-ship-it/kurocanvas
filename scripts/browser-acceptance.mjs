@@ -150,6 +150,28 @@ try {
     await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   });
 
+  await runCheck('remote model settings require privacy consent and never persist an API key', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Settings and model downloads' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Kuro settings' });
+    await dialog.waitFor({ state: 'visible', timeout: 10000 });
+    await dialog.getByRole('combobox', { name: 'Selected model route' }).selectOption('remote');
+    const endpoint = dialog.getByLabel('Endpoint base URL');
+    const key = dialog.getByLabel(/API key/);
+    await endpoint.fill('https://example.invalid/v1');
+    await key.fill('browser-test-secret-never-persist');
+    const connect = dialog.getByRole('button', { name: 'Test endpoint & list models' });
+    assert.equal(await connect.isDisabled(), true, 'A hosted endpoint must not be probed before explicit privacy consent.');
+    const persisted = await page.evaluate(() => ({
+      config: localStorage.getItem('kuro-model-provider') || '',
+      credential: sessionStorage.getItem('kuro-remote-model-credential-session') || '',
+    }));
+    assert.equal(JSON.stringify(persisted).includes('browser-test-secret-never-persist'), false,
+      'Typing a key must not write it to browser storage before the creator saves the connection.');
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  });
+
   await runCheck('Live Creation studio stays usable from phones through desktop', async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const toolsToggle = page.getByRole('button', { name: /Creative tools/i });

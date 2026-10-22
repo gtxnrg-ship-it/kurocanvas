@@ -25,6 +25,7 @@ describe("OpenAICompatibleProvider", () => {
   it("rejects insecure remote endpoints and accepts explicitly enabled localhost", () => {
     expect(() => new OpenAICompatibleProvider({ baseUrl: "http://example.com/v1" })).toThrow(/HTTPS/);
     expect(() => new OpenAICompatibleProvider({ baseUrl: "http://localhost:8000/v1" })).toThrow(/HTTPS/);
+    expect(() => new OpenAICompatibleProvider({ baseUrl: "https://example.com/v1?api_key=secret" })).toThrow(/query parameters/i);
     expect(() => new OpenAICompatibleProvider({
       baseUrl: "http://localhost:8000/v1",
       allowInsecureLocalhost: true,
@@ -76,6 +77,23 @@ describe("OpenAICompatibleProvider", () => {
     expect(models.every(item => item.downloadBytes === undefined && item.memoryBytes === undefined && item.license === undefined)).toBe(true);
   });
 
+  it("advertises vision and JSON mode only after explicit configuration", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ data: [{ id: "confirmed-multimodal" }] })) as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      supportsVision: true,
+      supportsStructuredOutput: true,
+      fetchImpl,
+    });
+    expect(await provider.listModels()).toMatchObject([{
+      name: "confirmed-multimodal",
+      capabilities: ["chat", "structured-output", "vision"],
+      roles: ["reasoning", "planning", "story-writing", "continuity", "fast-helper", "vision"],
+    }]);
+  });
+
   it("sends the selected model and messages to chat completions", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
       model: "model-a",
@@ -124,6 +142,7 @@ describe("OpenAICompatibleProvider", () => {
       baseUrl: "http://localhost:8000/v1",
       allowInsecureLocalhost: true,
       providerId: "test",
+      supportsVision: true,
       fetchImpl,
     });
     const imageUrl = "data:image/jpeg;base64,dGVzdA==";
@@ -145,6 +164,24 @@ describe("OpenAICompatibleProvider", () => {
       { type: "text", text: "Inspect this canvas." },
       { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
     ]);
+  });
+
+  it("refuses to send image pixels to a provider without confirmed vision capability", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1",
+      allowInsecureLocalhost: true,
+      providerId: "test",
+      fetchImpl,
+    });
+    await expect(provider.generate({
+      role: "planning",
+      messages: [{ role: "user", content: [
+        { type: "text", text: "Inspect this drawing." },
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64,dGVzdA==" } },
+      ] }],
+    }, { ...model, roles: ["planning"], capabilities: ["chat", "vision"] })).rejects.toThrow(/image input is disabled/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("returns cancelled without making a network request for an already-aborted request", async () => {

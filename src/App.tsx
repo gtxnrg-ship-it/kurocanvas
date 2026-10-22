@@ -116,6 +116,7 @@ export default function App(){
   catch{setHistoryNotice('Live creation progress could not be saved locally. Keep the app open until the current batch is verified.');}
  },[activeProjectId,liveSession]);
  useEffect(()=>{const media=window.matchMedia('(max-width: 600px)');const update=()=>setCompactMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
+ useEffect(()=>{setInitialDrawingDimensions(undefined);chapterDrawingTargetRef.current=null;},[activeProjectId]);
  useEffect(()=>{if((['live','canvas','read','research'] as Mode[]).includes(mode))setWorkspaceToolsOpen(true);},[mode]);
  useEffect(()=>startResearchQueueRunner(),[]);
  useEffect(()=>()=>{chatAbortControllerRef.current?.abort();chatAbortControllerRef.current=null;try{speechRecognitionRef.current?.abort?.();}catch{}speechRecognitionRef.current=null;},[]);
@@ -256,7 +257,7 @@ useEffect(()=>{
    await drainCurrentConversationMessages();
    messagePersistenceGenerationRef.current++;
    setLocalSaveStatus('saved');
-   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');
+   setHistoryLoading(true);setHistoryNotice('');setProposedPlan(null);setPlanNotice('');setCanvasRequest(null);setRequestedDrawingId('');setActiveDrawingId('');setInitialDrawingDimensions(undefined);chapterDrawingTargetRef.current=null;
    const count=recentUniverses.length+1;const title=count===1?'My first universe':'Universe '+count;
    const project=createProject(title);
    const {universe:bundle}=await createProjectWithUniverse(project,{

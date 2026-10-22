@@ -73,6 +73,22 @@ try {
       'Declining setup must preserve the draft.');
   });
 
+  await runCheck('chat scope controls stay within representative mobile widths', async () => {
+    for (const width of [320, 360, 390, 430, 600, 601, 768, 900, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForTimeout(60);
+      const sizes = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        html: document.documentElement.scrollWidth,
+        body: document.body.scrollWidth,
+      }));
+      assert.ok(sizes.html <= width + 1 && sizes.body <= width + 1,
+        'Chat horizontally overflows at ' + width + 'px: ' + JSON.stringify(sizes));
+      const scope = page.getByRole('combobox', { name: 'Universe project for canon context' });
+      assert.equal(await scope.isVisible(), true, 'World Bible scope control should remain visible.');
+    }
+  });
+
   await runCheck('settings dialog opens and can be closed without an exception', async () => {
     await page.getByRole('button', { name: 'Settings and model downloads' }).click();
     const dialog = page.getByRole('dialog', { name: 'Kuro settings' });

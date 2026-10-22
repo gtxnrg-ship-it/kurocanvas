@@ -115,10 +115,19 @@ export function normalizeSpokenPunctuation(value: string): string {
     .replace(/[ \t]{2,}/g, " ")
     .replace(/“[ \t]+/g, "“")
     .replace(/[ \t]+”/g, "”")
-    .replace(/(^|[.!?]\\s+|\\n\\s*)([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase())
-    .replace(/(^|\\s)i(?=\\s|$|[,.!?])/g, (_match, prefix: string) => prefix + "I")
+    .replace(/(^|[.!?]\s+|\n\s*)([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toLocaleUpperCase())
+    .replace(/(^|\s)i(?=\s|$|[,.!?])/g, (_match, prefix: string) => prefix + "I")
     .trim();
   return text;
+}
+
+/** Errors for which automatically restarting recognition usually creates a noisy retry loop. */
+export function shouldEndLiveSpeechSession(error: string | undefined): boolean {
+  return error === "not-allowed"
+    || error === "service-not-allowed"
+    || error === "audio-capture"
+    || error === "language-not-supported"
+    || error === "network";
 }
 
 export function describeSpeechRecognitionError(error: string | undefined): string {

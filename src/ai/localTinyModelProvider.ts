@@ -233,7 +233,7 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
 
     const prefixLength = Math.min(content.length, Math.max(80, Math.floor(budget * 0.42)));
     const prefix = content.slice(0, prefixLength);
-    const sections = content.slice(prefixLength).split(/\\n{2,}/)
+    const sections = content.slice(prefixLength).split(/\n{2,}/)
       .map((text, index) => ({ text: text.trim(), index }))
       .filter(section => section.text.length > 0);
     if (sections.length < 2) return clip(content, budget);
@@ -248,7 +248,7 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
       "does", "did", "doing", "been", "being", "get", "got", "from", "continue",
     ]);
     const tokenize = (value: string) => new Set(value.normalize("NFKC").toLocaleLowerCase()
-      .split(/[^\\p{L}\\p{N}]+/u)
+      .split(/[^\p{L}\p{N}]+/u)
       .filter(token => token.length >= 3 && !stopWords.has(token))
       .slice(0, 120));
     const queryTokens = tokenize(query);
@@ -256,7 +256,7 @@ export function boundMessages(messages: TextMessage[], maxChars: number): TextMe
       const words = tokenize(section.text);
       let overlap = 0;
       for (const token of queryTokens) if (words.has(token)) overlap++;
-      const durableContext = /\\b(?:approved canon|world bible|story memory|character state|style bible|art direction|current editable canvas|research notes)\\b/i.test(section.text) ? 1 : 0;
+      const durableContext = /\b(?:approved canon|world bible|story memory|character state|style bible|art direction|current editable canvas|research notes)\b/i.test(section.text) ? 1 : 0;
       return { ...section, score: overlap * 4 + durableContext };
     }).filter(section => section.score > 0)
       .sort((a, b) => b.score - a.score || a.index - b.index);

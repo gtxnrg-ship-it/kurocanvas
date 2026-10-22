@@ -26,7 +26,7 @@ describe("local model context budget", () => {
       "UNRELATED HISTORICAL NOTES: " + "old treaties, ships, and weather patterns. ".repeat(18),
       "APPROVED CHARACTER CONTINUITY: Aiko wears the crimson scarf in this chapter; preserve the crimson scarf continuity anchor across the page.",
       "UNRELATED EQUIPMENT NOTES: " + "spare tools, metal parts, and workshop inventory. ".repeat(18),
-    ].join("\\n\\n");
+    ].join("\n\n");
     const bounded = boundMessages([
       { role: "system", content: system },
       { role: "assistant", content: "Earlier unrelated discussion." },

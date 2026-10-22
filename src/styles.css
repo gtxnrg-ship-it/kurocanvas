@@ -665,9 +665,12 @@
   .mobile-companion .home-hero-actions .home-secondary{display:none}
   .mobile-companion .home-bottom-grid .home-feature:first-child{display:none}
   .mobile-companion .home-hero-actions .home-primary{width:100%;min-height:48px}
-  .mobile-companion .drawing-alt .draw-toolbar,
-  .mobile-companion .drawing-project-controls{display:none}
-  .mobile-companion .drawing-paper canvas{pointer-events:none;touch-action:pan-y;cursor:default}
+  /* Phone layout remains a real editor: compact the controls, never disable touch drawing. */
+  .mobile-companion .drawing-alt .draw-toolbar{display:flex;gap:6px;padding:7px}
+  .mobile-companion .drawing-project-controls{display:flex;gap:6px}
+  .mobile-companion .draw-toolgroup,.mobile-companion .draw-actions,.mobile-companion .draw-colors{flex-wrap:wrap;min-width:0;max-width:100%}
+  .mobile-companion .draw-toolgroup button,.mobile-companion .draw-actions button{min-width:36px;min-height:36px;justify-content:center}
+  .mobile-companion .drawing-paper canvas{pointer-events:auto;touch-action:none;cursor:crosshair}
   .mobile-companion .drawing-stage{touch-action:pan-y;min-height:240px}
   .mobile-studio-hint{
     margin:12px 0 0;padding:12px 13px;

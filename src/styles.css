@@ -800,3 +800,10 @@
 .live-audio-visualizer.is-active .live-audio-label{color:#d8c5f5}
 .live-audio-caption{min-height:15px;margin:2px 0 0;text-align:center;color:#b9a9cb;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
 @media(max-width:600px){.live-audio-visualizer{margin:8px 0;padding:9px}.live-audio-row{grid-template-columns:34px minmax(0,1fr) 31px;gap:6px}.live-audio-bars{gap:2px}}
+
+
+/* Keep the common path obvious while making secondary workspaces discoverable on demand. */
+.sidebar nav button.sidebar-tools-toggle .tools-chevron{margin-left:auto;transition:transform .16s ease}
+.sidebar nav button.sidebar-tools-toggle .tools-chevron.is-open{transform:rotate(180deg)}
+.sidebar nav button.sidebar-tool-item{padding-left:24px;font-size:11px;color:#aaa0bd}
+.sidebar nav button.sidebar-tool-item.active{color:#eadfff}

@@ -1,3 +1,5 @@
+> **Current main source:** `7a19acad2c1b95b963c8c72ec0b7dc6d87f15a22` · [Latest debug APK and provenance](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest).
+
 # Kuro Canvas
 
 > 📱 **Android test APK is available:** [Download the debug APK](https://github.com/gtxnrg-ship-it/kurocanvas/releases/download/android-dev-latest/kuro-canvas-debug.apk) · [Release details and source commit](https://github.com/gtxnrg-ship-it/kurocanvas/releases/tag/android-dev-latest)  
@@ -41,6 +43,7 @@ Kuro Canvas is a chat-first, local-first creative studio for manga, manhua, and 
 | Chat visual-reference lookup | Implemented | Explicit searches use Wikimedia Commons; attribution and license are displayed, and saved items remain proposals until reviewed |
 | Chat research queue | Implemented | Explicit research commands queue Wikipedia/Crossref source collection; completion and source quality still require review |
 | Native drawing-agent execution | Partial | Approved native plans now require persisted read-back and verified rollback; action coverage and iterative visual QA remain incomplete |
+| Mobile native-plan workflow | Implemented in main | Compact phones can approve a validated plan and inspect its editable result; manual freehand canvas controls stay simplified. Physical Android touch/scroll checks remain open |
 | Nonlinear character visual chronology | Implemented in main | The Style Bible now distinguishes a chapter-targeted request from explicit in-world story order; browser-level approval/reload/next-chapter validation remains open |
 | Project JSON export download | Browser/WebView revoke timing fixed in main | Delayed object-URL cleanup has tests, but exporting and opening a real backup on Android/iOS still needs smoke testing | 
 | Chat-to-Live-Creation routing | Implemented in main | Explicit draw/visual artifact requests route from chat; ambiguous phrases still need creator direction, and only supported editable native actions can execute |

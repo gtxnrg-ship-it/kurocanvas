@@ -113,7 +113,7 @@ export function detectCreativeProductionRequest(message: string): CreativeProduc
   if (!matched) return undefined;
 
   // A user who is discussing a work but not asking for a deliverable stays in chat.
-  const asksForDeliverable = /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+story|custom\s+format)\b/i.test(text);
+  const asksForDeliverable = /\b(?:chapter|episode|scene|page|panel|strip|comic|manga|doujin(?:shi)?|web[\s-]?toon|one[\s-]?shot|oneshot|graphic\s+novel|visual\s+novel|picture\s+book|storyboard|animatic|short\s+story|custom\s+format|custom|hybrid|experimental|narrative|story|format)\b/i.test(text);
   if (!asksForDeliverable) return undefined;
   return FORMAT_SPECS[matched.id];
 }

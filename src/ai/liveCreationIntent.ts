@@ -21,12 +21,12 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
 
   // Respect a clear request to defer visual work, but do not let a negated clause
   // cancel a separate positive instruction such as "don't change her outfit, just shorten her hair".
-  const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show)\b/i;
+  const negatedVisualAction = /\b(?:(?:don't|do\s+not)(?:\s+(?:(?:want|need)(?:\s+you)?\s+to))?|never|stop|avoid|no\s+need\s+to|not\s+yet|wait\s+to|hold\s+off\s+on|let's\s+not)\s+(?:(?:please|just)\s+)?(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put|depict|redesign|revise|shorten|lengthen|trim|curl|straighten|dye|bleach)\b/i;
   const negatedMatch = negatedVisualAction.exec(text);
   if (negatedMatch) {
     const remainder = text.slice((negatedMatch.index ?? 0) + negatedMatch[0].length);
     const contrastingClause = remainder.match(/\b(?:but|instead|just|actually|rather|however)\b([\s\S]{0,160})/i)?.[1] ?? "";
-    const positiveVisualAction = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put)\b/i;
+    const positiveVisualAction = /\b(?:draw|sketch|illustrate|paint|render|visuali[sz]e|create|make|build|design|produce|change|update|adjust|add|remove|show|give|put|shorten|lengthen|trim|curl|straighten|dye|bleach)\b/i;
     if (!positiveVisualAction.test(contrastingClause)) return false;
   }
 
@@ -39,8 +39,8 @@ export function shouldStartLiveCreationFromChat(message: string): boolean {
 
   // Common character revisions should work without requiring users to know the phrase "character sheet".
   const appearanceSubject = /\b(?:the\s+)?(?:character|protagonist|hero|villain|girl|boy|woman|man|her|him|them|she|he|they|their|his)\b/i;
-  const appearanceDetail = /\b(?:look|looks|appearance|appearances|hair|eyes|face|skin|scar|scars|injur(?:y|ies)|outfit|clothes|coat|dress|armor|armour|accessor(?:y|ies)|glasses|build|hairstyle|silhouette|color scheme|colour scheme)\b/i;
-  const appearanceAction = /\b(?:make|change|update|adjust|redesign|revise|give|add|remove|put|show|depict|design|create|draw|sketch|illustrate|paint|render)\b/i;
+  const appearanceDetail = /\b(?:look|looks|appearance|appearances|hair|eyes|face|skin|scar|scars|injur(?:y|ies)|outfit|clothes|coat|dress|armor|armour|accessor(?:y|ies)|glasses|build|hairstyle|silhouette|color scheme|colour scheme|sword|weapon|weapons|shield|shields|boots|gloves|hat|helmet|jewelry|jewellery|tattoo|tattoos|expression|pose|height|horns|wings|tail|ears|cape|staff|dagger|bow|quiver)\b/i;
+  const appearanceAction = /\b(?:make|change|update|adjust|redesign|revise|give|add|remove|put|show|depict|design|create|draw|sketch|illustrate|paint|render|shorten|lengthen|trim|curl|straighten|dye|bleach)\b/i;
   const narrativeTargetOnly = /\b(?:add|include|write|mention|record)\b[^.!?\n]{0,100}\b(?:to|into|as\s+part\s+of|in)\s+(?:(?:the|her|his|their|character['’]s)\s+)?(?:character\s+)?(?:backstory|history|lore|personality|arc|theme|motivation|narrative|plot|characterization)\b/i;
   // A backstory/history mention is narrative content, not a drawing request, unless an explicit canvas/drawing target matched above.
   if (narrativeTargetOnly.test(text)) return false;

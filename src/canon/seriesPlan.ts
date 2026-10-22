@@ -111,6 +111,15 @@ export function isSeriesPlanApproved(fields: SeriesPlanFields): boolean {
     && validateSeriesPlan(fields).length === 0;
 }
 
+/** Retrieve one planned chapter only from a complete, currently approved series plan. */
+export function resolveApprovedSeriesChapter(
+  fields: SeriesPlanFields,
+  chapterNumber: number | undefined,
+): ParsedSeriesChapter | undefined {
+  if (!Number.isSafeInteger(chapterNumber) || !chapterNumber || !isSeriesPlanApproved(fields)) return undefined;
+  return parseSeriesChapterPlan(fields.seriesChapterPlan).find(chapter => chapter.number === chapterNumber);
+}
+
 export function evaluateSeriesPlan(fields: SeriesPlanFields): SeriesPlanReport {
   const chapters = parseSeriesChapterPlan(fields.seriesChapterPlan);
   const issues = validateSeriesPlan(fields);

@@ -34,6 +34,7 @@ import { resolveTemporalCharacterContext } from './canon/temporalCharacterContex
 import { buildSvgDocument } from './drawing/svgExport';
 import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
 import { isMangaChapterProductionRequest, shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
+import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
@@ -56,6 +57,7 @@ const CharacterModelStudio = lazy(() => import('./canon/CharacterModelStudio'));
 import { isCharacterModelToolRequest, parseCharacterModelAgentPlan, type CharacterModelAgentCommand } from './canon/characterModelAgentTools';
 const ResearchStudio = lazy(() => import('./research/ResearchStudio'));
 import { buildResearchContext, cancelResearchTask, enqueueResearchTask, extractResearchTaskIntent, isResearchFollowUpRequest, researchTaskStorage, startResearchQueueRunner } from './research/researchQueue';
+import { extractCreativeInfluenceResearch } from './research/inspirationResearch';
 const RelationshipMemoryStudio = lazy(() => import('./canon/RelationshipMemoryStudio'));
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Search, Layers3, Library, MessageCircle, Mic, MicOff, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';
 type Mode='home'|'chat'|'canvas'|'live'|'read'|'research'|'vault'; type Msg={role:'user'|'kuro';text:string;tool?:string;references?:ReferenceSearchResult[];referenceProjectId?:string;researchTaskId?:string;researchProjectId?:string}; type RecentConversation={id:string;universeId:string;universeTitle:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
@@ -573,8 +575,51 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  async function send(messageOverride?:string, continuationSourceOverride?:string){
  const text=(messageOverride??draft).trim();
  if(!text||working)return;
- const requestIsLive=modeRef.current==='live'||shouldStartLiveCreationFromChat(text);
- const hasIndependentWorkflow=Boolean(extractReferenceSearchQuery(text)||extractResearchTaskIntent(text));
+ const creativeInfluences=extractCreativeInfluenceResearch(text);
+ const explicitResearchIntent=extractResearchTaskIntent(text);
+ const referenceQuery=extractReferenceSearchQuery(text);
+ // A chapter request is the point where planning becomes production. Require the
+ // project-owned foundations to be approved before switching out of chat and drawing.
+ // The explicit provisional override is only for non-canon experiments.
+ if(isMangaChapterProductionRequest(text)&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
+  let readiness;
+  try{
+   if(!activeProjectId||!activeUniverseId){
+    readiness=evaluateChapterReadiness({hasUniverse:false,requiresHistoricalResearch:requiresHistoricalResearchForChapter(text)});
+   }else{
+    const [canon,artDirection,styleBible,characterTimelines,relationships,researchTasks]=await Promise.all([
+     canonStorage.load(activeProjectId),
+     artDirectionStorage.load(activeProjectId),
+     styleBibleStorage.load(activeProjectId),
+     characterEvolutionStorage.list(activeUniverseId),
+     relationshipStorage.list(activeUniverseId),
+     researchTaskStorage.list(activeProjectId),
+    ]);
+    readiness=evaluateChapterReadiness({
+     hasUniverse:true,
+     canon,
+     artDirection,
+     styleBible,
+     characterTimelines,
+     relationships,
+     researchTasks,
+     requiresHistoricalResearch:requiresHistoricalResearchForChapter(text),
+    });
+   }
+  }catch{
+   readiness={ready:false,approvedCharacterCount:0,approvedWorldFactCount:0,approvedRelationshipCount:0,gaps:[{
+    id:'verification' as const,
+    message:'I could not verify the project’s local canon and research records safely. Reopen the project and try again.',
+   }]};
+  }
+  if(!readiness.ready){
+   setDraft('');
+   setMessages(items=>[...items,{role:'user',text},{role:'kuro',text:formatChapterReadinessMessage(readiness)}]);
+   return;
+  }
+ }
+ const requestIsLive=modeRef.current==='live'||(!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery&&shouldStartLiveCreationFromChat(text));
+ const hasIndependentWorkflow=Boolean(referenceQuery||explicitResearchIntent||creativeInfluences.length);
  if(!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");
   if(!accepted){
@@ -635,7 +680,6 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   liveSessionRef.current=next;setLiveSession(next);
  }
  chatAbortControllerRef.current?.abort();const requestController=new AbortController();chatAbortControllerRef.current=requestController;const requestGeneration=++chatRequestGenerationRef.current;const requestIsCurrent=()=>!requestController.signal.aborted&&chatRequestGenerationRef.current===requestGeneration;const contextQuery=continuationSourceOverride?text+'\n\nOriginal user request to preserve:\n'+continuationSourceOverride:text;let recentTurns=buildKuroConversationTurns(messages,24,4000,contextQuery,26000);setDraft('');setMessages(m=>[...m,{role:'user',text}]);setWorking(true);setWorkingLabel('Reading your workspace and story context…');let draftForMemoryCapture='';try{
- const referenceQuery=extractReferenceSearchQuery(text);
  if(referenceQuery){
   setWorkingLabel('Searching Wikimedia Commons for visual references…');
   setProviderNotice('Searching Wikimedia Commons for '+referenceQuery+'…');
@@ -648,24 +692,40 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
   const details=visibleResults.map((item,index)=>(index+1)+'. '+item.title+' — '+item.creator+'; '+item.license+'. Source: '+item.sourceUrl).join('\n');
   setMessages(m=>[...m,{role:'kuro',text:summary+(details?'\n\n'+details:''),tool:'Wikimedia Commons · visual-reference lookup',...(visibleResults.length?{references:visibleResults,referenceProjectId:activeProjectId}:{} )}]);
   setProviderNotice(localModelReadinessLabel());
-  return;
+  if(!explicitResearchIntent&&!creativeInfluences.length)return;
  }
- const researchIntent=extractResearchTaskIntent(text);
- if(researchIntent){
-  setWorkingLabel('Queuing source-backed research…');
+ const researchIntent=explicitResearchIntent;
+ if(researchIntent||creativeInfluences.length){
+  setWorkingLabel(creativeInfluences.length?'Researching your creative references…':'Queuing source-backed research…');
   if(!activeProjectId){
-   setMessages(m=>[...m,{role:'kuro',text:'Choose or create a project before I can save a research task and its source notes.'}]);
+   setMessages(m=>[...m,{role:'kuro',text:'Choose or create a project before I can save research tasks and their source notes.'}]);
    return;
   }
-  setProviderNotice('Queuing source research for '+researchIntent.query+'…');
-  const task=await enqueueResearchTask({projectId:activeProjectId,query:researchIntent.query,depth:researchIntent.depth,sourceProvider:researchIntent.sourceProvider});
+  const queuedTasks:Awaited<ReturnType<typeof enqueueResearchTask>>[]=[];
+  if(researchIntent){
+   queuedTasks.push(await enqueueResearchTask({projectId:activeProjectId,query:researchIntent.query,depth:researchIntent.depth,sourceProvider:researchIntent.sourceProvider}));
+  }
+  for(const influence of creativeInfluences){
+   const duplicate=queuedTasks.some(task=>task.query.normalize('NFKC').toLocaleLowerCase().trim()===influence.query.normalize('NFKC').toLocaleLowerCase().trim()&&(task.sourceProvider??'wikipedia')==='wikipedia');
+   if(duplicate)continue;
+   queuedTasks.push(await enqueueResearchTask({projectId:activeProjectId,query:influence.query,depth:'deep',sourceProvider:'wikipedia'}));
+  }
   if(!requestIsCurrent()){
-   await cancelResearchTask(task.id,activeProjectId);
+   for(const task of queuedTasks)await cancelResearchTask(task.id,activeProjectId);
    return;
   }
-  const providerLabel=researchIntent.sourceProvider==='crossref'?'Crossref scholarly metadata':'English Wikipedia';
-  const taskSummary='I queued a '+researchIntent.depth+' research task for “'+researchIntent.query+'” using '+providerLabel+'. The queue will save source URLs and extracts in this project. Nothing has been added to canon or treated as verified story truth yet.';
-  setMessages(m=>[...m,{role:'kuro',text:taskSummary,tool:'Research queue · '+providerLabel,researchTaskId:task.id,researchProjectId:activeProjectId}]);
+  const notes=creativeInfluences.map(influence=>'• '+influence.work+' · study: '+influence.aspect).join('\n');
+  const explicitNote=researchIntent?'Explicit research request: “'+researchIntent.query+'” ('+researchIntent.depth+', '+(researchIntent.sourceProvider==='crossref'?'Crossref':'Wikipedia')+').':'';
+  const influenceNote=creativeInfluences.length
+   ?'I noticed the creative influences in your message and queued separate source-backed research tasks for these works:\n'+notes+'\n\nI’ll use the findings to compare the high-level techniques you named and help combine them into an original direction, not copy specific scenes, characters, or artwork. These are research notes, not approved canon.'
+   :'';
+  const fallbackNote=queuedTasks.length
+   ?'The research queue will save source URLs and extracts in this project. Nothing is treated as verified story truth or approved canon yet.'
+   :'';
+  const summary=[explicitNote,influenceNote,fallbackNote].filter(Boolean).join('\n\n');
+  const providers=[...new Set(queuedTasks.map(task=>(task.sourceProvider??'wikipedia')==='crossref'?'Crossref scholarly metadata':'English Wikipedia'))];
+  const providerLabel=providers.join(' + ');
+  setMessages(m=>[...m,{role:'kuro',text:summary,tool:'Research queue · '+providerLabel,...(queuedTasks.length===1?{researchTaskId:queuedTasks[0].id,researchProjectId:activeProjectId}:{})}]);
   setProviderNotice(localModelReadinessLabel());
   return;
  }

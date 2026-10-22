@@ -71,8 +71,8 @@ export function getKuroResponseTokenBudget(message: string, providerId?: string)
     const localBudget: Record<KuroResponseDepth, number> = {
       quick: 256,
       balanced: 2048,
-      deep: 4096,
-      exhaustive: 6144,
+      deep: 8192,
+      exhaustive: 12288;
     };
     return localBudget[depth];
   }

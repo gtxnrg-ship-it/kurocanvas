@@ -24,6 +24,8 @@ export interface ResearchTaskRecord {
   startedAt?: string;
   completedAt?: string;
   leaseUntil?: number;
+  /** Unique fencing token for one tab's claim; prevents a stale worker overwriting a newer claim. */
+  leaseOwnerId?: string;
   error?: string;
 }
 
@@ -187,6 +189,7 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
     return !isSupportedResearchSourceUrl(source.url, task.sourceProvider ?? "wikipedia");
   })) errors.push("Wikipedia source URLs must use en.wikipedia.org HTTPS paths; Crossref source URLs must use canonical doi.org DOI links.");
   if (task.leaseUntil !== undefined && !Number.isFinite(task.leaseUntil)) errors.push("Research lease must be a finite timestamp.");
+  if (task.leaseOwnerId !== undefined && (typeof task.leaseOwnerId !== "string" || !task.leaseOwnerId.trim())) errors.push("Research lease owner must be a non-empty token.");
   if (task.error !== undefined && typeof task.error !== "string") errors.push("Research error must be text.");
   return [...new Set(errors)];
 }
@@ -250,6 +253,7 @@ export function normalizeImportedResearchTasks(
       progress: isCompleted ? 100 : Math.min(task.progress, 99),
       stage: isCompleted ? task.stage : "Imported unfinished research — retry to run on this device",
       leaseUntil: undefined,
+      leaseOwnerId: undefined,
       updatedAt: now,
     };
   });
@@ -262,6 +266,24 @@ async function persistQueuePausedState(value: boolean): Promise<void> {
 export async function isResearchQueuePaused(): Promise<boolean> {
   const settings = await transact<{ queuePaused?: boolean } | undefined>("readonly", store => store.get(SETTINGS_ID));
   return settings?.queuePaused === true;
+}
+
+/** True only while the exact claim token is current and its lease has not expired. */
+export function ownsResearchLease(
+  task: Pick<ResearchTaskRecord, "id" | "projectId" | "status" | "leaseUntil" | "leaseOwnerId"> | undefined,
+  id: string,
+  projectId: string,
+  leaseOwnerId: string,
+  now = Date.now(),
+): boolean {
+  return Boolean(task
+    && task.id === id
+    && task.projectId === projectId
+    && task.status === "running"
+    && task.leaseOwnerId === leaseOwnerId
+    && typeof task.leaseUntil === "number"
+    && Number.isFinite(task.leaseUntil)
+    && task.leaseUntil > now);
 }
 
 export const researchTaskStorage = {
@@ -368,6 +390,50 @@ export const researchTaskStorage = {
       return result;
     } finally { db.close(); }
   },
+  /** Update only a still-running task owned by this exact unexpired claim. */
+  async updateOwned(
+    id: string,
+    projectId: string,
+    leaseOwnerId: string,
+    patch: Partial<ResearchTaskRecord>,
+  ): Promise<ResearchTaskRecord | undefined> {
+    if (!id.trim() || !projectId.trim() || !leaseOwnerId.trim()) return undefined;
+    const db = await openDatabase();
+    try {
+      let updated: ResearchTaskRecord | undefined;
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE, "readwrite");
+        const store = transaction.objectStore(STORE);
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const current = request.result as ResearchTaskRecord | undefined;
+          if (!ownsResearchLease(current, id, projectId, leaseOwnerId)) return;
+          updated = {
+            ...current,
+            ...patch,
+            id: current.id,
+            projectId: current.projectId,
+            updatedAt: new Date().toISOString(),
+          };
+          const errors = validateResearchTask(updated, projectId);
+          if (errors.length) {
+            reject(new Error("Refusing invalid owned research update: " + errors.join(" ")));
+            transaction.abort();
+            return;
+          }
+          store.put(updated);
+        };
+        request.onerror = () => reject(request.error ?? new Error("Could not read the claimed research task."));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error ?? new Error("Could not update the claimed research task."));
+        transaction.onabort = () => reject(transaction.error ?? new Error("Claimed research task update was aborted."));
+      });
+      if (updated) announce();
+      return updated;
+    } finally {
+      db.close();
+    }
+  },
   async claimNext(): Promise<ResearchTaskRecord | undefined> {
     const now = Date.now();
     const db = await openDatabase();
@@ -391,7 +457,7 @@ export const researchTaskStorage = {
           claimed = {
             ...next, status: "running", stage: "Starting research", progress: Math.max(next.progress, 1),
             startedAt: next.startedAt ?? new Date(now).toISOString(), leaseUntil: now + 120_000,
-            error: undefined, updatedAt: new Date(now).toISOString(),
+            leaseOwnerId: crypto.randomUUID(), error: undefined, updatedAt: new Date(now).toISOString(),
           };
           store.put(claimed);
         };
@@ -677,7 +743,7 @@ export async function enqueueResearchTask(input: { projectId: string; query: str
 export async function cancelResearchTask(id: string, projectId: string): Promise<void> {
   const task = await researchTaskStorage.get(id);
   if (!task || task.projectId !== projectId || task.status === "completed" || task.status === "failed") return;
-  await researchTaskStorage.update(id, projectId, { status: "cancelled", stage: "Cancelled", leaseUntil: undefined, error: undefined });
+  await researchTaskStorage.update(id, projectId, { status: "cancelled", stage: "Cancelled", leaseUntil: undefined, leaseOwnerId: undefined, error: undefined });
   if (activeTaskId === id) activeController?.abort();
   announce();
 }
@@ -685,7 +751,7 @@ export async function cancelResearchTask(id: string, projectId: string): Promise
 export async function retryResearchTask(task: ResearchTaskRecord): Promise<void> {
   await researchTaskStorage.update(task.id, task.projectId, {
     status: "queued", progress: 0, stage: "Queued for retry", sources: [], error: undefined,
-    startedAt: undefined, completedAt: undefined, leaseUntil: undefined,
+    startedAt: undefined, completedAt: undefined, leaseUntil: undefined, leaseOwnerId: undefined,
   });
   void pumpQueue();
 }
@@ -698,30 +764,51 @@ async function pumpQueue(): Promise<void> {
       const task = await researchTaskStorage.claimNext();
       if (!task || paused) break;
       const controller = new AbortController();
+      const leaseOwnerId = task.leaseOwnerId;
+      if (!leaseOwnerId) {
+        await researchTaskStorage.update(task.id, task.projectId, {
+          status: "queued", stage: "Research claim needs recovery", leaseUntil: undefined, leaseOwnerId: undefined,
+        });
+        continue;
+      }
       activeController = controller;
       activeTaskId = task.id;
       activeResearchProjectId = task.projectId;
+      // A 120-second lease is renewed every 30 seconds. If this page loses its
+      // claim, it aborts the fetch and may not write a stale result afterward.
+      const leaseHeartbeat = setInterval(() => {
+        if (controller.signal.aborted) return;
+        void researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
+          leaseUntil: Date.now() + 120_000,
+        }).then(updated => {
+          if (!updated) controller.abort();
+        }).catch(error => {
+          if (typeof console !== "undefined") console.error("Could not renew the research lease:", error);
+          controller.abort();
+        });
+      }, 30_000);
       try {
-        await researchTaskStorage.update(task.id, task.projectId, {
+        await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
           stage: task.sourceProvider === "crossref" ? "Searching Crossref scholarly metadata" : "Searching Wikipedia", progress: 8, leaseUntil: Date.now() + 120_000,
         });
         const sources = await searchResearchSources(task.query, task.depth, task.sourceProvider ?? "wikipedia", controller.signal);
         const current = await researchTaskStorage.get(task.id);
         if (!current || current.status === "cancelled") continue;
         if (paused || controller.signal.aborted) {
-          await researchTaskStorage.update(task.id, task.projectId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined });
+          await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, { status: "queued", stage: "Paused — waiting to resume", leaseUntil: undefined, leaseOwnerId: undefined });
           continue;
         }
         // Complete with a conditional, project-scoped update instead of put/save:
         // a deletion can occur between the read above and this write, and must never
         // be undone by a late network response recreating the task.
-        const completed = await researchTaskStorage.update(task.id, task.projectId, {
+        const completed = await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
           status: "completed",
           progress: 100,
           stage: sources.length ? "Research sources collected" : "Research completed — no matching entries from " + ((task.sourceProvider ?? "wikipedia") === "crossref" ? "Crossref" : "Wikipedia"),
           sources,
           completedAt: new Date().toISOString(),
           leaseUntil: undefined,
+          leaseOwnerId: undefined,
           error: undefined,
         });
         if (!completed) continue;
@@ -734,10 +821,11 @@ async function pumpQueue(): Promise<void> {
           continue;
         }
         const message = error instanceof Error ? error.message : "Unexpected research task error.";
-        await researchTaskStorage.update(task.id, task.projectId, {
-          status: "failed", stage: "Research failed", error: message, leaseUntil: undefined, completedAt: new Date().toISOString(),
+        await researchTaskStorage.updateOwned(task.id, task.projectId, leaseOwnerId, {
+          status: "failed", stage: "Research failed", error: message, leaseUntil: undefined, leaseOwnerId: undefined, completedAt: new Date().toISOString(),
         });
       } finally {
+        clearInterval(leaseHeartbeat);
         activeController = undefined;
         activeTaskId = undefined;
         activeResearchProjectId = undefined;

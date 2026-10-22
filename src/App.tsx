@@ -34,7 +34,7 @@ import { resolveTemporalCharacterContext } from './canon/temporalCharacterContex
 import { buildSvgDocument } from './drawing/svgExport';
 import { isDrawingIntent, shouldAttachCanvasPreview } from './ai/visualIntent';
 import { isMangaChapterProductionRequest, shouldStartLiveCreationFromChat } from './ai/liveCreationIntent';
-import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
+import { evaluateChapterReadiness, formatChapterReadinessMessage, requiresApprovedStoryFoundations, requiresHistoricalResearchForChapter, requestsProvisionalChapterOverride } from './canon/chapterReadiness';
 import { buildRelationshipContext } from './canon/relationshipMemory';
 import { createEmptyCanon } from './canon/universe';
 import { proposeCharacterEntitiesFromEvidence } from './canon/characterCapture';
@@ -581,7 +581,7 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  // A chapter request is the point where planning becomes production. Require the
  // project-owned foundations to be approved before switching out of chat and drawing.
  // The explicit provisional override is only for non-canon experiments.
- if(isMangaChapterProductionRequest(text)&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
+ if(requiresApprovedStoryFoundations(text)&&!requestsProvisionalChapterOverride(text)&&!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery){
   let readiness;
   try{
    if(!activeProjectId||!activeUniverseId){

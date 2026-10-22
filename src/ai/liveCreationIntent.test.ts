@@ -26,6 +26,7 @@ describe("chat-to-live-creation intent", () => {
     expect(shouldStartLiveCreationFromChat("Don't draw her yet; let's keep brainstorming.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("No need to create a character sheet yet.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Don't change her outfit yet; let's keep discussing it.")).toBe(false);
+    expect(shouldStartLiveCreationFromChat("I don't want you to draw her yet.")).toBe(false);
     expect(shouldStartLiveCreationFromChat("Let's discuss how her scar affects her confidence.")).toBe(false);
   });
 

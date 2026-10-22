@@ -13,6 +13,8 @@ export interface ResearchTaskRecord {
   projectId: string;
   query: string;
   depth: ResearchDepth;
+  /** Optional so research tasks saved before priority support remain readable. */
+  priority?: number;
   /** Optional only for backwards compatibility with older saved research jobs. */
   sourceProvider?: ResearchSourceProvider;
   status: ResearchTaskStatus;
@@ -176,6 +178,7 @@ export function validateResearchTask(value: unknown, expectedProjectId?: string)
   if (expectedProjectId !== undefined && task.projectId !== expectedProjectId) errors.push("Research task belongs to another project.");
   if (typeof task.query !== "string" || task.query.trim().length < 2 || task.query.length > 1800) errors.push("Research query must contain 2–1800 characters.");
   if (!isDepth(task.depth)) errors.push("Research depth is invalid.");
+  if (task.priority !== undefined && (!Number.isSafeInteger(task.priority) || Number(task.priority) < 0)) errors.push("Research task priority must be a non-negative safe integer.");
   if (task.sourceProvider !== undefined && !isResearchSourceProvider(task.sourceProvider)) errors.push("Research source provider is invalid.");
   if (!isStatus(task.status)) errors.push("Research task status is invalid.");
   if (!Number.isFinite(task.progress) || Number(task.progress) < 0 || Number(task.progress) > 100) errors.push("Research progress must be between 0 and 100.");
@@ -201,6 +204,7 @@ export function createResearchTask(
     projectId: input.projectId.trim(),
     query: input.query.trim().slice(0, 1800),
     depth: input.depth,
+    priority: 0,
     sourceProvider: input.sourceProvider ?? "wikipedia",
     status: "queued",
     progress: 0,
@@ -245,6 +249,7 @@ export function normalizeImportedResearchTasks(
       ...task,
       id: idFactory(),
       projectId: destinationProjectId,
+      priority: Number.isSafeInteger(task.priority) && Number(task.priority) >= 0 ? Number(task.priority) : 0,
       sourceProvider: task.sourceProvider ?? "wikipedia",
       status: isCompleted ? "completed" : "cancelled",
       progress: isCompleted ? 100 : Math.min(task.progress, 99),
@@ -253,6 +258,25 @@ export function normalizeImportedResearchTasks(
       updatedAt: now,
     };
   });
+}
+
+/** Deterministic FIFO within each explicit priority level; older saved tasks default to priority 0. */
+export function compareQueuedResearchTasks(
+  a: Pick<ResearchTaskRecord, "priority" | "createdAt" | "id">,
+  b: Pick<ResearchTaskRecord, "priority" | "createdAt" | "id">,
+): number {
+  return (b.priority ?? 0) - (a.priority ?? 0)
+    || a.createdAt.localeCompare(b.createdAt)
+    || a.id.localeCompare(b.id);
+}
+
+function compareResearchTaskListOrder(a: ResearchTaskRecord, b: ResearchTaskRecord): number {
+  const rank = (task: ResearchTaskRecord) => task.status === "running" ? 2 : task.status === "queued" ? 1 : 0;
+  const statusOrder = rank(b) - rank(a);
+  if (statusOrder) return statusOrder;
+  if (a.status === "queued" && b.status === "queued") return compareQueuedResearchTasks(a, b);
+  if (a.status === "running" && b.status === "running") return a.createdAt.localeCompare(b.createdAt);
+  return b.createdAt.localeCompare(a.createdAt);
 }
 
 const SETTINGS_ID = "__queue-settings__";
@@ -331,7 +355,7 @@ export const researchTaskStorage = {
     if (!projectId.trim()) return [];
     const all = await transact<ResearchTaskRecord[]>("readonly", store => store.getAll());
     return all.filter(task => validateResearchTask(task, projectId).length === 0)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort(compareResearchTaskListOrder);
   },
   async remove(id: string, projectId: string): Promise<void> {
     const existing = await this.get(id);
@@ -385,7 +409,7 @@ export const researchTaskStorage = {
           // alone cannot stop multiple tabs querying the same API concurrently.
           if (all.some(task => task.id !== SETTINGS_ID && task.status === "running" && (task.leaseUntil ?? 0) > now)) return;
           const queue = all.filter(task => task.id !== SETTINGS_ID && (task.status === "queued" || task.status === "running" && (task.leaseUntil ?? 0) <= now))
-            .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+            .sort(compareQueuedResearchTasks);
           const next = queue[0];
           if (!next) return;
           claimed = {

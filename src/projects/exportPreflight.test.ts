@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectProjectExportDrawingIds, findMissingDrawingReferences } from "./exportPreflight";
+import { collectProjectExportDrawingIds, findMissingDrawingReferences, validateImportedDrawingEntries } from "./exportPreflight";
 
 describe("project export drawing preflight", () => {
   it("does not report drawing references that exist", () => {
@@ -34,5 +34,34 @@ describe("project export drawing preflight", () => {
     expect(collectProjectExportDrawingIds([
       { id: "m1", title: "Opening panel", assetRefs: ["drawing:linked", "drawing:missing"] },
     ], ["unlinked-page", "linked"])).toEqual(["linked", "missing", "unlinked-page"]);
+  });
+});
+
+describe("project drawing import preflight", () => {
+  it("accepts distinct drawing IDs whose paths match their document IDs", () => {
+    expect(() => validateImportedDrawingEntries([
+      ["kuro/drawings/d1.json", JSON.stringify({ id: "d1", version: 1 })],
+      ["kuro/drawings/d2.json", JSON.stringify({ id: "d2", version: 1 })],
+      ["kuro/story-memory.v1.json", "not a drawing document"],
+    ])).not.toThrow();
+  });
+
+  it("rejects duplicate drawing IDs before the import remapping map can overwrite one", () => {
+    expect(() => validateImportedDrawingEntries([
+      ["kuro/drawings/page-a.json", JSON.stringify({ id: "same-id" })],
+      ["kuro/drawings/page-b.json", JSON.stringify({ id: "same-id" })],
+    ])).toThrow(/duplicate drawing IDs/i);
+  });
+
+  it("rejects a drawing whose path and embedded ID disagree", () => {
+    expect(() => validateImportedDrawingEntries([
+      ["kuro/drawings/page-a.json", JSON.stringify({ id: "page-b" })],
+    ])).toThrow(/file path does not match its internal ID/i);
+  });
+
+  it("rejects malformed drawing JSON during the preflight", () => {
+    expect(() => validateImportedDrawingEntries([
+      ["kuro/drawings/page-a.json", "{broken"],
+    ])).toThrow(/not valid JSON/i);
   });
 });

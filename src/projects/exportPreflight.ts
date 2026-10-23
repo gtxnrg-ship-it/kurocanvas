@@ -18,20 +18,20 @@ export function findMissingDrawingReferences(
   availableDrawingIds: Iterable<string>,
 ): MissingDrawingReference[] {
   const available = new Set(availableDrawingIds);
-  const owners = new Map<string, Set<string>>();
+  const referencesByDrawing = new Map<string, Set<string>>();
 
   for (const owner of owners) {
     for (const reference of owner.assetRefs) {
       if (!reference.startsWith("drawing:")) continue;
       const drawingId = reference.slice("drawing:".length).trim();
       if (drawingId && available.has(drawingId)) continue;
-      const titles = owners.get(drawingId) ?? new Set<string>();
+      const titles = referencesByDrawing.get(drawingId) ?? new Set<string>();
       titles.add(owner.title.trim() || "Untitled continuity record");
-      owners.set(drawingId, titles);
+      referencesByDrawing.set(drawingId, titles);
     }
   }
 
-  return [...owners.entries()]
+  return [...referencesByDrawing.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([drawingId, titles]) => ({
       drawingId: drawingId || "(empty ID)",

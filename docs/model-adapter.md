@@ -2,7 +2,7 @@
 
 ## Current decision
 
-Kuro currently uses **Qwen3-0.6B as its only first-party model**. The model is an implementation detail behind the ModelProvider contract in `src/ai/modelRegistry.ts`; agent harnesses should call the contract rather than importing Transformers.js, ONNX sessions, Qwen-specific prompts, or model-download details.
+Kuro uses **Qwen3-0.6B as the private local default** and also includes an optional OpenAI-compatible chat-completions provider. The external provider is never an automatic fallback: it can be activated only after the creator explicitly consents to sending relevant prompts and project context to a configured endpoint. The bundled local model is an implementation detail behind the ModelProvider contract in `src/ai/modelRegistry.ts`; agent harnesses should call that contract rather than importing Transformers.js, ONNX sessions, Qwen-specific prompts, or model-download details.
 
 ## Where a future upgrade goes
 
@@ -19,4 +19,4 @@ A replacement model may have different context limits, structured-output reliabi
 
 ## No automatic model escalation
 
-The current product decision is one default model, not silent routing to a stronger model. A future upgrade should be an explicit app-version/runtime change, with migration and regression tests—not an invisible fallback that changes privacy, cost, or personality.
+The product decision is one private local default, with optional external inference only when a creator knowingly configures and enables it. There is no invisible fallback that changes privacy, cost, or personality. The consented external endpoint receives relevant requests and selected project context; image inputs stay disabled unless the creator separately enables vision for a model documented to accept images. API keys stay in session storage rather than project exports or localStorage.

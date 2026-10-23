@@ -989,6 +989,34 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
     setRedoStack([]);
     setNotice(completedMarks.length > 1 ? 'Symmetry drawing added ' + completedMarks.length + ' marks · Undo is available' : 'Drawing mark added · Undo is available');
   };
+  const pointerCancel = () => {
+    if (panRef.current) {
+      const pan = panRef.current;
+      panRef.current = null;
+      setPanOffset({ x: pan.originX, y: pan.originY });
+      setNotice('Canvas movement cancelled.');
+      return;
+    }
+    if (selectionDragRef.current) {
+      const snapshot = moveSnapshotRef.current;
+      selectionDragRef.current = null;
+      moveSnapshotRef.current = null;
+      if (snapshot) {
+        docRef.current = { ...docRef.current, strokes: snapshot };
+        setStrokes(snapshot);
+        render(snapshot, background);
+      }
+      setNotice('Object edit cancelled · previous artwork restored.');
+      return;
+    }
+    if (!activeRef.current) return;
+    // A cancelled touch/stylus gesture is not a completed drawing action.
+    // Discard the transient stroke and redraw only the last committed document.
+    activeRef.current = null;
+    moveSnapshotRef.current = null;
+    render(strokes, background);
+    setNotice('Stroke cancelled · unfinished marks were discarded.');
+  };
   const undo = () => {
     const action = historyOrder[historyOrder.length - 1];
     if (action === 'plan' && planUndoStack.length) {
@@ -1455,7 +1483,7 @@ export default function DrawingCanvas({ pendingPlan = null, onPlanResult, projec
       }
       setZoom(nextZoom);
     }}>
-      <div className="drawing-paper" ref={paperRef} style={{ aspectRatio: docRef.current.width + ' / ' + docRef.current.height, transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onLostPointerCapture={pointerUp} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / docRef.current.width * 100) + '%', top: (bounds.y / docRef.current.height * 100) + '%', width: (bounds.width / docRef.current.width * 100) + '%', height: (bounds.height / docRef.current.height * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
+      <div className="drawing-paper" ref={paperRef} style={{ aspectRatio: docRef.current.width + ' / ' + docRef.current.height, transform: 'translate('+panOffset.x+'px, '+panOffset.y+'px) scale('+zoom+')' }}><canvas ref={canvasRef} aria-label="Drawing canvas. Use pointer, touch, or stylus to draw." onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerCancel} />{showGrid && <div className="canvas-grid-overlay" aria-hidden="true" />}{symmetryMode !== 'off' && <div className="symmetry-guides" aria-hidden="true">{(symmetryMode === 'vertical' || symmetryMode === 'quad') && <i className="symmetry-axis-vertical" />}{(symmetryMode === 'horizontal' || symmetryMode === 'quad') && <i className="symmetry-axis-horizontal" />}</div>}{selectedStrokeId && strokes.some(stroke => stroke.id === selectedStrokeId) && (() => { const selected = strokes.find(stroke => stroke.id === selectedStrokeId)!; const bounds = getStrokeBounds(selected); return <div className="canvas-selection-outline" style={{ left: (bounds.x / docRef.current.width * 100) + '%', top: (bounds.y / docRef.current.height * 100) + '%', width: (bounds.width / docRef.current.width * 100) + '%', height: (bounds.height / docRef.current.height * 100) + '%', transform: 'rotate(' + ((selected.rotation ?? 0) * 180 / Math.PI) + 'deg)', transformOrigin: 'center center' }} aria-hidden="true"/>; })()}</div>
     </div>
     {planAction && <div className={'draw-status ai-action-status ' + planAction.status} role="status" aria-live="polite"><span><b>Native tool agent · {planAction.status.replace('-', ' ')}</b> — {planAction.title}{planAction.error ? ': ' + planAction.error : ''}</span>{planAction.status==='failed' && <button onClick={() => setPlanRunNonce(value => value + 1)}>Retry action</button>}</div>}{planProgress && <div className="draw-status ai-action-status running" role="status" aria-live="polite"><span><b>Live drawing progress</b> — {planProgress.completed} / {planProgress.total} native actions · {planProgress.command}</span><progress value={planProgress.completed} max={Math.max(1, planProgress.total)} aria-label="Native drawing action progress" /> <button type="button" onClick={() => cancelPlanExecutionRef.current?.()}>Cancel drawing</button></div>}{planSteps.length > 0 && planAction?.status !== 'running' && <ol className="drawing-step-timeline" aria-label="Native drawing action timeline">
       {planSteps.map(step => <li key={step.index + ':' + step.id} className={'drawing-step status-' + step.status}>

@@ -157,7 +157,7 @@ try {
     const listedModel = 'kuro-vision-fixture';
     let modelListRequests = 0;
 
-    await page.route('https://model-test.example.invalid/v1/**', async route => {
+    await page.route(/https:\/\/model-test\.example\.invalid\/v1\/.*/, async route => {
       const request = route.request();
       const originHeaders = {
         'access-control-allow-origin': '*',

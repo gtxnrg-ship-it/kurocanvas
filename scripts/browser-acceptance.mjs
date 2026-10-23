@@ -150,6 +150,97 @@ try {
     await dialog.waitFor({ state: 'hidden', timeout: 10000 });
   });
 
+  await runCheck('external model setup requires consent, keeps keys session-only, and supports revocation', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const endpoint = 'https://model-test.example.invalid/v1';
+    const sessionKey = 'acceptance-session-key-not-for-persistence';
+    const listedModel = 'kuro-vision-fixture';
+    let modelListRequests = 0;
+
+    await page.route('https://model-test.example.invalid/v1/**', async route => {
+      const request = route.request();
+      const originHeaders = {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, POST, OPTIONS',
+        'access-control-allow-headers': 'authorization,content-type',
+      };
+      if (request.method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: originHeaders });
+        return;
+      }
+      if (request.method() === 'GET' && request.url().endsWith('/models')) {
+        modelListRequests++;
+        await route.fulfill({
+          status: 200,
+          headers: { ...originHeaders, 'content-type': 'application/json' },
+          body: JSON.stringify({ data: [{ id: listedModel, owned_by: 'browser-acceptance' }] }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 404,
+        headers: { ...originHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({ error: { message: 'Unexpected fixture request.' } }),
+      });
+    });
+
+    const openSettings = async () => {
+      await page.getByRole('button', { name: 'Settings and model downloads' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Kuro settings' });
+      await dialog.waitFor({ state: 'visible', timeout: 10000 });
+      return dialog;
+    };
+    let dialog = await openSettings();
+    const external = dialog.locator('.provider-external-settings');
+    await external.waitFor({ state: 'visible', timeout: 5000 });
+    const consent = external.locator('.provider-consent input[type="checkbox"]');
+    assert.equal(await consent.isChecked(), false, 'Remote context sharing must be off by default.');
+    const initial = await page.evaluate(() => ({
+      provider: localStorage.getItem('kuro-model-provider') || '',
+      key: sessionStorage.getItem('kuro-model-api-key'),
+    }));
+    assert.equal(initial.key, null, 'No model API key should exist in session storage by default.');
+    assert.ok(!initial.provider.includes('apiKey'), 'The provider preference must not persist API-key fields.');
+
+    await external.locator('input[type="url"]').fill(endpoint);
+    await external.locator('input[type="password"]').fill(sessionKey);
+    await consent.check();
+    await external.getByRole('button', { name: 'Test endpoint & load models' }).click();
+    await external.getByText(/Endpoint responded and listed 1 model ID/).waitFor({ state: 'visible', timeout: 10000 });
+    await external.getByLabel('Model ID').waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await external.getByLabel('Model ID').inputValue(), listedModel,
+      'The exact ID returned by /models should become the selected model.');
+
+    await external.getByRole('button', { name: 'Use selected external model' }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+    await page.waitForFunction(key => {
+      const raw = localStorage.getItem('kuro-model-provider') || '{}';
+      return raw.includes('"allowRemoteData":true')
+        && !raw.includes(key)
+        && !raw.includes('apiKey')
+        && sessionStorage.getItem('kuro-model-api-key') === key;
+    }, sessionKey, { timeout: 10000 });
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('kuro-model-provider') || '{}'));
+    assert.equal(saved.baseUrl, endpoint);
+    assert.equal(saved.modelUri, listedModel);
+    assert.equal(saved.allowRemoteData, true);
+    assert.equal(saved.supportsVision, false, 'Image sharing must remain off unless the creator enables it.');
+    assert.ok(modelListRequests >= 2, 'The model ID should be revalidated before the provider is connected.');
+    assert.ok(!JSON.stringify(saved).includes(sessionKey), 'API key material must never be stored in the project-provider preference.');
+
+    dialog = await openSettings();
+    const revocation = dialog.locator('.provider-consent input[type="checkbox"]');
+    assert.equal(await revocation.isChecked(), true, 'An already-enabled external provider should show its consent state.');
+    await revocation.uncheck();
+    await page.waitForFunction(() => {
+      const savedConfig = JSON.parse(localStorage.getItem('kuro-model-provider') || '{}');
+      return savedConfig.baseUrl === 'local://kuro-tiny'
+        && sessionStorage.getItem('kuro-model-api-key') === null;
+    }, null, { timeout: 10000 });
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  });
+
   await runCheck('whole-series planning controls remain usable on phones and block unapproved production', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Creative Vault', exact: true }).click();

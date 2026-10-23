@@ -720,7 +720,9 @@ function cancelCurrentRequest(){const controller=chatAbortControllerRef.current;
  }
  const requestIsLive=(modeRef.current==='live'&&!wholeSeriesPlanningRequest)||(!creativeInfluences.length&&!explicitResearchIntent&&!referenceQuery&&!wholeSeriesPlanningRequest&&(Boolean(productionSpec)||shouldStartLiveCreationFromChat(text)));
  const hasIndependentWorkflow=Boolean(referenceQuery||explicitResearchIntent||creativeInfluences.length);
- const externalModelSelected=Boolean(activeProvider&&activeProvider.baseUrl!==LOCAL_TINY_BASE_URL&&activeProvider.allowRemoteData===true);
+ // The saved provider choice is authoritative even when its endpoint is unreachable.
+ // Never silently route an opted-in remote session to local Qwen just because connection failed.
+ const externalModelSelected=Boolean(providerConfig.baseUrl!==LOCAL_TINY_BASE_URL&&providerConfig.allowRemoteData===true);
  if(!externalModelSelected&&!isLocalTinyModelPrepared()&&!hasIndependentWorkflow){
   const accepted=typeof window!=='undefined'&&window.confirm("Kuro needs her local Qwen3-0.6B model before she can answer ordinary chat, writing, planning, and drawing requests. Preparing it may download about 370 MB the first time and may require an internet connection; cached files can be reused, but browser storage can be evicted. Start preparing it now?");
   if(!accepted){

@@ -67,7 +67,7 @@ export function collectProjectExportDrawingIds(
 export function validateImportedDrawingEntries(entries: Iterable<readonly [string, string]>): void {
   const prefix = "kuro/drawings/";
   const suffix = ".json";
-  const seenIds = new Set<string>();
+  const drawings: Array<{ key: string; id: string; pathId: string }> = [];
 
   for (const [key, raw] of entries) {
     if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
@@ -83,16 +83,24 @@ export function validateImportedDrawingEntries(entries: Iterable<readonly [strin
     }
 
     const id = (value as { id?: unknown }).id;
-    const pathId = key.slice(prefix.length, -suffix.length);
     if (typeof id !== "string" || !id.trim()) {
       throw new Error("A bundled drawing has no stable ID: " + key);
     }
-    if (id !== pathId) {
-      throw new Error("A bundled drawing's file path does not match its internal ID: " + key);
+    drawings.push({ key, id, pathId: key.slice(prefix.length, -suffix.length) });
+  }
+
+  // Check source identity duplication first so the most important failure is
+  // reported even if one of the duplicated records also has a misnamed path.
+  const seenIds = new Set<string>();
+  for (const drawing of drawings) {
+    if (seenIds.has(drawing.id)) {
+      throw new Error("The project package contains duplicate drawing IDs: " + drawing.id);
     }
-    if (seenIds.has(id)) {
-      throw new Error("The project package contains duplicate drawing IDs: " + id);
+    seenIds.add(drawing.id);
+  }
+  for (const drawing of drawings) {
+    if (drawing.id !== drawing.pathId) {
+      throw new Error("A bundled drawing's file path does not match its internal ID: " + drawing.key);
     }
-    seenIds.add(id);
   }
 }

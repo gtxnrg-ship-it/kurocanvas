@@ -51,10 +51,16 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
   }
   if (url.username || url.password) throw new Error("Do not put credentials in the provider URL.");
   if (url.search || url.hash) throw new Error("Do not put credentials, query parameters, or fragments in the provider URL.");
-  if (/(?:^|\\/)(?:models|chat\\/completions)\\/?$/i.test(url.pathname)) {
+
+  let path = url.pathname.toLowerCase();
+  while (path.endsWith("/")) path = path.slice(0, -1);
+  if (path.endsWith("/models") || path.endsWith("/chat/completions")) {
     throw new Error("Enter the API base URL, not a full /models or /chat/completions URL.");
   }
-  return url.toString().replace(/\\/+$/, "");
+
+  let normalized = url.toString();
+  while (normalized.endsWith("/")) normalized = normalized.slice(0, -1);
+  return normalized;
 }
 
 function contentAsText(content: MessageContent): string {

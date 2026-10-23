@@ -159,7 +159,7 @@ export default function App(){
    try{sessionKey=globalThis.sessionStorage?.getItem('kuro-model-api-key')||'';}catch{}
   }
   const runtimeConfig={...config,...(sessionKey?{apiKey:sessionKey}:{})};
-  let provider;
+  let provider:ReturnType<typeof createConfiguredProvider>;
   try{
    provider=createConfiguredProvider(runtimeConfig, progress=>setProviderNotice(progress.status+(progress.percent>0?' · '+progress.percent+'%':'')));
   }catch(error){

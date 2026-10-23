@@ -56,6 +56,31 @@ describe("portable universe history", () => {
     expect(() => rehomeUniversePackage(assets, "project-new", new Map([["d-old", "d-new"]]), idFactory())).toThrow(/missing chat-message evidence/);
   });
 
+  it.each([
+    "missing-relationship",
+    "relationship:missing-relationship",
+    "event:missing-event",
+  ])("refuses to import an unresolved character relationship reference: %s", reference => {
+    const assets = serializeUniversePackage({
+      ...data,
+      characterStates: [{ ...characterState, relationshipStateRefs: [reference] }],
+    });
+    expect(() => rehomeUniversePackage(assets, "project-new", new Map([["d-old", "d-new"]]), idFactory()))
+      .toThrow(/missing relationship history/i);
+  });
+
+  it("remaps prefixed relationship and event references while keeping the prefix", () => {
+    const assets = serializeUniversePackage({
+      ...data,
+      characterStates: [{
+        ...characterState,
+        relationshipStateRefs: ["relationship:rel-old", "event:event-old"],
+      }],
+    });
+    const restored = rehomeUniversePackage(assets, "project-new", new Map([["d-old", "d-new"]]), idFactory());
+    expect(restored.characterStates[0].relationshipStateRefs).toEqual(["relationship:new-4", "event:new-6"]);
+  });
+
   it("refuses universe children without an owning universe", () => {
     expect(() => rehomeUniversePackage({ [UNIVERSE_PACKAGE_KEYS.conversations]: JSON.stringify([conversation]) }, "project-new")).toThrow(/without its owning universe/);
   });

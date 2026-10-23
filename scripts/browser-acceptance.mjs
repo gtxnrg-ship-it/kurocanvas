@@ -206,7 +206,7 @@ try {
     await external.locator('input[type="password"]').fill(sessionKey);
     await consent.check();
     await external.getByRole('button', { name: 'Test endpoint & load models' }).click();
-    await external.getByText(/Endpoint responded and listed 1 model ID/).waitFor({ state: 'visible', timeout: 10000 });
+    await dialog.getByText(/Endpoint responded and listed 1 model ID/).waitFor({ state: 'visible', timeout: 10000 });
     await external.getByLabel('Model ID').waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await external.getByLabel('Model ID').inputValue(), listedModel,
       'The exact ID returned by /models should become the selected model.');

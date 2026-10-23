@@ -1,5 +1,7 @@
 import type {
   ModelDescriptor,
+  ModelMessageContent,
+  ModelMessagePart,
   ModelProvider,
   ModelRequest,
   ModelResponse,
@@ -19,9 +21,11 @@ export interface OpenAICompatibleProviderOptions {
   requestTimeoutMs?: number;
   /** Hard deadline for model discovery/availability checks. Defaults to 20 seconds. */
   modelListTimeoutMs?: number;
+  /** Only enable when the creator confirms this endpoint/model accepts image inputs. */
+  supportsVision?: boolean;
 }
 
-type MessageContent = string | Array<{ type?: string; text?: string }> | null | undefined;
+type MessageContent = ModelMessageContent | null | undefined;
 
 interface ChatCompletionPayload {
   choices?: Array<{
@@ -51,8 +55,22 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
 
 function contentAsText(content: MessageContent): string {
   if (typeof content === "string") return content;
-  if (Array.isArray(content)) return content.filter(part => part && typeof part.text === "string").map(part => part.text).join("");
+  if (Array.isArray(content)) return content.filter((part): part is Extract<ModelMessagePart, { type: "text" }> => part.type === "text").map(part => part.text).join("");
   return "";
+}
+
+function validateVisionContent(content: ModelMessageContent, supportsVision: boolean): void {
+  if (typeof content === "string") return;
+  for (const part of content) {
+    if (part.type !== "image_url") continue;
+    if (!supportsVision) {
+      throw new Error("Image input is disabled for this provider. Enable vision only when the selected model is known to support image inputs.");
+    }
+    const url = part.image_url.url;
+    if (!/^https:\\/\\//i.test(url) && !/^data:image\\/(?:png|jpe?g|webp|gif);base64,/i.test(url)) {
+      throw new Error("Vision requests may include only HTTPS images or inline base64 image data.");
+    }
+  }
 }
 
 /**
@@ -67,6 +85,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private readonly fetchImpl: typeof fetch;
   private readonly requestTimeoutMs: number;
   private readonly modelListTimeoutMs: number;
+  private readonly supportsVision: boolean;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     this.id = options.providerId?.trim() || "openai-compatible";
@@ -78,6 +97,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       typeof value === "number" && Number.isFinite(value) ? Math.min(300_000, Math.max(1, Math.floor(value))) : fallback;
     this.requestTimeoutMs = boundedTimeout(options.requestTimeoutMs, 90_000);
     this.modelListTimeoutMs = boundedTimeout(options.modelListTimeoutMs, 20_000);
+    this.supportsVision = options.supportsVision === true;
   }
 
   async listModels(): Promise<ModelDescriptor[]> {
@@ -91,8 +111,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
       return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
         const modelName = item.id!;
-        const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
-        const capabilities = ["chat"] as const;
+        const roles = this.supportsVision
+          ? ["reasoning", "planning", "story-writing", "continuity", "vision", "fast-helper"] as const
+          : ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
+        const capabilities = this.supportsVision ? ["chat", "vision"] as const : ["chat"] as const;
         const hostname = new URL(this.baseUrl).hostname;
         return {
           id: this.id + ":" + modelName,
@@ -123,6 +145,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
     if (model.providerId !== this.id) throw new Error("This model belongs to a different provider.");
     if (request.signal?.aborted) return this.cancelledResponse(model);
+    if (model.modelUri !== undefined && model.modelUri !== model.name && model.modelUri.trim() === "") {
+      throw new Error("The selected external model has an invalid model ID.");
+    }
+    for (const message of request.messages) validateVisionContent(message.content, this.supportsVision);
     const remoteModelName = model.modelUri || model.name;
     const body: Record<string, unknown> = {
       model: remoteModelName,

@@ -255,6 +255,40 @@ try {
     }, savedCanvasData, { timeout: 20000 });
   });
 
+  await runCheck('cancelled pointer gestures discard unfinished strokes', async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const toolsToggle = page.getByRole('button', { name: /Creative tools/i });
+    const drawingNav = page.getByRole('button', { name: 'Drawing canvas', exact: true });
+    if (!(await drawingNav.isVisible())) await toolsToggle.click();
+    if (!(await page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]').isVisible().catch(() => false))) {
+      await drawingNav.click();
+    }
+    const canvas = page.locator('canvas[aria-label^="Drawing canvas. Use pointer"]');
+    await canvas.waitFor({ state: 'visible', timeout: 20000 });
+    await canvas.scrollIntoViewIfNeeded();
+    const before = await canvas.evaluate(element => element.toDataURL());
+    const bounds = await canvas.boundingBox();
+    assert(bounds && bounds.width > 60 && bounds.height > 60, 'Drawing canvas has no usable visible area.');
+
+    await page.mouse.move(bounds.x + bounds.width * 0.30, bounds.y + bounds.height * 0.32);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * 0.62, bounds.y + bounds.height * 0.57, { steps: 4 });
+    await page.evaluate(() => {
+      const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
+      if (!(element instanceof HTMLCanvasElement)) throw new Error('Drawing canvas disappeared during the active gesture.');
+      element.dispatchEvent(new PointerEvent('pointercancel', {
+        bubbles: true, cancelable: true, pointerId: 1,
+      }));
+    });
+    await page.mouse.up();
+
+    await page.getByText(/Stroke cancelled · unfinished marks were discarded/).waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForFunction(previous => {
+      const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
+      return element instanceof HTMLCanvasElement && element.toDataURL() === previous;
+    }, before, { timeout: 10000 });
+  });
+
   await runCheck('phone viewport retains accessible drawing controls and editable canvas input', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(120);

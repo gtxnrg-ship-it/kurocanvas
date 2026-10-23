@@ -382,7 +382,7 @@ export default function ProviderSettings({
       <label className="provider-check"><input type="checkbox" checked={externalSupportsVision} onChange={event=>{setExternalSupportsVision(event.target.checked);setExternalModels([]);}}/> Enable image input (only if this exact model is known to support vision)</label>
       <div className="provider-data-disclosure">
         <strong>Before you connect, know what leaves this device</strong>
-        <p>When enabled, Kuro sends the prompts used for chat, writing and drawing plans, plus the relevant context she retrieves from your selected project. That may include approved canon, story memories, character timelines, relationships, research notes and visual-style rules. If image input is enabled, a rendered preview of the current canvas and approved reference images included in the request may also be sent. Kuro does not upload your entire local project database just by connecting.</p>
+        <p>When enabled, Kuro sends model requests for chat, writing, drawing plans and native 3D planning, plus the relevant context she retrieves from your selected project. That may include approved canon, story memories, character timelines, relationships, research notes and visual-style rules. If image input is enabled, a rendered preview of the current canvas and approved reference images included in the request may also be sent. Kuro does not upload your entire local project database just by connecting.</p>
         <p>The endpoint may store requests or charge for use under its own terms. Your API key is not written to localStorage or project exports, but the browser must hold it in memory to make requests; it is not encrypted. Use only an endpoint you trust.</p>
       </div>
       <label className="provider-check provider-consent"><input type="checkbox" checked={externalConsent} onChange={event=>{
@@ -390,7 +390,8 @@ export default function ProviderSettings({
         setExternalConsent(consent);setExternalModels([]);
         if(!consent&&initialBaseUrl!==LOCAL_TINY_BASE_URL&&initialAllowRemoteData===true){
           onSave(canonicalConfig);
-          setStatus("External model disabled. New requests now use the local provider; any in-flight external request was cancelled.");
+          setExternalApiKey("");
+          setStatus("External model disabled. New requests will use the local provider, and the active chat request is cancelled.");
         }
       }}/> I understand and consent to sending my prompts and relevant project context to this external endpoint. Unchecking this after connection immediately switches Kuro back to the local provider.</label>
       <div className="provider-actions">

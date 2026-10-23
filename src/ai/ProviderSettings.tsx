@@ -8,18 +8,21 @@ import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
 import { KURO_FISH_VOICES, KURO_SPEECH_MODEL_ID, KURO_SPEECH_VOICES, prepareKuroVoice, readKuroSpeechPreferences, saveKuroSpeechPreferences, speakKuroVoice, type KuroSpeechEngine, type KuroSpeechPreferences } from "./kuroSpeech";
 
 export interface ActiveProviderConfig {
-  /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
+  /** Active local configuration or explicitly consented external provider settings. */
   baseUrl: string;
   modelUri: string;
   apiKey?: string;
   allowInsecureLocalhost: boolean;
   supportsVision?: boolean;
+  /** True only after the creator has accepted the remote data-sharing warning. */
+  allowRemoteData?: boolean;
 }
 
 interface ProviderSettingsProps {
   initialBaseUrl: string;
   initialModelUri: string;
   initialSupportsVision?: boolean;
+  initialAllowRemoteData?: boolean;
   onSave: (config: ActiveProviderConfig) => void;
   onClose: () => void;
 }
@@ -31,7 +34,9 @@ const canonicalConfig: ActiveProviderConfig = {
   supportsVision: false,
 };
 
-export default function ProviderSettings({ onSave, onClose }: ProviderSettingsProps) {
+export default function ProviderSettings({
+  initialBaseUrl, initialModelUri, initialSupportsVision, initialAllowRemoteData, onSave, onClose,
+}: ProviderSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -47,6 +52,28 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const localModelAbortController = useRef<AbortController | undefined>(undefined);
   const inferenceAbortController = useRef<AbortController | undefined>(undefined);
+  const [externalBaseUrl, setExternalBaseUrl] = useState(() =>
+    (initialBaseUrl.startsWith("http://") || initialBaseUrl.startsWith("https://"))
+      ? initialBaseUrl
+      : "https://api.openai.com/v1"
+  );
+  const [externalApiKey, setExternalApiKey] = useState(() => {
+    try { return globalThis.sessionStorage?.getItem("kuro-model-api-key") ?? ""; } catch { return ""; }
+  });
+  const [externalModelUri, setExternalModelUri] = useState(() =>
+    initialBaseUrl !== LOCAL_TINY_BASE_URL ? initialModelUri : ""
+  );
+  const [externalAllowInsecureLocalhost, setExternalAllowInsecureLocalhost] = useState(
+    initialBaseUrl.startsWith("http://localhost") || initialBaseUrl.startsWith("http://127.0.0.1") || initialBaseUrl.startsWith("http://[::1]")
+  );
+  const [externalSupportsVision, setExternalSupportsVision] = useState(
+    initialBaseUrl !== LOCAL_TINY_BASE_URL && initialSupportsVision === true
+  );
+  const [externalConsent, setExternalConsent] = useState(
+    initialBaseUrl !== LOCAL_TINY_BASE_URL && initialAllowRemoteData === true
+  );
+  const [externalModels, setExternalModels] = useState<ModelDescriptor[]>([]);
+  const [externalModelChecking, setExternalModelChecking] = useState(false);
 
   useEffect(() => () => {
     localModelAbortController.current?.abort();
@@ -171,6 +198,72 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
     }
   }
 
+  function externalProviderConfig(modelUri = externalModelUri): ActiveProviderConfig {
+    return {
+      baseUrl: externalBaseUrl.trim(),
+      modelUri: modelUri.trim(),
+      apiKey: externalApiKey.trim() || undefined,
+      allowInsecureLocalhost: externalAllowInsecureLocalhost,
+      supportsVision: externalSupportsVision,
+      allowRemoteData: true,
+    };
+  }
+
+  async function checkExternalEndpoint() {
+    if (!externalConsent) {
+      setError("Enable the explicit consent checkbox after reviewing what project information may leave this device.");
+      return;
+    }
+    setExternalModelChecking(true);
+    setError("");
+    setStatus("Checking the configured endpoint and listing its model IDs…");
+    try {
+      const provider = createConfiguredProvider(externalProviderConfig(""));
+      const found = await provider.listModels();
+      if (!found.length) throw new Error("The endpoint responded, but did not return any model IDs. Use an OpenAI-compatible /models endpoint that lists the model you intend to use.");
+      setExternalModels(found);
+      const selected = found.some(model => model.modelUri === externalModelUri || model.name === externalModelUri);
+      if (!selected) setExternalModelUri(found[0].modelUri || found[0].name);
+      setStatus("Endpoint responded and listed " + found.length + " model ID" + (found.length === 1 ? "" : "s") + ". This check sends no conversation or project text.");
+    } catch (providerError) {
+      setExternalModels([]);
+      setError(providerError instanceof Error ? providerError.message : "Could not list models from the configured endpoint.");
+    } finally {
+      setExternalModelChecking(false);
+    }
+  }
+
+  async function useExternalEndpoint() {
+    if (!externalConsent) {
+      setError("Explicit consent is required before external model use can be enabled.");
+      return;
+    }
+    if (!externalModelUri.trim()) {
+      setError("Test the endpoint and choose a model ID before connecting.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setStatus("Rechecking the selected model before enabling external requests…");
+    try {
+      const config = externalProviderConfig();
+      const provider = createConfiguredProvider(config);
+      const found = await provider.listModels();
+      const selected = found.find(model => model.modelUri === externalModelUri.trim() || model.name === externalModelUri.trim());
+      if (!selected) {
+        setExternalModels(found);
+        throw new Error("The selected model ID was not returned by this endpoint. Check the model list and choose an exact listed ID.");
+      }
+      onSave({ ...config, modelUri: selected.modelUri || selected.name });
+      setStatus("External model connected. Prompts and selected project context will be sent to this endpoint.");
+      closeSettings();
+    } catch (providerError) {
+      setError(providerError instanceof Error ? providerError.message : "Could not connect to the external model.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function previewVoice() {
     const selected = models.find(model => model.id === KURO_TINY_MODEL_DESCRIPTOR_ID);
     if (!selected) {
@@ -261,16 +354,16 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
   return <section className="provider-settings" role="dialog" aria-modal="true" aria-labelledby="provider-settings-title">
     <div className="provider-settings-head">
       <div>
-        <small>LOCAL MODEL · SINGLE ADAPTER</small>
+        <small>MODEL PROVIDER · LOCAL BY DEFAULT</small>
         <h2 id="provider-settings-title">Kuro's intelligence</h2>
-        <p>Kuro currently runs one model: Qwen3-0.6B on your device. Her drawing, memory, canon, research, and workflow harnesses are app features—not separate models.</p>
+        <p>Qwen3-0.6B is Kuro’s private, on-device default. You can also configure a compatible external model below, but only after explicitly reviewing and accepting the data-sharing warning. The app still uses native editable drawing tools, never image-generation output.</p>
       </div>
       <button onClick={closeSettings} aria-label="Close settings">×</button>
     </div>
     <ModelAdvisor benchmark={localBenchmark} />
     <div className="provider-recommended-model">
-      <strong>Qwen3-0.6B · the only active model</strong>
-      <p>The quantized ONNX weights are approximately 370 MB. Download and model initialization happen only when you explicitly choose “Download & prepare Qwen3-0.6B”; a normal chat message will not trigger a download. Transformers.js caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the model can see images.</p>
+      <strong>Qwen3-0.6B · local default</strong>
+      <p>The quantized ONNX weights are approximately 370 MB. Download and model initialization happen only when you explicitly choose “Download & prepare Qwen3-0.6B”; external-model setup never triggers this download. Transformers.js caches files in this browser, but browser storage may be evicted. Runtime memory is higher than download size and varies by device. Qwen is text-only: Kuro uses editable canvas/document data and validated native drawing tools rather than pretending the local model can see image pixels.</p>
       <div className="provider-actions">
         <button type="button" onClick={checkModelAdapter} disabled={busy || voiceTesting}>{busy ? "Checking…" : "Check local adapter"}</button>
         <button type="button" onClick={downloadAndConnectLocalModel} disabled={busy || voiceTesting}>{localModelPreparing ? "Preparing… " + modelProgress + "%" : localModelPrepared ? "Prepare model again" : "Download & prepare Qwen3-0.6B"}</button>
@@ -280,6 +373,37 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
       <p className="provider-muted">Speed is measured on this device after a warm-up; it does not measure writing quality, tool reliability, or canvas performance. A page reload clears the live model session, so prepare Qwen again before benchmarking or using voice preview.</p>
       <a href="https://huggingface.co/onnx-community/Qwen3-0.6B-DQ-ONNX" target="_blank" rel="noreferrer">Model files and license ↗</a>
     </div>
+    <fieldset className="provider-external-settings">
+      <legend>Optional external model · advanced</legend>
+      <p className="provider-muted">Use an OpenAI-compatible chat-completions endpoint, such as a provider API or a local runtime that exposes <code>/v1/models</code> and <code>/v1/chat/completions</code>. Local Qwen remains the default until you connect this option.</p>
+      <label>API base URL<input type="url" value={externalBaseUrl} onChange={event=>{setExternalBaseUrl(event.target.value);setExternalModels([]);}} placeholder="https://api.openai.com/v1" autoComplete="off" spellCheck={false}/></label>
+      <label>API key · kept in this browser session<input type="password" value={externalApiKey} onChange={event=>setExternalApiKey(event.target.value)} placeholder="API key (leave blank only if endpoint does not require one)" autoComplete="off" spellCheck={false}/></label>
+      <label className="provider-check"><input type="checkbox" checked={externalAllowInsecureLocalhost} onChange={event=>setExternalAllowInsecureLocalhost(event.target.checked)}/> Allow HTTP for localhost only (never for a remote host)</label>
+      <label className="provider-check"><input type="checkbox" checked={externalSupportsVision} onChange={event=>{setExternalSupportsVision(event.target.checked);setExternalModels([]);}}/> Enable image input (only if this exact model is known to support vision)</label>
+      <div className="provider-data-disclosure">
+        <strong>Before you connect, know what leaves this device</strong>
+        <p>When enabled, Kuro sends model requests for chat, writing, drawing plans and native 3D planning, plus the relevant context she retrieves from your selected project. That may include approved canon, story memories, character timelines, relationships, research notes and visual-style rules. If image input is enabled, a rendered preview of the current canvas and approved reference images included in the request may also be sent. Kuro does not upload your entire local project database just by connecting.</p>
+        <p>The endpoint may store requests or charge for use under its own terms. Your API key is not written to localStorage or project exports, but the browser must hold it in memory to make requests; it is not encrypted. Use only an endpoint you trust.</p>
+      </div>
+      <label className="provider-check provider-consent"><input type="checkbox" checked={externalConsent} onChange={event=>{
+        const consent=event.target.checked;
+        setExternalConsent(consent);setExternalModels([]);
+        if(!consent&&initialBaseUrl!==LOCAL_TINY_BASE_URL&&initialAllowRemoteData===true){
+          onSave(canonicalConfig);
+          setExternalApiKey("");
+          setStatus("External model disabled. New requests will use the local provider, and the active chat request is cancelled.");
+        }
+      }}/> I understand and consent to sending my prompts and relevant project context to this external endpoint. Unchecking this after connection immediately switches Kuro back to the local provider.</label>
+      <div className="provider-actions">
+        <button type="button" className="provider-secondary" onClick={()=>void checkExternalEndpoint()} disabled={busy||externalModelChecking||!externalConsent}>{externalModelChecking?"Checking endpoint…":"Test endpoint & load models"}</button>
+      </div>
+      <label>Model ID{externalModels.length ? <select value={externalModelUri} onChange={event=>setExternalModelUri(event.target.value)}><option value="">Choose a model…</option>{externalModels.map(model=><option key={model.id} value={model.modelUri||model.name}>{model.modelUri||model.name}</option>)}</select> : <input value={externalModelUri} onChange={event=>setExternalModelUri(event.target.value)} placeholder="Choose a model after checking the endpoint" autoComplete="off" spellCheck={false}/>}</label>
+      {!externalModels.length&&<small className="provider-muted">First test the endpoint to retrieve the exact model IDs it lists. The ID must match one of those results to connect.</small>}
+      {externalSupportsVision&&<p className="provider-warning">Image input is enabled by your selection. The app cannot independently verify a provider's model capabilities, so only use this with a model documented to accept image_url content. Qwen local remains text-only.</p>}
+      <div className="provider-actions">
+        <button type="button" onClick={()=>void useExternalEndpoint()} disabled={busy||externalModelChecking||!externalConsent||!externalModelUri.trim()}>{busy?"Verifying model…":"Use selected external model"}</button>
+      </div>
+    </fieldset>
     <fieldset className="kuro-speech-settings">
       <legend>Spoken voice · audio output</legend>
       <label>Speech engine<select value={speechPreferences.engine} onChange={event=>{
@@ -325,7 +449,7 @@ export default function ProviderSettings({ onSave, onClose }: ProviderSettingsPr
     </fieldset>
     {status && <p className="provider-status" role="status">{status}</p>}
     {error && <p className="provider-error" role="alert">{error}</p>}
-    <p className="provider-warning">Kuro’s chat and project-memory paths remain local to the configured Qwen model. If Fish Audio is selected for speech, the spoken text and your API key are sent to Fish Audio for audio generation. No remote chat-model fallback is used. Image understanding is not supported by Qwen3-0.6B here.</p>
+    <p className="provider-warning">Qwen chat remains on-device when Qwen is selected. External chat is never an automatic fallback and requires the consent checkbox above. If Fish Audio is selected for speech, the spoken text and your API key are sent to Fish Audio for audio generation. Qwen3-0.6B itself remains text-only.</p>
     <div className="provider-actions">
       <button className="provider-secondary" onClick={closeSettings}>Close</button>
       <button onClick={save} disabled={busy || voiceTesting}>Use Qwen3-0.6B</button>

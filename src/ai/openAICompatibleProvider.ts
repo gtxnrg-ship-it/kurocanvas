@@ -1,5 +1,7 @@
 import type {
   ModelDescriptor,
+  ModelMessageContent,
+  ModelMessagePart,
   ModelProvider,
   ModelRequest,
   ModelResponse,
@@ -19,9 +21,11 @@ export interface OpenAICompatibleProviderOptions {
   requestTimeoutMs?: number;
   /** Hard deadline for model discovery/availability checks. Defaults to 20 seconds. */
   modelListTimeoutMs?: number;
+  /** Only enable when the creator confirms this endpoint/model accepts image inputs. */
+  supportsVision?: boolean;
 }
 
-type MessageContent = string | Array<{ type?: string; text?: string }> | null | undefined;
+type MessageContent = ModelMessageContent | null | undefined;
 
 interface ChatCompletionPayload {
   choices?: Array<{
@@ -40,19 +44,52 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
   } catch {
     throw new Error("Enter a valid model-provider URL.");
   }
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const hostname = url.hostname.toLowerCase();
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
   if (url.protocol !== "https:" && !(allowInsecureLocalhost && local && url.protocol === "http:")) {
     throw new Error("Model provider URLs must use HTTPS. HTTP is allowed only for an explicitly enabled localhost endpoint.");
   }
   if (url.username || url.password) throw new Error("Do not put credentials in the provider URL.");
-  url.hash = "";
-  return url.toString().replace(/\/+$/, "");
+  if (url.search || url.hash) throw new Error("Do not put credentials, query parameters, or fragments in the provider URL.");
+
+  let path = url.pathname.toLowerCase();
+  while (path.endsWith("/")) path = path.slice(0, -1);
+  if (path.endsWith("/models") || path.endsWith("/chat/completions")) {
+    throw new Error("Enter the API base URL, not a full /models or /chat/completions URL.");
+  }
+
+  let normalized = url.toString();
+  while (normalized.endsWith("/")) normalized = normalized.slice(0, -1);
+  return normalized;
 }
 
 function contentAsText(content: MessageContent): string {
   if (typeof content === "string") return content;
-  if (Array.isArray(content)) return content.filter(part => part && typeof part.text === "string").map(part => part.text).join("");
+  if (Array.isArray(content)) return content.filter((part): part is Extract<ModelMessagePart, { type: "text" }> => part.type === "text").map(part => part.text).join("");
   return "";
+}
+
+function validateVisionContent(content: ModelMessageContent, supportsVision: boolean): void {
+  if (typeof content === "string") return;
+  for (const part of content) {
+    if (part.type !== "image_url") continue;
+    if (!supportsVision) {
+      throw new Error("Image input is disabled for this provider. Enable vision only when the selected model is known to support image inputs.");
+    }
+    const url = part.image_url.url;
+    const normalizedUrl = url.toLowerCase();
+    const secureImage = normalizedUrl.startsWith("https://");
+    const inlineImage = [
+      "data:image/png;base64,",
+      "data:image/jpeg;base64,",
+      "data:image/jpg;base64,",
+      "data:image/webp;base64,",
+      "data:image/gif;base64,",
+    ].some(prefix => normalizedUrl.startsWith(prefix));
+    if (!secureImage && !inlineImage) {
+      throw new Error("Vision requests may include only HTTPS images or inline base64 image data.");
+    }
+  }
 }
 
 /**
@@ -67,6 +104,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private readonly fetchImpl: typeof fetch;
   private readonly requestTimeoutMs: number;
   private readonly modelListTimeoutMs: number;
+  private readonly supportsVision: boolean;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     this.id = options.providerId?.trim() || "openai-compatible";
@@ -78,6 +116,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       typeof value === "number" && Number.isFinite(value) ? Math.min(300_000, Math.max(1, Math.floor(value))) : fallback;
     this.requestTimeoutMs = boundedTimeout(options.requestTimeoutMs, 90_000);
     this.modelListTimeoutMs = boundedTimeout(options.modelListTimeoutMs, 20_000);
+    this.supportsVision = options.supportsVision === true;
   }
 
   async listModels(): Promise<ModelDescriptor[]> {
@@ -91,8 +130,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
       const payload = await response.json() as { data?: Array<{ id?: string; owned_by?: string }> };
       return (payload.data ?? []).filter(item => typeof item.id === "string" && item.id.length > 0).map(item => {
         const modelName = item.id!;
-        const roles = ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
-        const capabilities = ["chat"] as const;
+        const roles = this.supportsVision
+          ? ["reasoning", "planning", "story-writing", "continuity", "vision", "fast-helper"] as const
+          : ["reasoning", "planning", "story-writing", "continuity", "fast-helper"] as const;
+        const capabilities = this.supportsVision ? ["chat", "vision"] as const : ["chat"] as const;
         const hostname = new URL(this.baseUrl).hostname;
         return {
           id: this.id + ":" + modelName,
@@ -123,6 +164,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
   async generate(request: ModelRequest, model: ModelDescriptor): Promise<ModelResponse> {
     if (model.providerId !== this.id) throw new Error("This model belongs to a different provider.");
     if (request.signal?.aborted) return this.cancelledResponse(model);
+    if (model.modelUri !== undefined && model.modelUri !== model.name && model.modelUri.trim() === "") {
+      throw new Error("The selected external model has an invalid model ID.");
+    }
+    for (const message of request.messages) validateVisionContent(message.content, this.supportsVision);
     const remoteModelName = model.modelUri || model.name;
     const body: Record<string, unknown> = {
       model: remoteModelName,

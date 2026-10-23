@@ -1,20 +1,28 @@
 import { getKuroModelAdapter } from "./kuroModelAdapter";
 import { KURO_TINY_MODEL_URI } from "./localTinyModelProvider";
+import { OpenAICompatibleProvider } from "./openAICompatibleProvider";
 
 export const LOCAL_TINY_BASE_URL = "local://kuro-tiny";
 export const LOCAL_TINY_MODEL_URI = KURO_TINY_MODEL_URI;
 
 export interface ProviderFactoryConfig {
-  /** Retained for migration compatibility; Kuro's production adapter is local-only. */
+  /** The local sentinel URL or an explicitly configured OpenAI-compatible endpoint. */
   baseUrl: string;
   modelUri: string;
-  /** Accepted only for compatibility with previously saved settings; never sent or stored. */
+  /** The external endpoint bearer token; callers must keep it out of localStorage and packages. */
   apiKey?: string;
   allowInsecureLocalhost: boolean;
+  supportsVision?: boolean;
+  /** Must be explicitly true before project context can be sent to an external endpoint. */
+  allowRemoteData?: boolean;
 }
 
 export function isLocalTinyConfig(config: Pick<ProviderFactoryConfig, "baseUrl">): boolean {
   return config.baseUrl === LOCAL_TINY_BASE_URL;
+}
+
+export function isExternalProviderConfig(config: Pick<ProviderFactoryConfig, "baseUrl">): boolean {
+  return !isLocalTinyConfig(config);
 }
 
 /** True when Qwen's weights are loaded in the current browser worker session. */
@@ -32,25 +40,49 @@ export function localModelReadinessLabel(): string {
     : "Qwen3-0.6B · not prepared · open Preferences for AI chat";
 }
 
+export function providerReadinessLabel(config?: Pick<ProviderFactoryConfig, "baseUrl" | "allowRemoteData" | "supportsVision"> | null): string {
+  if (config && isExternalProviderConfig(config) && config.allowRemoteData === true) {
+    return "External model · project context goes to the configured endpoint"
+      + (config.supportsVision === true ? " · image input enabled" : " · text-only");
+  }
+  return localModelReadinessLabel();
+}
+
 /**
- * Resolve the single model adapter used by every Kuro harness.
- * Legacy remote-provider settings intentionally fail closed rather than silently
- * routing user prompts, project canon, or creator work to a hosted endpoint.
+ * Resolve a provider only from an explicit configuration. Local Qwen remains the default.
+ * An external OpenAI-compatible endpoint is never selected without explicit remote-data consent.
  */
 export function createConfiguredProvider(
   config: ProviderFactoryConfig,
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
 ) {
-  if (!isLocalTinyConfig(config) || config.modelUri !== LOCAL_TINY_MODEL_URI) {
-    throw new Error("Kuro currently uses only on-device Qwen3-0.6B. Reopen Preferences to migrate the saved model settings.");
+  if (isLocalTinyConfig(config)) {
+    if (config.modelUri !== LOCAL_TINY_MODEL_URI) {
+      throw new Error("Kuro's local provider is Qwen3-0.6B only. Reopen Preferences to correct the saved model settings.");
+    }
+    const provider = getKuroModelAdapter();
+    if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
+      provider.setProgressListener(onProgress);
+    }
+    return provider;
   }
-  const provider = getKuroModelAdapter();
-  if ("setProgressListener" in provider && typeof provider.setProgressListener === "function") {
-    provider.setProgressListener(onProgress);
+
+  if (config.allowRemoteData !== true) {
+    throw new Error("External model use is disabled until you explicitly consent to sending project context to that endpoint.");
   }
-  return provider;
+  // An empty model URI is allowed during explicit endpoint discovery; the app must
+  // validate a concrete listed model before using the provider for inference.
+  return new OpenAICompatibleProvider({
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    allowInsecureLocalhost: config.allowInsecureLocalhost,
+    supportsVision: config.supportsVision === true,
+    providerId: "openai-compatible",
+    displayName: "OpenAI-compatible model provider",
+  });
 }
 
+/** Prepare only the bundled local model; remote providers never trigger a surprise model download. */
 export async function prepareLocalTinyModel(
   onProgress?: (progress: { percent: number; file?: string; status: string }) => void,
   signal?: AbortSignal,

@@ -10,7 +10,7 @@ import { validateStyleBible, type ProjectStyleBible } from '../canon/styleBible'
 import { validateReferenceSource, type ReferenceSourceRecord } from '../canon/referenceScout';
 import { blobToDataUrl, dataUrlToBlob, validateCharacterModel, type CharacterModelRecord } from '../canon/characterModels';
 import WorldStudio from '../canon/WorldStudio';
-import { collectProjectExportDrawingIds, findMissingDrawingReferences } from './exportPreflight';
+import { collectProjectExportDrawingIds, findMissingDrawingReferences, validateImportedDrawingEntries } from './exportPreflight';
 import { rehomeUniversePackage, serializeUniversePackage } from '../core/universePackage';
 import type { ChatMessageRecord, ConversationRecord } from '../core/universe';
 import type { RelationshipRecord } from '../canon/relationshipMemory';
@@ -154,6 +154,7 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
         updatedAt: new Date().toISOString(),
       };
       const importedAssets = imported.assets;
+      validateImportedDrawingEntries(Object.entries(importedAssets));
       const now = new Date().toISOString();
       const drawingIdMap = new Map<string, string>();
       const drawings: LocalDrawingDocument[] = [];

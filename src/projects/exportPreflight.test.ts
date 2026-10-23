@@ -11,7 +11,7 @@ describe("project export drawing preflight", () => {
   it("reports missing linked drawings instead of silently dropping them", () => {
     expect(findMissingDrawingReferences([
       { id: "m1", title: "Opening panel", assetRefs: ["drawing:gone"] },
-    ], [])).toEqual([{ drawingId: "gone", memoryTitles: ["Opening panel"] }]);
+    ], [])).toEqual([{ drawingId: "gone", ownerTitles: ["Opening panel"] }]);
   });
 
   it("deduplicates missing assets and preserves all referencing memory titles", () => {
@@ -20,14 +20,14 @@ describe("project export drawing preflight", () => {
       { id: "m2", title: "Character pose", assetRefs: ["drawing:gone"] },
     ], [])).toEqual([{
       drawingId: "gone",
-      memoryTitles: ["Character pose", "Opening panel"],
+      ownerTitles: ["Character pose", "Opening panel"],
     }]);
   });
 
   it("ignores non-drawing references but flags malformed drawing references", () => {
     expect(findMissingDrawingReferences([
       { id: "m1", title: "Notes", assetRefs: ["https://example.com/reference", "drawing:"] },
-    ], [])).toEqual([{ drawingId: "(empty ID)", memoryTitles: ["Notes"] }]);
+    ], [])).toEqual([{ drawingId: "(empty ID)", ownerTitles: ["Notes"] }]);
   });
 
   it("exports every saved drawing, including pages not linked from Story Vault", () => {
@@ -63,5 +63,31 @@ describe("project drawing import preflight", () => {
     expect(() => validateImportedDrawingEntries([
       ["kuro/drawings/page-a.json", "{broken"],
     ])).toThrow(/not valid JSON/i);
+  });
+});
+
+describe("project-wide drawing continuity preflight", () => {
+  it("blocks export when a character timeline points to a missing drawing", () => {
+    expect(findMissingDrawingReferences([
+      { title: "Chapter 4 character state for Mira", assetRefs: ["drawing:missing-pose"] },
+    ], ["saved-page"])).toEqual([
+      { drawingId: "missing-pose", ownerTitles: ["Chapter 4 character state for Mira"] },
+    ]);
+  });
+
+  it("combines missing references across memory and timeline owners", () => {
+    expect(findMissingDrawingReferences([
+      { title: "Story Vault: Bridge scene", assetRefs: ["drawing:gone"] },
+      { title: "Character timeline: Mira", assetRefs: ["drawing:gone"] },
+    ], [])).toEqual([{
+      drawingId: "gone",
+      ownerTitles: ["Character timeline: Mira", "Story Vault: Bridge scene"],
+    }]);
+  });
+
+  it("ignores a timeline drawing reference when its project canvas exists", () => {
+    expect(findMissingDrawingReferences([
+      { title: "Character timeline: Mira", assetRefs: ["drawing:pose-2"] },
+    ], ["pose-2"])).toEqual([]);
   });
 });

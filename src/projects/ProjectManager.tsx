@@ -107,11 +107,19 @@ export default function ProjectManager({ onProjectsChanged }: { onProjectsChange
       Object.assign(assets, serializeUniversePackage({ universes, conversations, messages, relationships, characterStates }));
 
       const availableDrawings = await drawingStorage.list(id);
-      const drawingIds = collectProjectExportDrawingIds(memories, availableDrawings.map(drawing => drawing.id));
-      const missingDrawings = findMissingDrawingReferences(memories, availableDrawings.map(drawing => drawing.id));
+      const availableDrawingIds = availableDrawings.map(drawing => drawing.id);
+      const drawingIds = collectProjectExportDrawingIds(memories, availableDrawingIds);
+      const drawingOwners = [
+        ...memories.map(memory => ({ title: 'Story Vault: ' + memory.title, assetRefs: memory.assetRefs })),
+        ...characterStates.map(state => ({
+          title: 'Character timeline: ' + state.characterId + ' (story order ' + state.storyOrder + ')',
+          assetRefs: state.assetRefs,
+        })),
+      ];
+      const missingDrawings = findMissingDrawingReferences(drawingOwners, availableDrawingIds);
       if (missingDrawings.length) {
-        const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.memoryTitles.join(', ') + ')').join('; ');
-        throw new Error('Export cancelled to protect project completeness. These Story Vault drawings are missing: ' + details + '. Recover or remove the broken references, then export again.');
+        const details = missingDrawings.map(item => item.drawingId + ' (referenced by ' + item.ownerTitles.join(', ') + ')').join('; ');
+        throw new Error('Export cancelled to protect project completeness. These continuity drawing references are missing: ' + details + '. Recover the saved drawing or remove the broken reference from Story Vault or character timeline, then export again.');
       }
       let exportedDrawings = 0;
       let exportedRevisions = 0;

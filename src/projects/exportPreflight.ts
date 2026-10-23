@@ -1,51 +1,52 @@
-export interface DrawingMemoryReference {
-  id: string;
+export interface DrawingAssetOwnerReference {
+  /** Optional record identity retained for callers that already have one. */
+  id?: string;
   title: string;
   assetRefs: string[];
 }
 
 export interface MissingDrawingReference {
   drawingId: string;
-  memoryTitles: string[];
+  ownerTitles: string[];
 }
 
 /**
- * Finds Story Vault references that cannot be resolved to a saved drawing.
- * Export must not silently omit these assets: they may be reusable panels,
- * templates, or other creative material the user expects to travel with the project.
+ * Finds project-owned continuity references that cannot be resolved to a saved drawing.
+ * Owners may be Story Vault memories or character timeline snapshots; both must
+ * remain usable after the project is moved to another device.
  */
 export function findMissingDrawingReferences(
-  memories: readonly DrawingMemoryReference[],
+  owners: readonly DrawingAssetOwnerReference[],
   availableDrawingIds: Iterable<string>,
 ): MissingDrawingReference[] {
   const available = new Set(availableDrawingIds);
-  const owners = new Map<string, Set<string>>();
+  const referencesByDrawing = new Map<string, Set<string>>();
 
-  for (const memory of memories) {
-    for (const reference of memory.assetRefs) {
+  for (const owner of owners) {
+    for (const reference of owner.assetRefs) {
       if (!reference.startsWith("drawing:")) continue;
       const drawingId = reference.slice("drawing:".length).trim();
       if (drawingId && available.has(drawingId)) continue;
-      const titles = owners.get(drawingId) ?? new Set<string>();
-      titles.add(memory.title.trim() || "Untitled memory");
-      owners.set(drawingId, titles);
+      const titles = referencesByDrawing.get(drawingId) ?? new Set<string>();
+      titles.add(owner.title.trim() || "Untitled continuity record");
+      referencesByDrawing.set(drawingId, titles);
     }
   }
 
-  return [...owners.entries()]
+  return [...referencesByDrawing.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([drawingId, titles]) => ({
       drawingId: drawingId || "(empty ID)",
-      memoryTitles: [...titles].sort((left, right) => left.localeCompare(right)),
+      ownerTitles: [...titles].sort((left, right) => left.localeCompare(right)),
     }));
 }
 
 /**
- * The export manifest includes every saved drawing plus every drawing referenced by memory.
- * Keeping missing references in the manifest lets preflight fail loudly rather than hide data loss.
+ * The archive contains every saved drawing, including unlinked canvases. Story Vault references
+ * are also added to the manifest so preflight can detect missing references rather than hide loss.
  */
 export function collectProjectExportDrawingIds(
-  memories: readonly DrawingMemoryReference[],
+  memories: readonly DrawingAssetOwnerReference[],
   availableDrawingIds: Iterable<string>,
 ): string[] {
   const ids = new Set(availableDrawingIds);

@@ -169,7 +169,9 @@ try {
       }));
       assert.ok(sizes.html <= width + 1 && sizes.body <= width + 1,
         'Series planning UI horizontally overflows at ' + width + 'px: ' + JSON.stringify(sizes));
-      assert.equal(await page.getByRole('heading', { name: 'Series plan, opening to finale' }).isVisible(), true,
+      const seriesPlanHeading = page.getByRole('heading', { name: 'Series plan, opening to finale' });
+      await seriesPlanHeading.waitFor({ state: 'visible', timeout: 5000 });
+      assert.equal(await seriesPlanHeading.isVisible(), true,
         'The series plan heading should remain visible at ' + width + 'px.');
     }
     await page.getByRole('button', { name: 'Talk to Kuro', exact: true }).click();

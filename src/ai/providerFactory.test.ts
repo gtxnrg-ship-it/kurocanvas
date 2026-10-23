@@ -69,6 +69,6 @@ describe("single-model provider factory", () => {
       baseUrl: LOCAL_TINY_BASE_URL,
       modelUri: "another-model",
       allowInsecureLocalhost: false,
-    })).toThrow(/only on-device Qwen3-0.6B/i);
+    })).toThrow(/Qwen3-0.6B only/i);
   });
 });

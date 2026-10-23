@@ -76,6 +76,56 @@ describe("OpenAICompatibleProvider", () => {
     expect(models.every(item => item.downloadBytes === undefined && item.memoryBytes === undefined && item.license === undefined)).toBe(true);
   });
 
+  it("rejects provider URLs with credentials, query parameters, fragments, or full API paths", () => {
+    expect(() => new OpenAICompatibleProvider({ baseUrl: "https://user:secret@example.com/v1" })).toThrow(/credentials/i);
+    expect(() => new OpenAICompatibleProvider({ baseUrl: "https://example.com/v1?token=secret" })).toThrow(/query parameters/i);
+    expect(() => new OpenAICompatibleProvider({ baseUrl: "https://example.com/v1#fragment" })).toThrow(/query parameters/i);
+    expect(() => new OpenAICompatibleProvider({ baseUrl: "https://example.com/v1/chat/completions" })).toThrow(/base URL/i);
+  });
+
+  it("declares vision only when the creator explicitly enables image input", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ data: [{ id: "vision-capable" }] })) as unknown as typeof fetch;
+    const textOnly = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1", allowInsecureLocalhost: true, providerId: "text-only", fetchImpl,
+    });
+    const vision = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1", allowInsecureLocalhost: true, providerId: "vision-enabled",
+      supportsVision: true, fetchImpl,
+    });
+    expect((await textOnly.listModels())[0].capabilities).toEqual(["chat"]);
+    expect((await vision.listModels())[0].capabilities).toEqual(["chat", "vision"]);
+  });
+
+  it("does not send image pixels to a provider configured as text-only", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1", allowInsecureLocalhost: true, providerId: "test", fetchImpl,
+    });
+    await expect(provider.generate({
+      role: "planning",
+      messages: [{ role: "user", content: [
+        { type: "text", text: "Inspect this canvas." },
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64,dGVzdA==" } },
+      ] }],
+    }, { ...model, providerId: "test" })).rejects.toThrow(/image input is disabled/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported image URL schemes even when vision is enabled", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "http://localhost:8000/v1", allowInsecureLocalhost: true, providerId: "test",
+      supportsVision: true, fetchImpl,
+    });
+    await expect(provider.generate({
+      role: "planning",
+      messages: [{ role: "user", content: [
+        { type: "image_url", image_url: { url: "javascript:alert(1)" } },
+      ] }],
+    }, { ...model, providerId: "test" })).rejects.toThrow(/HTTPS images or inline base64/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("sends the selected model and messages to chat completions", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({
       model: "model-a",
@@ -124,6 +174,7 @@ describe("OpenAICompatibleProvider", () => {
       baseUrl: "http://localhost:8000/v1",
       allowInsecureLocalhost: true,
       providerId: "test",
+      supportsVision: true,
       fetchImpl,
     });
     const imageUrl = "data:image/jpeg;base64,dGVzdA==";

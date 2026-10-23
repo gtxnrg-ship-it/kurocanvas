@@ -44,13 +44,17 @@ function normalizedBaseUrl(raw: string, allowInsecureLocalhost: boolean): string
   } catch {
     throw new Error("Enter a valid model-provider URL.");
   }
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const hostname = url.hostname.toLowerCase();
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
   if (url.protocol !== "https:" && !(allowInsecureLocalhost && local && url.protocol === "http:")) {
     throw new Error("Model provider URLs must use HTTPS. HTTP is allowed only for an explicitly enabled localhost endpoint.");
   }
   if (url.username || url.password) throw new Error("Do not put credentials in the provider URL.");
-  url.hash = "";
-  return url.toString().replace(/\/+$/, "");
+  if (url.search || url.hash) throw new Error("Do not put credentials, query parameters, or fragments in the provider URL.");
+  if (/(?:^|\\/)(?:models|chat\\/completions)\\/?$/i.test(url.pathname)) {
+    throw new Error("Enter the API base URL, not a full /models or /chat/completions URL.");
+  }
+  return url.toString().replace(/\\/+$/, "");
 }
 
 function contentAsText(content: MessageContent): string {
@@ -67,7 +71,16 @@ function validateVisionContent(content: ModelMessageContent, supportsVision: boo
       throw new Error("Image input is disabled for this provider. Enable vision only when the selected model is known to support image inputs.");
     }
     const url = part.image_url.url;
-    if (!/^https:\\/\\//i.test(url) && !/^data:image\\/(?:png|jpe?g|webp|gif);base64,/i.test(url)) {
+    const normalizedUrl = url.toLowerCase();
+    const secureImage = normalizedUrl.startsWith("https://");
+    const inlineImage = [
+      "data:image/png;base64,",
+      "data:image/jpeg;base64,",
+      "data:image/jpg;base64,",
+      "data:image/webp;base64,",
+      "data:image/gif;base64,",
+    ].some(prefix => normalizedUrl.startsWith(prefix));
+    if (!secureImage && !inlineImage) {
       throw new Error("Vision requests may include only HTTPS images or inline base64 image data.");
     }
   }

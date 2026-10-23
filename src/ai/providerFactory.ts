@@ -70,8 +70,8 @@ export function createConfiguredProvider(
   if (config.allowRemoteData !== true) {
     throw new Error("External model use is disabled until you explicitly consent to sending project context to that endpoint.");
   }
-  const modelUri = config.modelUri.trim();
-  if (!modelUri) throw new Error("Choose a model ID from the external provider before connecting.");
+  // An empty model URI is allowed during explicit endpoint discovery; the app must
+  // validate a concrete listed model before using the provider for inference.
   return new OpenAICompatibleProvider({
     baseUrl: config.baseUrl,
     modelUri,

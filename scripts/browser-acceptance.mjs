@@ -275,7 +275,7 @@ try {
     await page.mouse.move(bounds.x + bounds.width * 0.62, bounds.y + bounds.height * 0.57, { steps: 4 });
     await page.evaluate(() => {
       const element = document.querySelector('canvas[aria-label^="Drawing canvas. Use pointer"]');
-      assert(element instanceof HTMLCanvasElement, 'Drawing canvas disappeared during the active gesture.');
+      if (!(element instanceof HTMLCanvasElement)) throw new Error('Drawing canvas disappeared during the active gesture.');
       element.dispatchEvent(new PointerEvent('pointercancel', {
         bubbles: true, cancelable: true, pointerId: 1,
       }));

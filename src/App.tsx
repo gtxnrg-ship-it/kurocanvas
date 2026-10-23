@@ -75,7 +75,11 @@ function readProviderConfig(): SafeProviderConfig {
   const raw=localStorage.getItem('kuro-model-provider');
   if(!raw){localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));return canonical;}
   const parsed=JSON.parse(raw) as Partial<SafeProviderConfig>;
-  if(parsed.baseUrl===LOCAL_TINY_BASE_URL&&parsed.modelUri===LOCAL_TINY_MODEL_URI)return canonical;
+  if(parsed.baseUrl===LOCAL_TINY_BASE_URL&&parsed.modelUri===LOCAL_TINY_MODEL_URI){
+   const canonicalJson=JSON.stringify(canonical);
+   if(raw!==canonicalJson)localStorage.setItem('kuro-model-provider',canonicalJson);
+   return canonical;
+  }
   if(parsed.allowRemoteData!==true||typeof parsed.baseUrl!=='string'||typeof parsed.modelUri!=='string'||!parsed.modelUri.trim())throw new Error('External provider is not explicitly enabled.');
   const url=new URL(parsed.baseUrl.trim());
   const host=url.hostname.toLowerCase();

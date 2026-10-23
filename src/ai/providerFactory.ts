@@ -74,7 +74,6 @@ export function createConfiguredProvider(
   // validate a concrete listed model before using the provider for inference.
   return new OpenAICompatibleProvider({
     baseUrl: config.baseUrl,
-    modelUri,
     apiKey: config.apiKey,
     allowInsecureLocalhost: config.allowInsecureLocalhost,
     supportsVision: config.supportsVision === true,

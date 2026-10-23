@@ -53,7 +53,7 @@ export default function ProviderSettings({
   const localModelAbortController = useRef<AbortController | undefined>(undefined);
   const inferenceAbortController = useRef<AbortController | undefined>(undefined);
   const [externalBaseUrl, setExternalBaseUrl] = useState(() =>
-    initialBaseUrl !== LOCAL_TINY_BASE_URL && /^https?:\\/\\//i.test(initialBaseUrl)
+    (initialBaseUrl.startsWith("http://") || initialBaseUrl.startsWith("https://"))
       ? initialBaseUrl
       : "https://api.openai.com/v1"
   );
@@ -385,7 +385,14 @@ export default function ProviderSettings({
         <p>When enabled, Kuro sends the prompts used for chat, writing and drawing plans, plus the relevant context she retrieves from your selected project. That may include approved canon, story memories, character timelines, relationships, research notes and visual-style rules. If image input is enabled, a rendered preview of the current canvas and approved reference images included in the request may also be sent. Kuro does not upload your entire local project database just by connecting.</p>
         <p>The endpoint may store requests or charge for use under its own terms. Your API key is not written to localStorage or project exports, but the browser must hold it in memory to make requests; it is not encrypted. Use only an endpoint you trust.</p>
       </div>
-      <label className="provider-check provider-consent"><input type="checkbox" checked={externalConsent} onChange={event=>{setExternalConsent(event.target.checked);setExternalModels([]);}}/> I understand and consent to sending my prompts and relevant project context to this external endpoint. I understand image previews may be shared when image input is enabled.</label>
+      <label className="provider-check provider-consent"><input type="checkbox" checked={externalConsent} onChange={event=>{
+        const consent=event.target.checked;
+        setExternalConsent(consent);setExternalModels([]);
+        if(!consent&&initialBaseUrl!==LOCAL_TINY_BASE_URL&&initialAllowRemoteData===true){
+          onSave(canonicalConfig);
+          setStatus("External model disabled. New requests now use the local provider; any in-flight external request was cancelled.");
+        }
+      }}/> I understand and consent to sending my prompts and relevant project context to this external endpoint. Unchecking this after connection immediately switches Kuro back to the local provider.</label>
       <div className="provider-actions">
         <button type="button" className="provider-secondary" onClick={()=>void checkExternalEndpoint()} disabled={busy||externalModelChecking||!externalConsent}>{externalModelChecking?"Checking endpoint…":"Test endpoint & load models"}</button>
       </div>

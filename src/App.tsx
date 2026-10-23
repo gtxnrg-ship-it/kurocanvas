@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import ProviderSettings, { type ActiveProviderConfig } from './ai/ProviderSettings';
 import MessageRenderer from './chat/MessageRenderer';
-import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, prepareLocalTinyModel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
+import { createConfiguredProvider, isLocalTinyModelPrepared, localModelReadinessLabel, providerReadinessLabel, prepareLocalTinyModel, LOCAL_TINY_BASE_URL, LOCAL_TINY_MODEL_URI } from './ai/providerFactory';
 import { conversationTranscriptFilename, formatConversationTranscript } from './chat/conversationExport';
 import { persistMessageRange } from './chat/messagePersistence';
 import { createBrowserSpeechRecognition, describeSpeechRecognitionError, shouldEndLiveSpeechSession, transcriptFromSpeechEvent, finalTranscriptFromSpeechEvent, type BrowserSpeechRecognition } from './ai/speechInput';
@@ -63,13 +63,39 @@ import { extractCreativeInfluenceResearch } from './research/inspirationResearch
 const RelationshipMemoryStudio = lazy(() => import('./canon/RelationshipMemoryStudio'));
 import { ArrowRight, BookOpen, Check, ChevronDown, CircleHelp, Clock3, ImagePlus, Search, Layers3, Library, MessageCircle, Mic, MicOff, MoreHorizontal, PenTool, Plus, Send, Settings2, Sparkles, WandSparkles, X } from 'lucide-react';
 type Mode='home'|'chat'|'canvas'|'live'|'read'|'research'|'vault'; type Msg={role:'user'|'kuro';text:string;tool?:string;references?:ReferenceSearchResult[];referenceProjectId?:string;researchTaskId?:string;researchProjectId?:string}; type RecentConversation={id:string;universeId:string;universeTitle:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
-type SafeProviderConfig={baseUrl:string;modelUri:string;allowInsecureLocalhost:boolean;supportsVision:boolean};
+type SafeProviderConfig={baseUrl:string;modelUri:string;allowInsecureLocalhost:boolean;supportsVision:boolean;allowRemoteData?:boolean};
 type ProposedDrawingPlan={id:string;drawingId:string;width:number;height:number;summary:string;commands:NativeDrawingCommand[];expectedDocumentSignature:string;expectedDocumentWasSaved:boolean};
 type PendingCharacterModelAction={id:string;projectId:string;summary:string;commands:CharacterModelAgentCommand[]};
 type LocalProjectChoice={id:string;name:string};
 type RecentUniverse={id:string;title:string;updatedAt:string;projectId:string;homeConversationId:string};
 
-function readProviderConfig(): SafeProviderConfig { const canonical={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false};try{const raw=localStorage.getItem('kuro-model-provider');if(raw!==JSON.stringify(canonical))localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));}catch{}return canonical; }
+function readProviderConfig(): SafeProviderConfig {
+ const canonical:SafeProviderConfig={baseUrl:LOCAL_TINY_BASE_URL,modelUri:LOCAL_TINY_MODEL_URI,allowInsecureLocalhost:false,supportsVision:false};
+ try {
+  const raw=localStorage.getItem('kuro-model-provider');
+  if(!raw){localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));return canonical;}
+  const parsed=JSON.parse(raw) as Partial<SafeProviderConfig>;
+  if(parsed.baseUrl===LOCAL_TINY_BASE_URL&&parsed.modelUri===LOCAL_TINY_MODEL_URI)return canonical;
+  if(parsed.allowRemoteData!==true||typeof parsed.baseUrl!=='string'||typeof parsed.modelUri!=='string'||!parsed.modelUri.trim())throw new Error('External provider is not explicitly enabled.');
+  const url=new URL(parsed.baseUrl.trim());
+  const host=url.hostname.toLowerCase();
+  const loopback=host==='localhost'||host==='127.0.0.1'||host==='[::1]';
+  const allowInsecureLocalhost=parsed.allowInsecureLocalhost===true&&loopback&&url.protocol==='http:';
+  if(url.protocol!=='https:'&&!allowInsecureLocalhost)throw new Error('External endpoint must use HTTPS.');
+  if(url.username||url.password||url.search||url.hash)throw new Error('External endpoint URL contains private or unsupported URL components.');
+  const path=url.pathname.toLowerCase().replace(/\/+$/,'');
+  if(path.endsWith('/models')||path.endsWith('/chat/completions'))throw new Error('External endpoint must be a base URL.');
+  let baseUrl=url.toString();
+  while(baseUrl.endsWith('/'))baseUrl=baseUrl.slice(0,-1);
+  const safe:SafeProviderConfig={baseUrl,modelUri:parsed.modelUri.trim(),allowInsecureLocalhost,supportsVision:parsed.supportsVision===true,allowRemoteData:true};
+  const safeJson=JSON.stringify(safe);
+  if(raw!==safeJson)localStorage.setItem('kuro-model-provider',safeJson);
+  return safe;
+ } catch {
+  try{localStorage.setItem('kuro-model-provider',JSON.stringify(canonical));}catch{}
+  return canonical;
+ }
+}
 function Mark(){return <div className="mark official-mark" aria-label="Kuro Canvas logo"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function TinyMark(){return <div className="tiny-mark" aria-label="Kuro"><img src={new URL('kuro-icon.webp', document.baseURI).href} alt=""/></div>}
 function restoreChatMessage(record:{role:string;content:string;metadata?:Record<string,unknown>},projectId:string):Msg{

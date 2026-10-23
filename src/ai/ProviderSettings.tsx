@@ -8,7 +8,7 @@ import { KURO_TINY_MODEL_DESCRIPTOR_ID } from "./localTinyModelConfig";
 import { KURO_FISH_VOICES, KURO_SPEECH_MODEL_ID, KURO_SPEECH_VOICES, prepareKuroVoice, readKuroSpeechPreferences, saveKuroSpeechPreferences, speakKuroVoice, type KuroSpeechEngine, type KuroSpeechPreferences } from "./kuroSpeech";
 
 export interface ActiveProviderConfig {
-  /** Kept as a compatibility shape for saved settings; Kuro currently accepts only the local model. */
+  /** Active local configuration or explicitly consented external provider settings. */
   baseUrl: string;
   modelUri: string;
   apiKey?: string;

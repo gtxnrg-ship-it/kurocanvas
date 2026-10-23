@@ -1,4 +1,6 @@
 export interface DrawingAssetOwnerReference {
+  /** Optional record identity retained for callers that already have one. */
+  id?: string;
   title: string;
   assetRefs: string[];
 }

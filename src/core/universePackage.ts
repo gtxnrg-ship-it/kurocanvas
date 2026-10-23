@@ -59,9 +59,10 @@ function remapKnownReference(value: string, recordMap: ReadonlyMap<string, strin
       const original = value.slice(prefix.length);
       const mapped = recordMap.get(original) ?? eventMap.get(original);
       if (mapped) return prefix + mapped;
+      throw new Error("The bundled character timeline references missing relationship history " + value + ".");
     }
   }
-  return value;
+  throw new Error("The bundled character timeline references missing relationship history " + value + ".");
 }
 
 /**
